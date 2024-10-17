@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	_ "github.com/k11v/brick/cmd/server/docs"
 	"github.com/k11v/brick/internal/postgresutil"
 	"github.com/k11v/brick/internal/server"
 )
