@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 // New returns a new HTTP server.
@@ -18,6 +19,9 @@ func New(cfg *Config, log *slog.Logger, _ *pgxpool.Pool) *http.Server {
 	subLogLogger := slog.NewLogLogger(subLogger.Handler(), slog.LevelError)
 
 	mux := http.NewServeMux()
+
+	// TODO: Don't register in production.
+	mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
 	return &http.Server{
 		Addr:              addr,

@@ -9,22 +9,34 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "contact": {},
+        "termsOfService": "http://brick.k11v.cc/terms",
+        "contact": {
+            "name": "Brick Support",
+            "url": "http://brick.k11v.cc/support"
+        },
+        "license": {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/MIT"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {}
+    "paths": {},
+    "externalDocs": {
+        "description": "Brick Docs",
+        "url": "https://brick.k11v.cc/docs"
+    }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
-	Host:             "",
-	BasePath:         "",
-	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Version:          "0.0",
+	Host:             "brick.k11v.cc",
+	BasePath:         "/api/v1",
+	Schemes:          []string{"https"},
+	Title:            "Brick API",
+	Description:      "Brick is a service that builds PDF files from Markdown files.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
