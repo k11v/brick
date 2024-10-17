@@ -13,6 +13,24 @@ import (
 	"github.com/k11v/brick/internal/server"
 )
 
+//	@title			Brick API
+//	@version		0.0
+//	@description	Brick is a service that builds PDF files from Markdown files.
+//	@termsOfService	http://brick.k11v.cc/terms
+
+//	@contact.name	Brick Support
+//	@contact.url	http://brick.k11v.cc/support
+
+//	@license.name	MIT License
+//	@license.url	https://opensource.org/licenses/MIT
+
+//	@externalDocs.description	Brick Docs
+//	@externalDocs.url			https://brick.k11v.cc/docs
+
+//	@host		brick.k11v.cc
+//	@BasePath	/api/v1
+//	@schemes	https
+
 func main() {
 	if err := run(os.Stdout, os.Environ()); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
