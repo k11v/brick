@@ -13,6 +13,8 @@ import (
 	"github.com/k11v/brick/internal/server"
 )
 
+//go:generate go run github.com/swaggo/swag/cmd/swag init -g main.go -o docs
+
 //	@title			Brick API
 //	@version		0.0
 //	@description	Brick is a service that builds PDF files from Markdown files.
