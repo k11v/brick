@@ -13,9 +13,15 @@ import (
 
 type Service struct{}
 
+type Build struct {
+	Done       bool
+	OutputFile []byte
+	Err        error
+}
+
 type CreateParams struct {
 	UserID         uuid.UUID
-	DocumentFiles  map[string][]byte
+	InputFiles     map[string][]byte
 	CacheKey       uuid.UUID
 	IdempotencyKey uuid.UUID
 }
@@ -34,8 +40,55 @@ func (s *Service) Create(createParams *CreateParams) (*CreateResult, error) {
 	// check limits for user ID || return error
 	// check cache key for user ID || return error
 	// select cached files from caches using cache key
-	// insert into builds (new UUID, new date, user ID, idempotency key, status, document files (T), cached files (T)) || return error
+	// insert into builds (new UUID, new date, user ID, idempotency key, status, input files (T), cached files (T)) || return error
 	// return build ID
+	panic("not implemented")
+}
+
+type GetParams struct {
+	ID uuid.UUID
+}
+
+func (s *Service) Get(getParams *GetParams) (*Build, error) {
+	// GET /builds/{id}
+	panic("not implemented")
+}
+
+type ListParams struct {
+	Filter    string
+	PageToken string // parsed as int, passed to OFFSET
+	PageSize  int    // zero value (0) means default, constrained, passed to LIMIT
+}
+
+type ListResult struct {
+	Builds        []*Build
+	NextPageToken string // zero value ("") means no more pages
+	TotalSize     int
+}
+
+func (s *Service) List(listParams *ListParams) (*ListResult, error) {
+	// GET /builds
+	panic("not implemented")
+}
+
+type CancelParams struct {
+	ID uuid.UUID
+}
+
+type CancelResult struct{}
+
+func (s *Service) Cancel(cancelParams *CancelParams) error {
+	// POST /builds/{id}/cancel
+	// Idempotency key is not used because the cancel operation is idempotent.
+	panic("not implemented")
+}
+
+type WaitParams struct {
+	Timeout time.Duration
+}
+
+func (s *Service) Wait(waitParams *WaitParams) (*Build, error) {
+	// POST /builds/{id}/wait
 	panic("not implemented")
 }
 
