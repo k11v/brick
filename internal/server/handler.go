@@ -12,13 +12,58 @@ type handler struct {
 
 func newHandler() *handler {
 	mux := http.NewServeMux()
+	h := &handler{mux: mux}
 
 	// TODO: Don't register in production.
 	mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
-	return &handler{mux: mux}
+	mux.HandleFunc("GET /health", h.GetHealth)
+
+	mux.HandleFunc("POST /builds", h.CreateBuild)
+	mux.HandleFunc("GET /builds/{id}", h.GetBuild)
+	mux.HandleFunc("GET /builds", h.ListBuilds)
+	mux.HandleFunc("POST /builds/{id}/cancel", h.CancelBuild)
+	mux.HandleFunc("POST /builds/{id}/wait", h.WaitForBuild)
+
+	mux.HandleFunc("GET /builds/limits", h.GetLimits)
+
+	mux.HandleFunc("DELETE /builds/caches/{key}", h.DeleteCache)
+
+	return h
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
+}
+
+func (h *handler) GetHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) CancelBuild(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) GetLimits(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) DeleteCache(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }
