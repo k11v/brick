@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -37,7 +38,17 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetHealth(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Status string `json:"status"`
+	}
+
+	resp := response{Status: "ok"}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
 }
 
 func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
