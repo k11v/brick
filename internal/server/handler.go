@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
@@ -48,11 +50,34 @@ func (h *handler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
 	}
 }
 
 func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
+	type request struct {
+		InputFiles map[string]string `json:"input_files"` // key is path, value is base64-encoded content
+		CacheKey   uuid.UUID         `json:"cache_key"`
+	}
+
+	type response struct {
+		BuildID uuid.UUID `json:"build_id"`
+	}
+
+	var req request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("request body has invalid JSON: %v", err), http.StatusUnprocessableEntity)
+		return
+	}
+
+	resp := response{BuildID: uuid.New()}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
