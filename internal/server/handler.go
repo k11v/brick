@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -65,6 +66,51 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		BuildID uuid.UUID `json:"build_id"`
 	}
 
+	// TODO: Make validation a part of parameter preparation for a service function.
+	// Validation would be happening parallel to parameter preparation.
+	// It would reduce redundant operations (e.g. repeated Base64 decodings).
+	// It should cover not only the request body but header and something else as well.
+	// It could also include the decoding JSON from r.Body.
+	// It should validate header before body to possibly even avoid reading the body.
+	// It could have a slice for validation errors that would be populated during preparation.
+
+	// Header
+
+	if len(r.Header.Values("Authorization")) == 0 {
+		http.Error(w, "missing request header Authorization", http.StatusUnprocessableEntity)
+		return
+	}
+	if len(r.Header.Values("Authorization")) > 1 {
+		http.Error(w, "invalid request header Authorization: multiple values", http.StatusUnprocessableEntity)
+		return
+	}
+	authorizationParts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+	if len(authorizationParts) == 0 {
+		http.Error(w, "empty request header Authorization", http.StatusUnprocessableEntity)
+		return
+	}
+	if got, want := authorizationParts[0], "Bearer"; strings.ToLower(got) != strings.ToLower(want) {
+		http.Error(w, fmt.Errorf("invalid request header Authorization: got scheme %s, want %s", got, want).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	// Token will be extracted, validated and used to derive userID.
+
+	if len(r.Header.Values("X-Idempotency-Key")) == 0 {
+		http.Error(w, "missing request header X-Idempotency-Key", http.StatusUnprocessableEntity)
+		return
+	}
+	if len(r.Header.Values("X-Idempotency-Key")) > 1 {
+		http.Error(w, "invalid request header X-Idempotency-Key: multiple values", http.StatusUnprocessableEntity)
+		return
+	}
+	_, err := uuid.Parse(r.Header.Get("X-Idempotency-Key"))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid request header X-Idempotency-Key: %w", err).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Body
+
 	var req request
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -73,17 +119,10 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dec.More() {
-		http.Error(w, "invalid request body: got >1 JSONs, want 1", http.StatusUnprocessableEntity)
+		http.Error(w, "invalid request body: multiple JSONs", http.StatusUnprocessableEntity)
 		return
 	}
 
-	// TODO: Make validation a part of parameter preparation for a service function.
-	// Validation would be happening parallel to parameter preparation.
-	// It would reduce redundant operations (e.g. repeated Base64 decodings).
-	// It should cover not only the request body but headers and other parts as well.
-	// It could also include the decoding JSON from r.Body.
-	// It should validate headers before body to possibly even avoid reading the body.
-	// It could have a slice for validation errors that would be populated during preparation.
 	if req.InputFiles == nil {
 		http.Error(w, "invalid request body: missing input_files", http.StatusUnprocessableEntity)
 		return
