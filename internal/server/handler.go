@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -76,6 +77,13 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: Make validation a part of parameter preparation for a service function.
+	// Validation would be happening parallel to parameter preparation.
+	// It would reduce redundant operations (e.g. repeated Base64 decodings).
+	// It should cover not only the request body but headers and other parts as well.
+	// It could also include the decoding JSON from r.Body.
+	// It should validate headers before body to possibly even avoid reading the body.
+	// It could have a slice for validation errors that would be populated during preparation.
 	if req.InputFiles == nil {
 		http.Error(w, "invalid request body: missing input_files", http.StatusUnprocessableEntity)
 		return
@@ -83,6 +91,16 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	if len(*req.InputFiles) == 0 {
 		http.Error(w, "invalid request body: empty input_files", http.StatusUnprocessableEntity)
 		return
+	}
+	for k, v := range *req.InputFiles {
+		if k == "" {
+			http.Error(w, "invalid request body: invalid input_files: a pair has empty key (file name)", http.StatusUnprocessableEntity)
+			return
+		}
+		if _, err := base64.StdEncoding.DecodeString(v); err != nil {
+			http.Error(w, fmt.Errorf("invalid request body: invalid input_files: a pair has invalid value (file content): %w", err).Error(), http.StatusUnprocessableEntity)
+			return
+		}
 	}
 	if req.CacheKey == nil {
 		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
