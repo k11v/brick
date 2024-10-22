@@ -56,8 +56,8 @@ func (h *handler) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	type request struct {
-		InputFiles map[string]string `json:"input_files"` // key is path, value is base64-encoded content
-		CacheKey   uuid.UUID         `json:"cache_key"`
+		InputFiles *map[string]string `json:"input_files"` // key is path, value is base64-encoded content
+		CacheKey   *uuid.UUID         `json:"cache_key"`
 	}
 
 	type response struct {
@@ -65,8 +65,27 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("request body has invalid JSON: %v", err), http.StatusUnprocessableEntity)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("invalid request body: %v", err), http.StatusUnprocessableEntity)
+		return
+	}
+	if dec.More() {
+		http.Error(w, "invalid request body: got >1 JSONs, want 1", http.StatusUnprocessableEntity)
+		return
+	}
+
+	if req.InputFiles == nil {
+		http.Error(w, "invalid request body: missing input_files", http.StatusUnprocessableEntity)
+		return
+	}
+	if len(*req.InputFiles) == 0 {
+		http.Error(w, "invalid request body: empty input_files", http.StatusUnprocessableEntity)
+		return
+	}
+	if req.CacheKey == nil {
+		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
 		return
 	}
 
