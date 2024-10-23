@@ -32,8 +32,6 @@ func newHandler() *handler {
 
 	mux.HandleFunc("GET /builds/limits", h.GetLimits)
 
-	mux.HandleFunc("DELETE /builds/caches/{key}", h.DeleteCache)
-
 	return h
 }
 
@@ -60,6 +58,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	type request struct {
 		InputFiles *map[string]string `json:"input_files"` // key is path, value is base64-encoded content
 		CacheKey   *uuid.UUID         `json:"cache_key"`
+		Force      *bool              `json:"force"`
 	}
 
 	type response struct {
@@ -123,16 +122,20 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Force == nil {
+		http.Error(w, "invalid request body: missing force", http.StatusUnprocessableEntity)
+		return
+	}
+	if req.CacheKey == nil {
+		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
+		return
+	}
 	if req.InputFiles == nil {
 		http.Error(w, "invalid request body: missing input_files", http.StatusUnprocessableEntity)
 		return
 	}
 	if len(*req.InputFiles) == 0 {
 		http.Error(w, "invalid request body: empty input_files", http.StatusUnprocessableEntity)
-		return
-	}
-	if req.CacheKey == nil {
-		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
 		return
 	}
 	for k, v := range *req.InputFiles {
@@ -173,9 +176,5 @@ func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetLimits(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-}
-
-func (h *handler) DeleteCache(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
