@@ -131,6 +131,10 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body: empty input_files", http.StatusUnprocessableEntity)
 		return
 	}
+	if req.CacheKey == nil {
+		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
+		return
+	}
 	for k, v := range *req.InputFiles {
 		if k == "" {
 			http.Error(w, "invalid request body: invalid input_files: a pair has empty key (file path)", http.StatusUnprocessableEntity)
@@ -140,10 +144,6 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Errorf("invalid request body: invalid input_files: a pair has invalid value (file content): %w", err).Error(), http.StatusUnprocessableEntity)
 			return
 		}
-	}
-	if req.CacheKey == nil {
-		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
-		return
 	}
 
 	resp := response{BuildID: uuid.New()}
