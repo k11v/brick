@@ -133,7 +133,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	for k, v := range *req.InputFiles {
 		if k == "" {
-			http.Error(w, "invalid request body: invalid input_files: a pair has empty key (file name)", http.StatusUnprocessableEntity)
+			http.Error(w, "invalid request body: invalid input_files: a pair has empty key (file path)", http.StatusUnprocessableEntity)
 			return
 		}
 		if _, err := base64.StdEncoding.DecodeString(v); err != nil {
