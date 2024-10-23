@@ -119,7 +119,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dec.More() {
-		http.Error(w, "invalid request body: multiple JSONs", http.StatusUnprocessableEntity)
+		http.Error(w, "invalid request body: multiple top-level values", http.StatusUnprocessableEntity)
 		return
 	}
 
