@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -178,7 +180,7 @@ func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = userID
 
-	resp := Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil}
+	resp := Build{ID: id, Done: false, OutputFile: nil, Error: nil}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -189,7 +191,73 @@ func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Builds []*Build
+		NextPageToken string
+		TotalSize int
+	}
+
+	// invalidate request with unknown query values?
+	// invalidate request with unexpected multiple query values with the same key?
+
+	queryValues, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid request query string: %w", err).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Query value filter.
+	const queryValueFilter = "filter"
+	filter := queryValues.Get(queryValueFilter)
+	_ = filter
+
+	// Query value page_token.
+	// If the page_token is "", the server will return the first page.
+	const queryValuePageToken = "page_token"
+	pageToken := queryValues.Get(queryValuePageToken)
+	_ = pageToken
+
+	// Query value page_size.
+	// If the page_size is 0, the server will decide the number of results to be returned.
+	const queryValuePageSize = "page_size"
+	pageSize := 0
+	if queryValues.Has(queryValuePageSize) {
+		pageSize, err = strconv.Atoi(queryValues.Get(queryValuePageSize))
+		if err != nil {
+			http.Error(w, fmt.Errorf("invalid %q request query value: %w", queryValuePageSize, err).Error(), http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	_ = pageSize
+
+	// Header Authorization
+	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	userID, err := userIDFromAuthorizationHeader(r.Header.Get(headerAuthorization))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", headerAuthorization, err).Error(), http.StatusUnauthorized)
+		return
+	}
+	_ = userID
+
+	resp := response{
+		Builds: []*Build{
+			&Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
+			&Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
+			&Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
+		},
+		NextPageToken: "3",
+		TotalSize: 7,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *handler) CancelBuild(w http.ResponseWriter, r *http.Request) {
