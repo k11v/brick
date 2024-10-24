@@ -154,8 +154,52 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type Build struct {
+	ID         uuid.UUID `json:"id"`
+	Done       bool      `json:"done"`
+	OutputFile *[]byte   `json:"output_file,omitempty"`
+	Error      *string   `json:"error,omitempty"`
+}
+
 func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
+	// Path
+
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid request path value id: %w", err).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	_ = id
+
+	// Header
+
+	if len(r.Header.Values("Authorization")) == 0 {
+		http.Error(w, "missing request header Authorization", http.StatusUnprocessableEntity)
+		return
+	}
+	if len(r.Header.Values("Authorization")) > 1 {
+		http.Error(w, "invalid request header Authorization: multiple values", http.StatusUnprocessableEntity)
+		return
+	}
+	authorizationParts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+	if len(authorizationParts) == 0 {
+		http.Error(w, "empty request header Authorization", http.StatusUnprocessableEntity)
+		return
+	}
+	if got, want := authorizationParts[0], "Bearer"; strings.ToLower(got) != strings.ToLower(want) {
+		http.Error(w, fmt.Errorf("invalid request header Authorization: got scheme %s, want %s", got, want).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	// Token will be extracted, validated and used to derive userID.
+
+	resp := Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
