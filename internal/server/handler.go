@@ -78,7 +78,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 
 	type response = Build
 
-	// Header Authorization
+	// Header Authorization.
 	if err := checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -90,7 +90,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = userID
 
-	// Header X-Idempotency-Key
+	// Header X-Idempotency-Key.
 	if err := checkHeaderCountIsOne(r.Header, headerXIdempotencyKey); err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
@@ -114,19 +114,19 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Body field force
+	// Body field force.
 	if req.Force == nil {
 		http.Error(w, "invalid request body: missing force", http.StatusUnprocessableEntity)
 		return
 	}
 
-	// Body field cache_key
+	// Body field cache_key.
 	if req.CacheKey == nil {
 		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
 		return
 	}
 
-	// Body field input_files
+	// Body field input_files.
 	if req.InputFiles == nil {
 		http.Error(w, "invalid request body: missing input_files", http.StatusUnprocessableEntity)
 		return
@@ -147,6 +147,8 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		// FIXME: http.Error wouldn't get a chance to change the headers and status code
+		// because of http.ResponseWriter.WriteHeader call earlier.
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -155,7 +157,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
 	type response = Build
 
-	// Path value id
+	// Path value id.
 	const pathValueID = "id"
 	id, err := uuid.Parse(r.PathValue(pathValueID))
 	if err != nil {
@@ -164,7 +166,7 @@ func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = id
 
-	// Header Authorization
+	// Header Authorization.
 	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -223,7 +225,7 @@ func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = pageSize
 
-	// Header Authorization
+	// Header Authorization.
 	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -254,7 +256,7 @@ func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) CancelBuild(w http.ResponseWriter, r *http.Request) {
-	// Path value id
+	// Path value id.
 	const pathValueID = "id"
 	id, err := uuid.Parse(r.PathValue(pathValueID))
 	if err != nil {
@@ -263,7 +265,7 @@ func (h *handler) CancelBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = id
 
-	// Header Authorization
+	// Header Authorization.
 	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -281,7 +283,7 @@ func (h *handler) CancelBuild(w http.ResponseWriter, r *http.Request) {
 func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
 	type response = Build
 
-	// Path value id
+	// Path value id.
 	const pathValueID = "id"
 	id, err := uuid.Parse(r.PathValue(pathValueID))
 	if err != nil {
@@ -309,7 +311,7 @@ func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = timeout
 
-	// Header Authorization
+	// Header Authorization.
 	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -338,7 +340,7 @@ func (h *handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 		ResetsAt      time.Time
 	}
 
-	// Header Authorization
+	// Header Authorization.
 	if err := checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
