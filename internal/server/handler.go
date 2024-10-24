@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -56,7 +55,7 @@ func (h *handler) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	type request struct {
-		InputFiles *map[string]string `json:"input_files"` // key is path, value is base64-encoded content
+		InputFiles *map[string][]byte `json:"input_files"` // key is path, value is content (decoded from base64)
 		CacheKey   *uuid.UUID         `json:"cache_key"`
 		Force      *bool              `json:"force"`
 	}
@@ -138,13 +137,9 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body: empty input_files", http.StatusUnprocessableEntity)
 		return
 	}
-	for k, v := range *req.InputFiles {
+	for k := range *req.InputFiles {
 		if k == "" {
 			http.Error(w, "invalid request body: invalid input_files: a pair has empty key (file path)", http.StatusUnprocessableEntity)
-			return
-		}
-		if _, err := base64.StdEncoding.DecodeString(v); err != nil {
-			http.Error(w, fmt.Errorf("invalid request body: invalid input_files: a pair has invalid value (file content): %w", err).Error(), http.StatusUnprocessableEntity)
 			return
 		}
 	}
