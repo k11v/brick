@@ -36,7 +36,7 @@ func newHandler() *handler {
 	mux.HandleFunc("GET /builds/{id}", h.GetBuild)
 	mux.HandleFunc("GET /builds", h.ListBuilds)
 	mux.HandleFunc("POST /builds/{id}/cancel", h.CancelBuild)
-	mux.HandleFunc("POST /builds/{id}/wait", h.WaitForBuild)
+	mux.HandleFunc("GET /builds/{id}/wait", h.WaitForBuild)
 
 	mux.HandleFunc("GET /builds/limits", h.GetLimits)
 
