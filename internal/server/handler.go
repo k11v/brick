@@ -19,6 +19,13 @@ const (
 	headerXIdempotencyKey = "X-Idempotency-Key"
 )
 
+type Build struct {
+	ID         uuid.UUID `json:"id"`
+	Done       bool      `json:"done"`
+	OutputFile *[]byte   `json:"output_file,omitempty"`
+	Error      *string   `json:"error,omitempty"`
+}
+
 type handler struct {
 	mux *http.ServeMux
 }
@@ -69,17 +76,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		Force      *bool              `json:"force"`
 	}
 
-	type response struct {
-		BuildID uuid.UUID `json:"build_id"`
-	}
-
-	// TODO: Make validation a part of parameter preparation for a service function.
-	// Validation would be happening parallel to parameter preparation.
-	// It would reduce redundant operations (e.g. repeated Base64 decodings).
-	// It should cover not only the request body but header and something else as well.
-	// It could also include the decoding JSON from r.Body.
-	// It should validate header before body to possibly even avoid reading the body.
-	// It could have a slice for validation errors that would be populated during preparation.
+	type response = Build
 
 	// Header Authorization
 	if err := checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
@@ -105,8 +102,6 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = idempotencyKey
 
-	// Body
-
 	var req request
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -119,14 +114,19 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Body field force
 	if req.Force == nil {
 		http.Error(w, "invalid request body: missing force", http.StatusUnprocessableEntity)
 		return
 	}
+
+	// Body field cache_key
 	if req.CacheKey == nil {
 		http.Error(w, "invalid request body: missing cache_key", http.StatusUnprocessableEntity)
 		return
 	}
+
+	// Body field input_files
 	if req.InputFiles == nil {
 		http.Error(w, "invalid request body: missing input_files", http.StatusUnprocessableEntity)
 		return
@@ -142,7 +142,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := response{BuildID: uuid.New()}
+	resp := response{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -152,14 +152,9 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type Build struct {
-	ID         uuid.UUID `json:"id"`
-	Done       bool      `json:"done"`
-	OutputFile *[]byte   `json:"output_file,omitempty"`
-	Error      *string   `json:"error,omitempty"`
-}
-
 func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
+	type response = Build
+
 	// Path value id
 	const pathValueID = "id"
 	id, err := uuid.Parse(r.PathValue(pathValueID))
@@ -181,7 +176,7 @@ func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = userID
 
-	resp := Build{ID: id, Done: false, OutputFile: nil, Error: nil}
+	resp := response{ID: id, Done: false, OutputFile: nil, Error: nil}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -197,9 +192,6 @@ func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
 		NextPageToken string
 		TotalSize     int
 	}
-
-	// invalidate request with unknown query values?
-	// invalidate request with unexpected multiple query values with the same key?
 
 	queryValues, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
@@ -287,6 +279,8 @@ func (h *handler) CancelBuild(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
+	type response = Build
+
 	// Path value id
 	const pathValueID = "id"
 	id, err := uuid.Parse(r.PathValue(pathValueID))
@@ -327,7 +321,7 @@ func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = userID
 
-	resp := Build{ID: id, Done: false, OutputFile: nil, Error: nil}
+	resp := response{ID: id, Done: false, OutputFile: nil, Error: nil}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
