@@ -157,17 +157,16 @@ type Build struct {
 }
 
 func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
-	// Path
-
-	id, err := uuid.Parse(r.PathValue("id"))
+	// Path value id
+	const pathValueID = "id"
+	id, err := uuid.Parse(r.PathValue(pathValueID))
 	if err != nil {
-		http.Error(w, fmt.Errorf("invalid request path value id: %w", err).Error(), http.StatusUnprocessableEntity)
+		http.Error(w, fmt.Errorf("invalid %q request path value: %w", pathValueID, err).Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	_ = id
 
-	// Header
-
+	// Header Authorization
 	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
