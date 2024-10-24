@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -192,9 +193,9 @@ func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
 	type response struct {
-		Builds []*Build
+		Builds        []*Build
 		NextPageToken string
-		TotalSize int
+		TotalSize     int
 	}
 
 	// invalidate request with unknown query values?
@@ -244,12 +245,12 @@ func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
 
 	resp := response{
 		Builds: []*Build{
-			&Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
-			&Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
-			&Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
+			{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
+			{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
+			{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil},
 		},
 		NextPageToken: "3",
-		TotalSize: 7,
+		TotalSize:     7,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -261,15 +262,108 @@ func (h *handler) ListBuilds(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) CancelBuild(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	// Path value id
+	const pathValueID = "id"
+	id, err := uuid.Parse(r.PathValue(pathValueID))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %q request path value: %w", pathValueID, err).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	_ = id
+
+	// Header Authorization
+	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	userID, err := userIDFromAuthorizationHeader(r.Header.Get(headerAuthorization))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", headerAuthorization, err).Error(), http.StatusUnauthorized)
+		return
+	}
+	_ = userID
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
+	// Path value id
+	const pathValueID = "id"
+	id, err := uuid.Parse(r.PathValue(pathValueID))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %q request path value: %w", pathValueID, err).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	_ = id
+
+	queryValues, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid request query string: %w", err).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Query value timeout.
+	// TODO: Maybe add a min check.
+	const queryValueTimeout = "timeout"
+	timeout := time.Duration(0)
+	if queryValues.Has(queryValueTimeout) {
+		timeout, err = time.ParseDuration(queryValues.Get(queryValueTimeout))
+		if err != nil {
+			http.Error(w, fmt.Errorf("invalid %q request query value: %w", queryValueTimeout, err).Error(), http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	_ = timeout
+
+	// Header Authorization
+	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	userID, err := userIDFromAuthorizationHeader(r.Header.Get(headerAuthorization))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", headerAuthorization, err).Error(), http.StatusUnauthorized)
+		return
+	}
+	_ = userID
+
+	resp := Build{ID: id, Done: false, OutputFile: nil, Error: nil}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *handler) GetLimits(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		BuildsUsed    int
+		BuildsAllowed int
+		ResetsAt      time.Time
+	}
+
+	// Header Authorization
+	if err := checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	userID, err := userIDFromAuthorizationHeader(r.Header.Get(headerAuthorization))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", headerAuthorization, err).Error(), http.StatusUnauthorized)
+		return
+	}
+	_ = userID
+
+	resp := response{BuildsUsed: 7, BuildsAllowed: 10, ResetsAt: time.Now().UTC().Add(time.Duration(24)*time.Hour)}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func checkHeaderCountIsOne(header http.Header, key string) error {
