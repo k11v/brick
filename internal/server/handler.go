@@ -2,12 +2,18 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+)
+
+const (
+	headerAuthorization   = "Authorization"
+	headerXIdempotencyKey = "X-Idempotency-Key"
 )
 
 type handler struct {
@@ -72,40 +78,29 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	// It should validate header before body to possibly even avoid reading the body.
 	// It could have a slice for validation errors that would be populated during preparation.
 
-	// Header
-
-	if len(r.Header.Values("Authorization")) == 0 {
-		http.Error(w, "missing request header Authorization", http.StatusUnprocessableEntity)
+	// Header Authorization
+	if err := checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	if len(r.Header.Values("Authorization")) > 1 {
-		http.Error(w, "invalid request header Authorization: multiple values", http.StatusUnprocessableEntity)
-		return
-	}
-	authorizationParts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
-	if len(authorizationParts) == 0 {
-		http.Error(w, "empty request header Authorization", http.StatusUnprocessableEntity)
-		return
-	}
-	if got, want := authorizationParts[0], "Bearer"; strings.ToLower(got) != strings.ToLower(want) {
-		http.Error(w, fmt.Errorf("invalid request header Authorization: got scheme %s, want %s", got, want).Error(), http.StatusUnprocessableEntity)
-		return
-	}
-	// Token will be extracted, validated and used to derive userID.
-
-	if len(r.Header.Values("X-Idempotency-Key")) == 0 {
-		http.Error(w, "missing request header X-Idempotency-Key", http.StatusUnprocessableEntity)
-		return
-	}
-	if len(r.Header.Values("X-Idempotency-Key")) > 1 {
-		http.Error(w, "invalid request header X-Idempotency-Key: multiple values", http.StatusUnprocessableEntity)
-		return
-	}
-	_, err := uuid.Parse(r.Header.Get("X-Idempotency-Key"))
+	userID, err := userIDFromAuthorizationHeader(r.Header.Get(headerAuthorization))
 	if err != nil {
-		http.Error(w, fmt.Errorf("invalid request header X-Idempotency-Key: %w", err).Error(), http.StatusUnprocessableEntity)
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", headerAuthorization, err).Error(), http.StatusUnauthorized)
 		return
 	}
+	_ = userID
+
+	// Header X-Idempotency-Key
+	if err := checkHeaderCountIsOne(r.Header, headerXIdempotencyKey); err != nil {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	idempotencyKey, err := uuid.Parse(r.Header.Get(headerXIdempotencyKey))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", err).Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	_ = idempotencyKey
 
 	// Body
 
@@ -173,24 +168,16 @@ func (h *handler) GetBuild(w http.ResponseWriter, r *http.Request) {
 
 	// Header
 
-	if len(r.Header.Values("Authorization")) == 0 {
-		http.Error(w, "missing request header Authorization", http.StatusUnprocessableEntity)
+	if err = checkHeaderCountIsOne(r.Header, headerAuthorization); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	if len(r.Header.Values("Authorization")) > 1 {
-		http.Error(w, "invalid request header Authorization: multiple values", http.StatusUnprocessableEntity)
+	userID, err := userIDFromAuthorizationHeader(r.Header.Get(headerAuthorization))
+	if err != nil {
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", headerAuthorization, err).Error(), http.StatusUnauthorized)
 		return
 	}
-	authorizationParts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
-	if len(authorizationParts) == 0 {
-		http.Error(w, "empty request header Authorization", http.StatusUnprocessableEntity)
-		return
-	}
-	if got, want := authorizationParts[0], "Bearer"; strings.ToLower(got) != strings.ToLower(want) {
-		http.Error(w, fmt.Errorf("invalid request header Authorization: got scheme %s, want %s", got, want).Error(), http.StatusUnprocessableEntity)
-		return
-	}
-	// Token will be extracted, validated and used to derive userID.
+	_ = userID
 
 	resp := Build{ID: uuid.New(), Done: false, OutputFile: nil, Error: nil}
 
@@ -216,4 +203,37 @@ func (h *handler) WaitForBuild(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+func checkHeaderCountIsOne(header http.Header, key string) error {
+	if got, want := len(header.Values(key)), 1; got != want {
+		if got == 0 {
+			return fmt.Errorf("missing %s request header", key)
+		} else {
+			return fmt.Errorf("multiple %s request headers", key)
+		}
+	}
+	return nil
+}
+
+// userIDFromAuthorizationHeader.
+// It doesn't check for missing header or multiple headers.
+func userIDFromAuthorizationHeader(h string) (uuid.UUID, error) {
+	scheme, params, _ := strings.Cut(h, " ")
+
+	if scheme == "" {
+		return uuid.UUID{}, errors.New("no scheme")
+	}
+
+	if got, want := scheme, "Bearer"; strings.ToLower(got) != strings.ToLower(want) {
+		return uuid.UUID{}, fmt.Errorf("got unsupported scheme %q, want %q", got, want)
+	}
+
+	// TODO: Replace mock token handling with real.
+	userID, err := uuid.Parse(params)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("invalid token: %w", err)
+	}
+
+	return userID, nil
 }
