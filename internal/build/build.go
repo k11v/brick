@@ -6,31 +6,24 @@ import (
 	"github.com/google/uuid"
 )
 
-// cache can be invalidated manually using cache key.
-// cache can be invalidated automatically when too much time passed.
-// cache can be invalidated automatically when too much space used.
-// when cache is invalidated, it is deleted.
+type Build struct {
+	Done             bool
+	Error            error
+	ID               uuid.UUID
+	NextContextToken string
+	OutputFile       []byte
+}
 
 type Service struct{}
 
-type Build struct {
-	Done       bool
-	OutputFile []byte
-	Err        error
-}
-
-type CreateParams struct {
-	UserID         uuid.UUID
-	InputFiles     map[string][]byte
-	CacheKey       uuid.UUID
+type CreateBuildParams struct {
+	ContextFiles   map[string][]byte
+	ContextToken   string
 	IdempotencyKey uuid.UUID
+	UserID         uuid.UUID
 }
 
-type CreateResult struct {
-	BuildID uuid.UUID
-}
-
-func (s *Service) Create(createParams *CreateParams) (*CreateResult, error) {
+func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, error) {
 	// POST /builds
 	//
 	// IdempotencyKey will be read from X-Idempotency-Key header field.
@@ -42,82 +35,83 @@ func (s *Service) Create(createParams *CreateParams) (*CreateResult, error) {
 	// select cached files from caches using cache key
 	// insert into builds (new UUID, new date, user ID, idempotency key, status, input files (T), cached files (T)) || return error
 	// return build ID
+	//
+	// Regarding late force: DELETE /caches/{cache-key}
+	// check cache key for user ID || return error
+	// delete from caches using cache key || return error (endpoint should return 404 if not found)
+	// return nil (endpoint should return 201 if found and deleted)
+	//
+	// Regarding late cache: cache can be invalidated manually using cache key.
+	// Cache can be invalidated automatically when too much time passed.
+	// Cache can be invalidated automatically when too much space used.
+	// When cache is invalidated, it is deleted.
 	panic("not implemented")
 }
 
-type GetParams struct {
-	ID uuid.UUID
+type GetBuildParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
 }
 
-func (s *Service) Get(getParams *GetParams) (*Build, error) {
+func (s *Service) GetBuild(getBuildParams *GetBuildParams) (*Build, error) {
 	// GET /builds/{id}
 	panic("not implemented")
 }
 
-type ListParams struct {
-	Filter    string
-	PageToken string // parsed as int, passed to OFFSET
-	PageSize  int    // zero value (0) means default, constrained, passed to LIMIT
+// TODO: maybe use context.
+type GetBuildWithTimeout struct {
+	ID      uuid.UUID
+	Timeout time.Duration
+	UserID  uuid.UUID
 }
 
-type ListResult struct {
+func (s *Service) GetBuildWithTimeout(getBuildWithTimeoutParams *GetBuildWithTimeout) (*Build, error) {
+	// POST /builds/{id}/wait
+	panic("not implemented")
+}
+
+type ListBuildsParams struct {
+	Filter    string
+	PageSize  int    // zero value (0) means default, constrained, passed to LIMIT
+	PageToken string // parsed as int, passed to OFFSET
+	UserID    uuid.UUID
+}
+
+type ListBuildsResult struct {
 	Builds        []*Build
 	NextPageToken string // zero value ("") means no more pages
 	TotalSize     int
 }
 
-func (s *Service) List(listParams *ListParams) (*ListResult, error) {
+func (s *Service) ListBuilds(listBuildsParams *ListBuildsParams) (*ListBuildsResult, error) {
 	// GET /builds
 	panic("not implemented")
 }
 
-type CancelParams struct {
-	ID uuid.UUID
+type CancelBuildParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
 }
 
-type CancelResult struct{}
-
-func (s *Service) Cancel(cancelParams *CancelParams) error {
+func (s *Service) CancelBuild(cancelBuildParams *CancelBuildParams) error {
 	// POST /builds/{id}/cancel
 	// Idempotency key is not used because the cancel operation is idempotent.
 	panic("not implemented")
 }
 
-type WaitParams struct {
-	Timeout time.Duration
-}
-
-func (s *Service) Wait(waitParams *WaitParams) (*Build, error) {
-	// POST /builds/{id}/wait
-	panic("not implemented")
-}
-
-type LimitsParams struct {
+type GetLimitsParams struct {
 	UserID uuid.UUID
 }
 
-type LimitsResult struct {
-	BuildsUsed    int
+type GetLimitsResult struct {
 	BuildsAllowed int
+	BuildsUsed    int
 	ResetsAt      time.Time
 }
 
-func (s *Service) Limits(limitsParams *LimitsParams) (*LimitsResult, error) {
+func (s *Service) GetLimits(getLimitsParams *GetLimitsParams) (*GetLimitsResult, error) {
 	// GET /builds/limits
 	// get limits for user ID
 	// return builds used, builds allowed and resets at
-	panic("not implemented")
-}
-
-type DeleteCacheParams struct {
-	UserID   uuid.UUID
-	CacheKey uuid.UUID
-}
-
-func (s *Service) DeleteCache(deleteCacheParams *DeleteCacheParams) error {
-	// DELETE /caches/{cache-key}
-	// check cache key for user ID || return error
-	// delete from caches using cache key || return error (endpoint should return 404 if not found)
-	// return nil (endpoint should return 201 if found and deleted)
 	panic("not implemented")
 }
