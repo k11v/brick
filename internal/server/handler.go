@@ -97,7 +97,7 @@ func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
 	}
 	idempotencyKey, err := uuid.Parse(r.Header.Get(headerXIdempotencyKey))
 	if err != nil {
-		http.Error(w, fmt.Errorf("invalid %s request header: %w", err).Error(), http.StatusUnprocessableEntity)
+		http.Error(w, fmt.Errorf("invalid %s request header: %w", headerXIdempotencyKey, err).Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	_ = idempotencyKey
