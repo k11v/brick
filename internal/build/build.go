@@ -25,7 +25,13 @@ type CreateBuildParams struct {
 }
 
 func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, error) {
-	panic("not implemented")
+	return &Build{
+		Done:             false,
+		Error:            nil,
+		ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+		NextContextToken: "",
+		OutputFile:       nil,
+	}, nil
 }
 
 type GetBuildParams struct {
