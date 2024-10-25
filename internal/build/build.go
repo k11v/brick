@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// TODO: add Build.CreatedAt.
 type Build struct {
 	Done             bool
 	Error            error
