@@ -15,7 +15,20 @@ type Build struct {
 	OutputFile       []byte
 }
 
-type Service struct{}
+type Database interface {
+}
+
+type Storage interface {
+}
+
+type Broker interface {
+}
+
+type Service struct{
+	Database Database
+	Storage Storage
+	Broker Broker
+}
 
 type CreateBuildParams struct {
 	ContextToken   string
