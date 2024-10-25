@@ -18,8 +18,8 @@ type Build struct {
 type Service struct{}
 
 type CreateBuildParams struct {
-	ContextFiles   map[string][]byte
 	ContextToken   string
+	DocumentFiles  map[string][]byte
 	IdempotencyKey uuid.UUID
 	UserID         uuid.UUID
 }
