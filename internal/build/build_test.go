@@ -4,17 +4,35 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // TODO: Add t.Parallel().
 func TestServiceCreateBuild(t *testing.T) {
 	tests := []struct {
-		name string
+		name              string
 		createBuildParams *CreateBuildParams
 		want              *Build
 		wantErr           error
 	}{
-		{"...", nil, nil, nil},
+		{
+			"creates a build",
+			&CreateBuildParams{
+				ContextToken:   "",
+				DocumentFiles:  make(map[string][]byte),
+				IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
+				UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+			},
+			&Build{
+				Done:             false,
+				Error:            nil,
+				ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+				NextContextToken: "",
+				OutputFile:       nil,
+			},
+			nil,
+		},
 	}
 
 	for _, tt := range tests {
