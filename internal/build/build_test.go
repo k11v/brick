@@ -34,6 +34,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		createBuildParams *CreateBuildParams
 		want              *Build
 		wantErr           error
+		config            *Config
 		mockDatabase      *MockDatabase
 	}{
 		{
@@ -52,6 +53,9 @@ func TestServiceCreateBuild(t *testing.T) {
 				OutputFile:       nil,
 			},
 			nil,
+			&Config{
+				BuildsAllowed: 10,
+			},
 			&MockDatabase{
 				TransactWithUserFunc: func(userID uuid.UUID) (database Database, commit func() error, rollback func() error, err error) {
 					return &MockDatabase{
@@ -75,7 +79,7 @@ func TestServiceCreateBuild(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewService(tt.mockDatabase, 0, 0)
+			service := NewService(tt.config, tt.mockDatabase, 0, 0)
 			got, gotErr := service.CreateBuild(tt.createBuildParams)
 			want, wantErr := tt.want, tt.wantErr
 			if !reflect.DeepEqual(got, want) || !errors.Is(gotErr, wantErr) {
