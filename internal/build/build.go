@@ -1,10 +1,13 @@
 package build
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrLimitExceeded = errors.New("limit exceeded")
 
 // TODO: add Build.CreatedAt.
 type Build struct {
@@ -16,18 +19,23 @@ type Build struct {
 }
 
 type Database interface {
+	TransactWithUser(userID uuid.UUID) (database Database, commit func() error, rollback func() error, err error)
+	GetBuildCount(userID uuid.UUID, startTime time.Time, endTime time.Time) (int, error)
+	CreateBuild(contextToken string, documentFiles map[string][]byte, idempotencyKey uuid.UUID, userID uuid.UUID) (*Build, error)
 }
 
-type Storage interface {
+type Storage interface{}
+
+type Broker interface{}
+
+type Service struct {
+	database Database // required
+	storage  Storage  // required
+	broker   Broker   // required
 }
 
-type Broker interface {
-}
-
-type Service struct{
-	Database Database
-	Storage Storage
-	Broker Broker
+func NewService(database Database, storage Storage, broker Broker) Service {
+	return Service{database: database, storage: storage, broker: broker}
 }
 
 type CreateBuildParams struct {
@@ -38,13 +46,37 @@ type CreateBuildParams struct {
 }
 
 func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, error) {
-	return &Build{
-		Done:             false,
-		Error:            nil,
-		ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-		NextContextToken: "",
-		OutputFile:       nil,
-	}, nil
+	database, commit, rollback, err := s.database.TransactWithUser(createBuildParams.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
+	startTime := time.Now().Truncate(24 * time.Hour)
+	endTime := startTime.Add(24 * time.Hour)
+
+	used, err := database.GetBuildCount(createBuildParams.UserID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	allowed := 10
+	if used >= allowed {
+		return nil, ErrLimitExceeded
+	}
+
+	b, err := database.CreateBuild(
+		createBuildParams.ContextToken,
+		createBuildParams.DocumentFiles,
+		createBuildParams.IdempotencyKey,
+		createBuildParams.UserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	commit()
+	return b, nil
 }
 
 type GetBuildParams struct {
