@@ -28,14 +28,19 @@ type Storage interface{}
 
 type Broker interface{}
 
+type Config struct {
+	BuildsAllowed int
+}
+
 type Service struct {
+	config   *Config  // required
 	database Database // required
 	storage  Storage  // required
 	broker   Broker   // required
 }
 
-func NewService(database Database, storage Storage, broker Broker) Service {
-	return Service{database: database, storage: storage, broker: broker}
+func NewService(config *Config, database Database, storage Storage, broker Broker) Service {
+	return Service{config: config, database: database, storage: storage, broker: broker}
 }
 
 type CreateBuildParams struct {
@@ -60,8 +65,7 @@ func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, err
 		return nil, err
 	}
 
-	allowed := 10
-	if used >= allowed {
+	if used >= s.config.BuildsAllowed {
 		return nil, ErrLimitExceeded
 	}
 
