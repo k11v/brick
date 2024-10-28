@@ -57,7 +57,7 @@ func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, err
 	}
 	defer rollback()
 
-	startTime := time.Now().Truncate(24 * time.Hour)
+	startTime := time.Now().UTC().Truncate(24 * time.Hour)
 	endTime := startTime.Add(24 * time.Hour)
 
 	used, err := database.GetBuildCount(createBuildParams.UserID, startTime, endTime)
