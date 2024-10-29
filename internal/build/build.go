@@ -19,9 +19,58 @@ type Build struct {
 }
 
 type Database interface {
-	TransactWithUser(userID uuid.UUID) (database Database, commit func() error, rollback func() error, err error)
-	GetBuildCount(userID uuid.UUID, startTime time.Time, endTime time.Time) (int, error)
-	CreateBuild(contextToken string, documentFiles map[string][]byte, idempotencyKey uuid.UUID, userID uuid.UUID) (*Build, error)
+	Begin() (tx Database, commit func() error, rollback func() error, err error)
+	LockUser(params *DatabaseLockUserParams) error
+	GetBuildCount(params *DatabaseGetBuildCountParams) (int, error)
+	CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error)
+	GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error)
+	ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error)
+}
+
+type DatabaseBuild struct {
+	Done             bool
+	Error            error
+	ID               uuid.UUID
+	NextContextToken string
+	OutputFile       []byte
+}
+
+type DatabaseLockUserParams struct {
+	UserID uuid.UUID
+}
+
+type DatabaseGetBuildCountParams struct {
+	EndTime   time.Time
+	StartTime time.Time
+	UserID    uuid.UUID
+}
+
+type DatabaseGetBuildCountResult struct {
+	Count int
+}
+
+type DatabaseCreateBuildParams struct {
+	ContextToken   string
+	DocumentFiles  map[string][]byte
+	IdempotencyKey uuid.UUID
+	UserID         uuid.UUID
+}
+
+type DatabaseGetBuildParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+type DatabaseListBuildsParams struct {
+	PageLimit  int
+	PageOffset int
+	UserID     uuid.UUID
+}
+
+type DatabaseListBuildsResult struct {
+	Builds         []*DatabaseBuild
+	NextPageOffset *int // zero value (nil) means no more pages
+	TotalSize      int
 }
 
 type Storage interface{}
@@ -51,16 +100,24 @@ type CreateBuildParams struct {
 }
 
 func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, error) {
-	database, commit, rollback, err := s.database.TransactWithUser(createBuildParams.UserID)
+	tx, commit, rollback, err := s.database.Begin()
 	if err != nil {
 		return nil, err
 	}
 	defer rollback()
 
+	if err = tx.LockUser(&DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
+		return nil, err
+	}
+
 	startTime := time.Now().UTC().Truncate(24 * time.Hour)
 	endTime := startTime.Add(24 * time.Hour)
 
-	used, err := database.GetBuildCount(createBuildParams.UserID, startTime, endTime)
+	used, err := tx.GetBuildCount(&DatabaseGetBuildCountParams{
+		UserID:    createBuildParams.UserID,
+		StartTime: startTime,
+		EndTime:   endTime,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -69,18 +126,18 @@ func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, err
 		return nil, ErrLimitExceeded
 	}
 
-	b, err := database.CreateBuild(
-		createBuildParams.ContextToken,
-		createBuildParams.DocumentFiles,
-		createBuildParams.IdempotencyKey,
-		createBuildParams.UserID,
-	)
+	databaseBuild, err := tx.CreateBuild(&DatabaseCreateBuildParams{
+		ContextToken:   createBuildParams.ContextToken,
+		DocumentFiles:  createBuildParams.DocumentFiles,
+		IdempotencyKey: createBuildParams.IdempotencyKey,
+		UserID:         createBuildParams.UserID,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	commit()
-	return b, nil
+	return buildFromDatabaseBuild(databaseBuild), nil
 }
 
 type GetBuildParams struct {
@@ -143,4 +200,14 @@ type GetLimitsResult struct {
 
 func (s *Service) GetLimits(getLimitsParams *GetLimitsParams) (*GetLimitsResult, error) {
 	panic("not implemented")
+}
+
+func buildFromDatabaseBuild(databaseBuild *DatabaseBuild) *Build {
+	return &Build{
+		Done:             databaseBuild.Done,
+		Error:            databaseBuild.Error,
+		ID:               databaseBuild.ID,
+		NextContextToken: databaseBuild.NextContextToken,
+		OutputFile:       databaseBuild.OutputFile,
+	}
 }
