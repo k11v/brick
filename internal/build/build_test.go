@@ -22,7 +22,7 @@ const (
 
 type SpyDatabase struct {
 	GetBuildCountResult int
-	CreateBuildResult   *DatabaseBuild
+	CreateBuildFunc     func() (*DatabaseBuild, error)
 	GetBuildFunc        func() (*DatabaseBuild, error)
 	ListBuildsResult    *DatabaseListBuildsResult
 
@@ -38,7 +38,7 @@ func (d *SpyDatabase) appendCalls(c ...string) {
 
 func (d *SpyDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
 	d.appendCalls(callCreateBuild)
-	return d.CreateBuildResult, nil
+	return d.CreateBuildFunc()
 }
 
 func (d *SpyDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
@@ -110,12 +110,14 @@ func TestServiceCreateBuild(t *testing.T) {
 				return slices.Contains(calls, callCreateBuild)
 			},
 			&SpyDatabase{
-				CreateBuildResult: &DatabaseBuild{
-					Done:             false,
-					Error:            nil,
-					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-					NextContextToken: "",
-					OutputFile:       nil,
+				CreateBuildFunc: func() (*DatabaseBuild, error) {
+					return &DatabaseBuild{
+						Done:             false,
+						Error:            nil,
+						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+						NextContextToken: "",
+						OutputFile:       nil,
+					}, nil
 				},
 			},
 		},
@@ -134,12 +136,14 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 			&SpyDatabase{
 				GetBuildCountResult: 10,
-				CreateBuildResult: &DatabaseBuild{
-					Done:             false,
-					Error:            nil,
-					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-					NextContextToken: "",
-					OutputFile:       nil,
+				CreateBuildFunc: func() (*DatabaseBuild, error) {
+					return &DatabaseBuild{
+						Done:             false,
+						Error:            nil,
+						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+						NextContextToken: "",
+						OutputFile:       nil,
+					}, nil
 				},
 			},
 		},
@@ -164,12 +168,14 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 			&SpyDatabase{
 				// TODO: fix.
-				CreateBuildResult: &DatabaseBuild{
-					Done:             false,
-					Error:            nil,
-					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-					NextContextToken: "",
-					OutputFile:       nil,
+				CreateBuildFunc: func() (*DatabaseBuild, error) {
+					return &DatabaseBuild{
+						Done:             false,
+						Error:            nil,
+						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+						NextContextToken: "",
+						OutputFile:       nil,
+					}, nil
 				},
 			},
 		},
@@ -188,12 +194,14 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 			&SpyDatabase{
 				// TODO: Make it fail.
-				CreateBuildResult: &DatabaseBuild{
-					Done:             false,
-					Error:            nil,
-					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-					NextContextToken: "",
-					OutputFile:       nil,
+				CreateBuildFunc: func() (*DatabaseBuild, error) {
+					return &DatabaseBuild{
+						Done:             false,
+						Error:            nil,
+						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+						NextContextToken: "",
+						OutputFile:       nil,
+					}, nil
 				},
 			},
 		},
@@ -217,12 +225,14 @@ func TestServiceCreateBuild(t *testing.T) {
 				return reflect.DeepEqual(calls, []string{callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit})
 			},
 			&SpyDatabase{
-				CreateBuildResult: &DatabaseBuild{
-					Done:             false,
-					Error:            nil,
-					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-					NextContextToken: "",
-					OutputFile:       nil,
+				CreateBuildFunc: func() (*DatabaseBuild, error) {
+					return &DatabaseBuild{
+						Done:             false,
+						Error:            nil,
+						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+						NextContextToken: "",
+						OutputFile:       nil,
+					}, nil
 				},
 			},
 		},
