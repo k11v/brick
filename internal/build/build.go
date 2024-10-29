@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	ErrLimitExceeded                     = errors.New("limit exceeded")
-	ErrIdempotencyKeyAlreadyUsed         = errors.New("idempotency key already used")
-	ErrDatabaseIdempotencyKeyAlreadyUsed = errors.New("database: idempotency key already used")
+	ErrLimitExceeded             = errors.New("limit exceeded")
+	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
+	ErrDatabaseNotFound          = errors.New("database: not found")
 )
 
 // TODO: add Build.CreatedAt.
@@ -28,6 +28,7 @@ type Database interface {
 	GetBuildCount(params *DatabaseGetBuildCountParams) (int, error)
 	CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error)
 	GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error)
+	GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error)
 	ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error)
 }
 
@@ -63,6 +64,11 @@ type DatabaseCreateBuildParams struct {
 type DatabaseGetBuildParams struct {
 	ID     uuid.UUID
 	UserID uuid.UUID
+}
+
+type DatabaseGetBuildByIdempotencyKeyParams struct {
+	IdempotencyKey uuid.UUID
+	UserID         uuid.UUID
 }
 
 type DatabaseListBuildsParams struct {
@@ -106,7 +112,24 @@ type CreateBuildParams struct {
 func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, error) {
 	var b *Build
 
-	err := s.database.BeginFunc(func(tx Database) error {
+	databaseBuildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(&DatabaseGetBuildByIdempotencyKeyParams{
+		IdempotencyKey: createBuildParams.IdempotencyKey,
+		UserID:         createBuildParams.UserID,
+	})
+	if err != nil && !errors.Is(err, ErrDatabaseNotFound) {
+		// TODO: Handle access denied.
+		return nil, err
+	}
+	if err == nil {
+		// FIXME: Check request payload.
+		b = buildFromDatabaseBuild(databaseBuildByIdempotencyKey)
+		return b, nil
+	}
+	// TODO: Consider a race condition where multiple requests determine
+	// that an idempotency key can be used and fail later
+	// when Database.CreateBuild is called.
+
+	err = s.database.BeginFunc(func(tx Database) error {
 		if err := tx.LockUser(&DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
 			return err
 		}
@@ -134,9 +157,6 @@ func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, err
 			UserID:         createBuildParams.UserID,
 		})
 		if err != nil {
-			if errors.Is(err, ErrDatabaseIdempotencyKeyAlreadyUsed) {
-				return ErrIdempotencyKeyAlreadyUsed
-			}
 			return err
 		}
 
