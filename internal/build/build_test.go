@@ -3,153 +3,52 @@ package build
 import (
 	"errors"
 	"reflect"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
 
-type FakeDatabaseBuild struct {
-	DatabaseBuild  DatabaseBuild
-	ContextToken   string
-	DocumentFiles  map[string][]byte
-	IdempotencyKey uuid.UUID
-	UserID         uuid.UUID
-	CreatedAt      time.Time
+type StubDatabase struct {
+	BuildCount     int
+	BuildToCreate  *DatabaseBuild
+	GetBuildFunc   func() (*DatabaseBuild, error)
+	Builds         []*DatabaseBuild
+	NextPageOffset *int
+	TotalSize      int
 }
 
-type FakeDatabase struct {
-	builds       []*FakeDatabaseBuild
-	mu           sync.Mutex
-	muFromUserID map[uuid.UUID]*sync.Mutex
+func (d *StubDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
+	return d.BuildToCreate, nil
 }
 
-func (d *FakeDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	b := &FakeDatabaseBuild{
-		DatabaseBuild: DatabaseBuild{
-			Done:             false,
-			Error:            nil,
-			ID:               uuid.New(),
-			NextContextToken: "",
-			OutputFile:       nil,
-		},
-		ContextToken:   params.ContextToken,
-		DocumentFiles:  params.DocumentFiles,
-		IdempotencyKey: params.IdempotencyKey,
-		UserID:         params.UserID,
-		CreatedAt:      time.Now().UTC(),
-	}
-	d.builds = append(d.builds, b)
-	return &b.DatabaseBuild, nil
+func (d *StubDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
+	return d.GetBuildFunc()
 }
 
-func (d *FakeDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for _, b := range d.builds {
-		if b.DatabaseBuild.ID == params.ID {
-			if b.UserID != params.UserID {
-				return nil, errors.New("build access denied")
-			}
-			return &b.DatabaseBuild, nil
-		}
-	}
-	return nil, errors.New("build not found")
+func (d *StubDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
+	return d.BuildCount, nil
 }
 
-func (d *FakeDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	count := 0
-	for _, b := range d.builds {
-		if b.CreatedAt.Equal(params.StartTime) || b.CreatedAt.After(params.StartTime) && b.CreatedAt.Before(params.EndTime) {
-			if b.UserID == params.UserID {
-				count++
-			}
-		}
-	}
-	return count, nil
-}
-
-func (d *FakeDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	builds := make([]*DatabaseBuild, 0)
-	pageOffset := 0
-	totalSize := 0
-	for _, b := range d.builds {
-		if b.UserID == params.UserID {
-			totalSize++
-			if pageOffset < params.PageOffset {
-				pageOffset++
-				continue
-			}
-			if len(builds) >= params.PageLimit {
-				continue
-			}
-			builds = append(builds, &b.DatabaseBuild)
-		}
-	}
-
-	var nextPageOffset *int = nil
-	if maybeNextPageOffset := pageOffset + len(builds); maybeNextPageOffset < totalSize {
-		nextPageOffset = new(int)
-		*nextPageOffset = maybeNextPageOffset
-	}
-
+func (d *StubDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
 	return &DatabaseListBuildsResult{
-		Builds:         builds,
-		NextPageOffset: nextPageOffset,
-		TotalSize:      totalSize,
+		Builds:         d.Builds,
+		NextPageOffset: d.NextPageOffset,
+		TotalSize:      d.BuildCount,
 	}, nil
 }
 
-func (d *FakeDatabase) Begin() (tx Database, commit func() error, rollback func() error, err error) {
-	d.mu.Lock()
-	unlocked := false
-	unlock := func() {
-		if !unlocked {
-			d.mu.Unlock()
-			unlocked = true
-		}
-	}
-
-	fakeTx := &FakeDatabase{
-		// TODO: Future build-editing functions should replace builds,
-		// otherwise fake transaction wouldn't be rollbackable
-		// as it reuses FakeDatabaseBuilds via pointers.
-		builds: append([]*FakeDatabaseBuild(nil), d.builds...),
-	}
+func (d *StubDatabase) Begin() (tx Database, commit func() error, rollback func() error, err error) {
+	fakeTx := d
 	fakeCommit := func() error {
-		defer unlock()
-		d.builds = fakeTx.builds
 		return nil
 	}
 	fakeRollback := func() error {
-		defer unlock()
 		return nil
 	}
 	return fakeTx, fakeCommit, fakeRollback, nil
 }
 
-func (d *FakeDatabase) LockUser(params *DatabaseLockUserParams) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if d.muFromUserID == nil {
-		d.muFromUserID = make(map[uuid.UUID]*sync.Mutex)
-	}
-	if _, ok := d.muFromUserID[params.UserID]; !ok {
-		d.muFromUserID[params.UserID] = new(sync.Mutex)
-	}
-	d.muFromUserID[params.UserID].Lock()
+func (d *StubDatabase) LockUser(params *DatabaseLockUserParams) error {
 	return nil
 }
 
@@ -159,13 +58,12 @@ func TestServiceCreateBuild(t *testing.T) {
 		BuildsAllowed: 10,
 	}
 
-	fakeDatabase := &FakeDatabase{}
-
 	tests := []struct {
 		name              string
 		createBuildParams *CreateBuildParams
 		want              *Build
 		wantErr           error
+		stubDatabase      *StubDatabase
 	}{
 		{
 			"creates a build",
@@ -183,12 +81,21 @@ func TestServiceCreateBuild(t *testing.T) {
 				OutputFile:       nil,
 			},
 			nil,
+			&StubDatabase{
+				BuildToCreate: &DatabaseBuild{
+					Done:             false,
+					Error:            nil,
+					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+					NextContextToken: "",
+					OutputFile:       nil,
+				},
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewService(config, fakeDatabase, 0, 0)
+			service := NewService(config, tt.stubDatabase, 0, 0)
 			got, gotErr := service.CreateBuild(tt.createBuildParams)
 			want, wantErr := tt.want, tt.wantErr
 			if !reflect.DeepEqual(got, want) || !errors.Is(gotErr, wantErr) {
