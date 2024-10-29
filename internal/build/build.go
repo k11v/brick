@@ -7,7 +7,10 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrLimitExceeded = errors.New("limit exceeded")
+var (
+	ErrLimitExceeded             = errors.New("limit exceeded")
+	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
+)
 
 // TODO: add Build.CreatedAt.
 type Build struct {
