@@ -136,15 +136,6 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 			&SpyDatabase{
 				GetBuildCountResult: 10,
-				CreateBuildFunc: func() (*DatabaseBuild, error) {
-					return &DatabaseBuild{
-						Done:             false,
-						Error:            nil,
-						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-						NextContextToken: "",
-						OutputFile:       nil,
-					}, nil
-				},
 			},
 		},
 		{
@@ -193,15 +184,8 @@ func TestServiceCreateBuild(t *testing.T) {
 				return !slices.Contains(calls, callCreateBuild)
 			},
 			&SpyDatabase{
-				// TODO: Make it fail.
 				CreateBuildFunc: func() (*DatabaseBuild, error) {
-					return &DatabaseBuild{
-						Done:             false,
-						Error:            nil,
-						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-						NextContextToken: "",
-						OutputFile:       nil,
-					}, nil
+					return nil, ErrDatabaseIdempotencyKeyAlreadyUsed
 				},
 			},
 		},
