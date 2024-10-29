@@ -8,50 +8,68 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	callBegin         = "Begin"
+	callCommit        = "Commit"
+	callCreateBuild   = "CreateBuild"
+	callGetBuild      = "GetBuild"
+	callGetBuildCount = "GetBuildCount"
+	callListBuilds    = "ListBuilds"
+	callLockUser      = "LockUser"
+	callRollback      = "Rollback"
+)
+
 type SpyDatabase struct {
 	GetBuildCountResult int
 	CreateBuildResult   *DatabaseBuild
 	GetBuildFunc        func() (*DatabaseBuild, error)
 	ListBuildsResult    *DatabaseListBuildsResult
-	Counters            struct{ Commit, Rollback int } // rollback is counted if commit wasn't called
+
+	Calls *[]string
+}
+
+func (d *SpyDatabase) appendCall(c string) {
+	if d.Calls == nil {
+		d.Calls = new([]string)
+	}
+	*d.Calls = append(*d.Calls, c)
 }
 
 func (d *SpyDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
+	d.appendCall(callCreateBuild)
 	return d.CreateBuildResult, nil
 }
 
 func (d *SpyDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
+	d.appendCall(callGetBuild)
 	return d.GetBuildFunc()
 }
 
 func (d *SpyDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
+	d.appendCall(callGetBuildCount)
 	return d.GetBuildCountResult, nil
 }
 
 func (d *SpyDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
+	d.appendCall(callListBuilds)
 	return d.ListBuildsResult, nil
 }
 
-func (d *SpyDatabase) Begin() (tx Database, commit func() error, rollback func() error, err error) {
-	committed := false
-
-	fakeTx := d
-	fakeCommit := func() error {
-		committed = true
-		d.Counters.Commit++
-		return nil
-	}
-	fakeRollback := func() error {
-		if committed {
-			return nil
-		}
-		d.Counters.Rollback++
-		return nil
-	}
-	return fakeTx, fakeCommit, fakeRollback, nil
+func (d *SpyDatabase) LockUser(params *DatabaseLockUserParams) error {
+	d.appendCall(callLockUser)
+	return nil
 }
 
-func (d *SpyDatabase) LockUser(params *DatabaseLockUserParams) error {
+func (d *SpyDatabase) BeginFunc(f func(tx Database) error) error {
+	d.appendCall(callBegin)
+
+	tx := *d
+	if err := f(&tx); err != nil {
+		d.appendCall(callRollback)
+		return err
+	}
+
+	d.appendCall(callCommit)
 	return nil
 }
 
@@ -103,14 +121,15 @@ func TestServiceCreateBuild(t *testing.T) {
 			got, gotErr := service.CreateBuild(tt.createBuildParams)
 			want, wantErr := tt.want, tt.wantErr
 			if !reflect.DeepEqual(got, want) || !errors.Is(gotErr, wantErr) {
-				t.Logf("got %#v, %#v", got, gotErr)
+				t.Logf("got %#v, %#v", want, wantErr)
 				t.Errorf("want %#v, %#v", want, wantErr)
 			}
 
-			gotCounters := tt.spyDatabase.Counters
-			wantCounters := struct{ Commit, Rollback int }{1, 0}
-			if !reflect.DeepEqual(gotCounters, wantCounters) {
-				t.Errorf("got %#v, want %#v", gotCounters, wantCounters)
+			gotCalls := *tt.spyDatabase.Calls
+			wantCalls := []string{callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit}
+			if !reflect.DeepEqual(gotCalls, wantCalls) {
+				t.Logf("got %v", gotCalls)
+				t.Errorf("want %v", wantCalls)
 			}
 		})
 	}
