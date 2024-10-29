@@ -8,47 +8,50 @@ import (
 	"github.com/google/uuid"
 )
 
-type StubDatabase struct {
-	BuildCount     int
-	BuildToCreate  *DatabaseBuild
-	GetBuildFunc   func() (*DatabaseBuild, error)
-	Builds         []*DatabaseBuild
-	NextPageOffset *int
-	TotalSize      int
+type SpyDatabase struct {
+	GetBuildCountResult int
+	CreateBuildResult   *DatabaseBuild
+	GetBuildFunc        func() (*DatabaseBuild, error)
+	ListBuildsResult    *DatabaseListBuildsResult
+	Counters            struct{ Commit, Rollback int } // rollback is counted if commit wasn't called
 }
 
-func (d *StubDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
-	return d.BuildToCreate, nil
+func (d *SpyDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
+	return d.CreateBuildResult, nil
 }
 
-func (d *StubDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
+func (d *SpyDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
 	return d.GetBuildFunc()
 }
 
-func (d *StubDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
-	return d.BuildCount, nil
+func (d *SpyDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
+	return d.GetBuildCountResult, nil
 }
 
-func (d *StubDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
-	return &DatabaseListBuildsResult{
-		Builds:         d.Builds,
-		NextPageOffset: d.NextPageOffset,
-		TotalSize:      d.BuildCount,
-	}, nil
+func (d *SpyDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
+	return d.ListBuildsResult, nil
 }
 
-func (d *StubDatabase) Begin() (tx Database, commit func() error, rollback func() error, err error) {
+func (d *SpyDatabase) Begin() (tx Database, commit func() error, rollback func() error, err error) {
+	committed := false
+
 	fakeTx := d
 	fakeCommit := func() error {
+		committed = true
+		d.Counters.Commit++
 		return nil
 	}
 	fakeRollback := func() error {
+		if committed {
+			return nil
+		}
+		d.Counters.Rollback++
 		return nil
 	}
 	return fakeTx, fakeCommit, fakeRollback, nil
 }
 
-func (d *StubDatabase) LockUser(params *DatabaseLockUserParams) error {
+func (d *SpyDatabase) LockUser(params *DatabaseLockUserParams) error {
 	return nil
 }
 
@@ -63,7 +66,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		createBuildParams *CreateBuildParams
 		want              *Build
 		wantErr           error
-		stubDatabase      *StubDatabase
+		spyDatabase       *SpyDatabase
 	}{
 		{
 			"creates a build",
@@ -81,8 +84,8 @@ func TestServiceCreateBuild(t *testing.T) {
 				OutputFile:       nil,
 			},
 			nil,
-			&StubDatabase{
-				BuildToCreate: &DatabaseBuild{
+			&SpyDatabase{
+				CreateBuildResult: &DatabaseBuild{
 					Done:             false,
 					Error:            nil,
 					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
@@ -95,12 +98,19 @@ func TestServiceCreateBuild(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewService(config, tt.stubDatabase, 0, 0)
+			service := NewService(config, tt.spyDatabase, 0, 0)
+
 			got, gotErr := service.CreateBuild(tt.createBuildParams)
 			want, wantErr := tt.want, tt.wantErr
 			if !reflect.DeepEqual(got, want) || !errors.Is(gotErr, wantErr) {
 				t.Logf("got %#v, %#v", got, gotErr)
 				t.Errorf("want %#v, %#v", want, wantErr)
+			}
+
+			gotCounters := tt.spyDatabase.Counters
+			wantCounters := struct{ Commit, Rollback int }{1, 0}
+			if !reflect.DeepEqual(gotCounters, wantCounters) {
+				t.Errorf("got %#v, want %#v", gotCounters, wantCounters)
 			}
 		})
 	}
