@@ -95,6 +95,22 @@ func TestServiceCreateBuild(t *testing.T) {
 		BuildsAllowed: 10,
 	}
 
+	defaultCreateBuildResult := &DatabaseBuild{
+		Done:             false,
+		Error:            nil,
+		ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+		NextContextToken: "",
+		OutputFile:       nil,
+	}
+	defaultGetBuildByIdempotencyKeyFunc := func() (*DatabaseBuild, error) {
+		return &DatabaseBuild{
+			Done:             false,
+			Error:            nil,
+			ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+			NextContextToken: "",
+			OutputFile:       nil,
+		}, nil
+	}
 	defaultCreateBuildParams := &CreateBuildParams{
 		ContextToken:   "",
 		DocumentFiles:  make(map[string][]byte),
@@ -121,13 +137,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		{
 			name: "creates a build and returns it when the user's build count is within the limit",
 			spyDatabase: &SpyDatabase{
-				CreateBuildResult: &DatabaseBuild{
-					Done:             false,
-					Error:            nil,
-					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-					NextContextToken: "",
-					OutputFile:       nil,
-				},
+				CreateBuildResult: defaultCreateBuildResult,
 			},
 			createBuildParams: defaultCreateBuildParams,
 			want:              defaultWant,
@@ -151,15 +161,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		{
 			name: "doesn't create a build and returns the already created build when the idempotency key was used and the params match",
 			spyDatabase: &SpyDatabase{
-				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
-					return &DatabaseBuild{
-						Done:             false,
-						Error:            nil,
-						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-						NextContextToken: "",
-						OutputFile:       nil,
-					}, nil
-				},
+				GetBuildByIdempotencyKeyFunc: defaultGetBuildByIdempotencyKeyFunc,
 			},
 			createBuildParams: defaultCreateBuildParams,
 			want:              defaultWant,
@@ -171,15 +173,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		{
 			name: "doesn't create a build and returns an error when the idempotency key was used and the params don't match",
 			spyDatabase: &SpyDatabase{
-				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
-					return &DatabaseBuild{
-						Done:             false,
-						Error:            nil,
-						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-						NextContextToken: "",
-						OutputFile:       nil,
-					}, nil
-				},
+				GetBuildByIdempotencyKeyFunc: defaultGetBuildByIdempotencyKeyFunc,
 			},
 			createBuildParams: defaultCreateBuildParams,
 			want:              nil,
@@ -192,13 +186,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		{
 			name: "gets the user's build count and creates a build in a critical section",
 			spyDatabase: &SpyDatabase{
-				CreateBuildResult: &DatabaseBuild{
-					Done:             false,
-					Error:            nil,
-					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-					NextContextToken: "",
-					OutputFile:       nil,
-				},
+				CreateBuildResult: defaultCreateBuildResult,
 			},
 			createBuildParams: defaultCreateBuildParams,
 			want:              defaultWant,
