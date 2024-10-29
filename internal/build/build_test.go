@@ -10,21 +10,23 @@ import (
 )
 
 const (
-	callBegin         = "Begin"
-	callCommit        = "Commit"
-	callCreateBuild   = "CreateBuild"
-	callGetBuild      = "GetBuild"
-	callGetBuildCount = "GetBuildCount"
-	callListBuilds    = "ListBuilds"
-	callLockUser      = "LockUser"
-	callRollback      = "Rollback"
+	callBegin                    = "Begin"
+	callCommit                   = "Commit"
+	callCreateBuild              = "CreateBuild"
+	callGetBuild                 = "GetBuild"
+	callGetBuildByIdempotencyKey = "GetBuildByIdempotencyKey"
+	callGetBuildCount            = "GetBuildCount"
+	callListBuilds               = "ListBuilds"
+	callLockUser                 = "LockUser"
+	callRollback                 = "Rollback"
 )
 
 type SpyDatabase struct {
-	GetBuildCountResult int
-	CreateBuildFunc     func() (*DatabaseBuild, error)
-	GetBuildFunc        func() (*DatabaseBuild, error)
-	ListBuildsResult    *DatabaseListBuildsResult
+	GetBuildCountResult          int
+	CreateBuildResult            *DatabaseBuild
+	GetBuildFunc                 func() (*DatabaseBuild, error)
+	GetBuildByIdempotencyKeyFunc func() (*DatabaseBuild, error)
+	ListBuildsResult             *DatabaseListBuildsResult
 
 	Calls *[]string // doesn't contain rolled back calls
 }
@@ -38,12 +40,17 @@ func (d *SpyDatabase) appendCalls(c ...string) {
 
 func (d *SpyDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
 	d.appendCalls(callCreateBuild)
-	return d.CreateBuildFunc()
+	return d.CreateBuildResult, nil
 }
 
 func (d *SpyDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
 	d.appendCalls(callGetBuild)
 	return d.GetBuildFunc()
+}
+
+func (d *SpyDatabase) GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error) {
+	d.appendCalls(callGetBuildByIdempotencyKey)
+	return d.GetBuildByIdempotencyKeyFunc()
 }
 
 func (d *SpyDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
@@ -110,14 +117,15 @@ func TestServiceCreateBuild(t *testing.T) {
 				return slices.Contains(calls, callCreateBuild)
 			},
 			&SpyDatabase{
-				CreateBuildFunc: func() (*DatabaseBuild, error) {
-					return &DatabaseBuild{
-						Done:             false,
-						Error:            nil,
-						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-						NextContextToken: "",
-						OutputFile:       nil,
-					}, nil
+				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
+					return nil, ErrDatabaseBuildNotFound
+				},
+				CreateBuildResult: &DatabaseBuild{
+					Done:             false,
+					Error:            nil,
+					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+					NextContextToken: "",
+					OutputFile:       nil,
 				},
 			},
 		},
@@ -136,6 +144,9 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 			&SpyDatabase{
 				GetBuildCountResult: 10,
+				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
+					return nil, ErrDatabaseBuildNotFound
+				},
 			},
 		},
 		{
@@ -158,8 +169,7 @@ func TestServiceCreateBuild(t *testing.T) {
 				return !slices.Contains(calls, callCreateBuild)
 			},
 			&SpyDatabase{
-				// TODO: fix.
-				CreateBuildFunc: func() (*DatabaseBuild, error) {
+				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
 					return &DatabaseBuild{
 						Done:             false,
 						Error:            nil,
@@ -184,8 +194,14 @@ func TestServiceCreateBuild(t *testing.T) {
 				return !slices.Contains(calls, callCreateBuild)
 			},
 			&SpyDatabase{
-				CreateBuildFunc: func() (*DatabaseBuild, error) {
-					return nil, ErrDatabaseIdempotencyKeyAlreadyUsed
+				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
+					return &DatabaseBuild{
+						Done:             false,
+						Error:            nil,
+						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+						NextContextToken: "",
+						OutputFile:       nil,
+					}, nil
 				},
 			},
 		},
@@ -206,17 +222,25 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 			nil,
 			func(calls []string) bool {
-				return reflect.DeepEqual(calls, []string{callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit})
+				filtered := make([]string, 0)
+				for _, c := range calls {
+					switch c {
+					case callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit, callRollback:
+						filtered = append(filtered, c)
+					}
+				}
+				return reflect.DeepEqual(filtered, []string{callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit})
 			},
 			&SpyDatabase{
-				CreateBuildFunc: func() (*DatabaseBuild, error) {
-					return &DatabaseBuild{
-						Done:             false,
-						Error:            nil,
-						ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-						NextContextToken: "",
-						OutputFile:       nil,
-					}, nil
+				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
+					return nil, ErrDatabaseBuildNotFound
+				},
+				CreateBuildResult: &DatabaseBuild{
+					Done:             false,
+					Error:            nil,
+					ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+					NextContextToken: "",
+					OutputFile:       nil,
 				},
 			},
 		},
