@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	ErrLimitExceeded             = errors.New("limit exceeded")
-	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
+	ErrLimitExceeded                     = errors.New("limit exceeded")
+	ErrIdempotencyKeyAlreadyUsed         = errors.New("idempotency key already used")
+	ErrDatabaseIdempotencyKeyAlreadyUsed = errors.New("database: idempotency key already used")
 )
 
 // TODO: add Build.CreatedAt.
@@ -133,6 +134,9 @@ func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, err
 			UserID:         createBuildParams.UserID,
 		})
 		if err != nil {
+			if errors.Is(err, ErrDatabaseIdempotencyKeyAlreadyUsed) {
+				return ErrIdempotencyKeyAlreadyUsed
+			}
 			return err
 		}
 
