@@ -19,7 +19,7 @@ type Build struct {
 }
 
 type Database interface {
-	Begin() (tx Database, commit func() error, rollback func() error, err error)
+	BeginFunc(f func(tx Database) error) error
 	LockUser(params *DatabaseLockUserParams) error
 	GetBuildCount(params *DatabaseGetBuildCountParams) (int, error)
 	CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error)
@@ -100,44 +100,47 @@ type CreateBuildParams struct {
 }
 
 func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, error) {
-	tx, commit, rollback, err := s.database.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer rollback()
+	var b *Build
 
-	if err = tx.LockUser(&DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
-		return nil, err
-	}
+	err := s.database.BeginFunc(func(tx Database) error {
+		if err := tx.LockUser(&DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
+			return err
+		}
 
-	startTime := time.Now().UTC().Truncate(24 * time.Hour)
-	endTime := startTime.Add(24 * time.Hour)
+		startTime := time.Now().UTC().Truncate(24 * time.Hour)
+		endTime := startTime.Add(24 * time.Hour)
 
-	used, err := tx.GetBuildCount(&DatabaseGetBuildCountParams{
-		UserID:    createBuildParams.UserID,
-		StartTime: startTime,
-		EndTime:   endTime,
+		used, err := tx.GetBuildCount(&DatabaseGetBuildCountParams{
+			UserID:    createBuildParams.UserID,
+			StartTime: startTime,
+			EndTime:   endTime,
+		})
+		if err != nil {
+			return err
+		}
+
+		if used >= s.config.BuildsAllowed {
+			return ErrLimitExceeded
+		}
+
+		databaseBuild, err := tx.CreateBuild(&DatabaseCreateBuildParams{
+			ContextToken:   createBuildParams.ContextToken,
+			DocumentFiles:  createBuildParams.DocumentFiles,
+			IdempotencyKey: createBuildParams.IdempotencyKey,
+			UserID:         createBuildParams.UserID,
+		})
+		if err != nil {
+			return err
+		}
+
+		b = buildFromDatabaseBuild(databaseBuild)
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if used >= s.config.BuildsAllowed {
-		return nil, ErrLimitExceeded
-	}
-
-	databaseBuild, err := tx.CreateBuild(&DatabaseCreateBuildParams{
-		ContextToken:   createBuildParams.ContextToken,
-		DocumentFiles:  createBuildParams.DocumentFiles,
-		IdempotencyKey: createBuildParams.IdempotencyKey,
-		UserID:         createBuildParams.UserID,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	commit()
-	return buildFromDatabaseBuild(databaseBuild), nil
+	return b, nil
 }
 
 type GetBuildParams struct {
