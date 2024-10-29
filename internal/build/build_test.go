@@ -45,11 +45,17 @@ func (d *SpyDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseB
 
 func (d *SpyDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
 	d.appendCalls(callGetBuild)
+	if d.GetBuildFunc == nil {
+		return &DatabaseBuild{}, nil
+	}
 	return d.GetBuildFunc()
 }
 
 func (d *SpyDatabase) GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error) {
 	d.appendCalls(callGetBuildByIdempotencyKey)
+	if d.GetBuildByIdempotencyKeyFunc == nil {
+		return nil, ErrDatabaseNotFound
+	}
 	return d.GetBuildByIdempotencyKeyFunc()
 }
 
@@ -89,6 +95,20 @@ func TestServiceCreateBuild(t *testing.T) {
 		BuildsAllowed: 10,
 	}
 
+	defaultCreateBuildParams := &CreateBuildParams{
+		ContextToken:   "",
+		DocumentFiles:  make(map[string][]byte),
+		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
+		UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+	}
+	defaultWant := &Build{
+		Done:             false,
+		Error:            nil,
+		ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+		NextContextToken: "",
+		OutputFile:       nil,
+	}
+
 	tests := []struct {
 		name               string
 		createBuildParams  *CreateBuildParams
@@ -98,28 +118,14 @@ func TestServiceCreateBuild(t *testing.T) {
 		spyDatabase        *SpyDatabase
 	}{
 		{
-			name: "creates a build and returns it when the user's build count is within the limit",
-			createBuildParams: &CreateBuildParams{
-				ContextToken:   "",
-				DocumentFiles:  make(map[string][]byte),
-				IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
-				UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			},
-			want: &Build{
-				Done:             false,
-				Error:            nil,
-				ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-				NextContextToken: "",
-				OutputFile:       nil,
-			},
-			wantErr: nil,
+			name:              "creates a build and returns it when the user's build count is within the limit",
+			createBuildParams: defaultCreateBuildParams,
+			want:              defaultWant,
+			wantErr:           nil,
 			wantCallsPredicate: func(calls []string) bool {
 				return slices.Contains(calls, callCreateBuild)
 			},
 			spyDatabase: &SpyDatabase{
-				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
-					return nil, ErrDatabaseNotFound
-				},
 				CreateBuildResult: &DatabaseBuild{
 					Done:             false,
 					Error:            nil,
@@ -130,41 +136,22 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 		},
 		{
-			name: "doesn't create a build and returns an error when the user's build count is beyond the limit",
-			createBuildParams: &CreateBuildParams{
-				ContextToken:   "",
-				DocumentFiles:  make(map[string][]byte),
-				IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
-				UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			},
-			want:    nil,
-			wantErr: ErrLimitExceeded,
+			name:              "doesn't create a build and returns an error when the user's build count is beyond the limit",
+			createBuildParams: defaultCreateBuildParams,
+			want:              nil,
+			wantErr:           ErrLimitExceeded,
 			wantCallsPredicate: func(calls []string) bool {
 				return !slices.Contains(calls, callCreateBuild)
 			},
 			spyDatabase: &SpyDatabase{
 				GetBuildCountResult: 10,
-				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
-					return nil, ErrDatabaseNotFound
-				},
 			},
 		},
 		{
-			name: "doesn't create a build and returns the already created build when the idempotency key was used and the params match",
-			createBuildParams: &CreateBuildParams{
-				ContextToken:   "",
-				DocumentFiles:  make(map[string][]byte),
-				IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
-				UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			},
-			want: &Build{
-				Done:             false,
-				Error:            nil,
-				ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-				NextContextToken: "",
-				OutputFile:       nil,
-			},
-			wantErr: nil,
+			name:              "doesn't create a build and returns the already created build when the idempotency key was used and the params match",
+			createBuildParams: defaultCreateBuildParams,
+			want:              defaultWant,
+			wantErr:           nil,
 			wantCallsPredicate: func(calls []string) bool {
 				return !slices.Contains(calls, callCreateBuild)
 			},
@@ -181,15 +168,10 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 		},
 		{
-			name: "doesn't create a build and returns an error when the idempotency key was used and the params don't match",
-			createBuildParams: &CreateBuildParams{
-				ContextToken:   "",
-				DocumentFiles:  make(map[string][]byte),
-				IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
-				UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			},
-			want:    nil,
-			wantErr: ErrIdempotencyKeyAlreadyUsed,
+			name:              "doesn't create a build and returns an error when the idempotency key was used and the params don't match",
+			createBuildParams: defaultCreateBuildParams,
+			want:              nil,
+			wantErr:           ErrIdempotencyKeyAlreadyUsed,
 			wantCallsPredicate: func(calls []string) bool {
 				return !slices.Contains(calls, callCreateBuild)
 			},
@@ -206,21 +188,10 @@ func TestServiceCreateBuild(t *testing.T) {
 			},
 		},
 		{
-			name: "gets the user's build count and creates a build in a critical section",
-			createBuildParams: &CreateBuildParams{
-				ContextToken:   "",
-				DocumentFiles:  make(map[string][]byte),
-				IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
-				UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			},
-			want: &Build{
-				Done:             false,
-				Error:            nil,
-				ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-				NextContextToken: "",
-				OutputFile:       nil,
-			},
-			wantErr: nil,
+			name:              "gets the user's build count and creates a build in a critical section",
+			createBuildParams: defaultCreateBuildParams,
+			want:              defaultWant,
+			wantErr:           nil,
 			wantCallsPredicate: func(calls []string) bool {
 				filtered := make([]string, 0)
 				for _, c := range calls {
@@ -232,9 +203,6 @@ func TestServiceCreateBuild(t *testing.T) {
 				return reflect.DeepEqual(filtered, []string{callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit})
 			},
 			spyDatabase: &SpyDatabase{
-				GetBuildByIdempotencyKeyFunc: func() (*DatabaseBuild, error) {
-					return nil, ErrDatabaseNotFound
-				},
 				CreateBuildResult: &DatabaseBuild{
 					Done:             false,
 					Error:            nil,
