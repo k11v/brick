@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/k11v/brick/internal/postgresprovision"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -48,14 +49,12 @@ func Setup(ctx context.Context) (connectionString string, teardown func() error,
 	if err != nil {
 		return "", nil, err
 	}
-
 	var port string
 	if mappedPort, err := postgresContainer.MappedPort(ctx, "5432/tcp"); err == nil {
 		port = mappedPort.Port()
 	} else {
 		return "", nil, err
 	}
-
 	connectionString = fmt.Sprintf(
 		"postgres://%s:%s@%s/%s?sslmode=disable",
 		user,
@@ -63,6 +62,11 @@ func Setup(ctx context.Context) (connectionString string, teardown func() error,
 		net.JoinHostPort(host, port),
 		db,
 	)
+
+	if err = postgresprovision.Setup(connectionString); err != nil {
+		return "", nil, err
+	}
+
 	teardown = maybeTeardown
 	maybeTeardown = nil
 	return connectionString, teardown, nil
