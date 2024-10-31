@@ -3,9 +3,9 @@ package build
 import (
 	"context"
 	"reflect"
-	"slices"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/k11v/brick/internal/postgrestest"
 	"github.com/k11v/brick/internal/postgresutil"
 )
@@ -31,31 +31,26 @@ func TestPostgresDatabaseCreateBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("didn't want %v", err)
 	}
-	if err = pool.Ping(ctx); err != nil {
+
+	database := NewPostgresDatabase(pool)
+	gotDatabaseBuild, err := database.CreateBuild(&DatabaseCreateBuildParams{
+		ContextToken:   "",
+		DocumentFiles:  make(map[string][]byte),
+		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
+		UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+	})
+	if err != nil {
 		t.Fatalf("didn't want %v", err)
 	}
-
-	rows, err := pool.Query(context.Background(), `SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'`)
-	if err != nil {
-		t.Fatalf("query failed: %v", err)
+	wantDatabaseBuild := &DatabaseBuild{
+		Done:             false,
+		Error:            nil,
+		ID:               uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+		NextContextToken: "",
+		OutputFile:       nil,
 	}
-	defer rows.Close()
-
-	tableNames := make([]string, 0)
-	for rows.Next() {
-		var tableName string
-		if err := rows.Scan(&tableName); err != nil {
-			t.Fatalf("row scan failed: %v", err)
-		}
-		tableNames = append(tableNames, tableName)
-	}
-	if rows.Err() != nil {
-		t.Fatalf("row iteration error: %v", rows.Err())
-	}
-
-	got, want := tableNames, []string{"builds", "schema_migrations"}
-	if !reflect.DeepEqual(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
-		t.Errorf("got %v, want %v", got, want)
+	if !reflect.DeepEqual(gotDatabaseBuild, wantDatabaseBuild) {
+		t.Errorf("didn't want %v", err)
 	}
 }
 

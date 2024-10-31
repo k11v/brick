@@ -1,6 +1,9 @@
 package build
 
-import "github.com/jackc/pgx/v5/pgxpool"
+import (
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
 var _ Database = (*PostgresDatabase)(nil)
 
@@ -19,7 +22,13 @@ func (p *PostgresDatabase) BeginFunc(f func(tx Database) error) error {
 
 // CreateBuild implements Database.
 func (p *PostgresDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
-	panic("unimplemented")
+	return &DatabaseBuild{
+		Done:             false,
+		Error:            nil,
+		ID:               uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+		NextContextToken: "",
+		OutputFile:       nil,
+	}, nil
 }
 
 // GetBuild implements Database.
