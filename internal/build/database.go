@@ -33,7 +33,13 @@ func (p *PostgresDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*Data
 
 // GetBuild implements Database.
 func (p *PostgresDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
-	panic("unimplemented")
+	return &DatabaseBuild{
+		Done:             false,
+		Error:            nil,
+		ID:               uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+		NextContextToken: "",
+		OutputFile:       nil,
+	}, nil
 }
 
 // GetBuildByIdempotencyKey implements Database.
