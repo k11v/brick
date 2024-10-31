@@ -1,0 +1,7 @@
+BEGIN;
+
+DROP TABLE IF EXISTS builds;
+
+DROP EXTENSION IF EXISTS "uuid-ossp";
+
+COMMIT;
