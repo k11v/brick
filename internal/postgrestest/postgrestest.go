@@ -49,12 +49,21 @@ func Setup(ctx context.Context) (connectionString string, teardown func() error,
 		return "", nil, err
 	}
 
-	port, err := postgresContainer.MappedPort(ctx, "5432/tcp")
-	if err != nil {
+	var port string
+	if mappedPort, err := postgresContainer.MappedPort(ctx, "5432/tcp"); err == nil {
+		port = mappedPort.Port()
+	} else {
 		return "", nil, err
 	}
 
+	connectionString = fmt.Sprintf(
+		"postgres://%s:%s@%s/%s?sslmode=disable",
+		user,
+		password,
+		net.JoinHostPort(host, port),
+		db,
+	)
 	teardown = maybeTeardown
 	maybeTeardown = nil
-	return fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", user, password, net.JoinHostPort(host, port.Port()), db), teardown, nil
+	return connectionString, teardown, nil
 }
