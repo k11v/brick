@@ -2,6 +2,8 @@ package build
 
 import (
 	"context"
+	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/k11v/brick/internal/postgrestest"
@@ -33,7 +35,28 @@ func TestPostgresDatabaseCreateBuild(t *testing.T) {
 		t.Fatalf("didn't want %v", err)
 	}
 
-	_ = pool
+	rows, err := pool.Query(context.Background(), `SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'`)
+	if err != nil {
+		t.Fatalf("query failed: %v", err)
+	}
+	defer rows.Close()
+
+	tableNames := make([]string, 0)
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			t.Fatalf("row scan failed: %v", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	if rows.Err() != nil {
+		t.Fatalf("row iteration error: %v", rows.Err())
+	}
+
+	got, want := tableNames, []string{"builds", "schema_migrations"}
+	if !reflect.DeepEqual(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
+		t.Errorf("got %v, want %v", got, want)
+	}
 }
 
 func TestPostgresDatabaseGetBuild(t *testing.T) {
