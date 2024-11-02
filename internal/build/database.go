@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -34,7 +35,22 @@ func NewPostgresDatabase(db Querier) *PostgresDatabase {
 
 // BeginFunc implements Database.
 func (d *PostgresDatabase) BeginFunc(ctx context.Context, f func(tx Database) error) error {
-	panic("unimplemented")
+	tx, err := d.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func(tx pgx.Tx) {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			slog.Default().Error("failed to rollback", "error", rollbackErr)
+		}
+	}(tx)
+
+	txDatabase := NewPostgresDatabase(tx)
+	if err = f(txDatabase); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 // CreateBuild implements Database.
