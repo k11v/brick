@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -23,13 +24,13 @@ type Build struct {
 }
 
 type Database interface {
-	BeginFunc(f func(tx Database) error) error
-	LockUser(params *DatabaseLockUserParams) error
-	GetBuildCount(params *DatabaseGetBuildCountParams) (int, error)
-	CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error)
-	GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error)
-	GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error)
-	ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error)
+	BeginFunc(ctx context.Context, f func(tx Database) error) error
+	LockUser(ctx context.Context, params *DatabaseLockUserParams) error
+	GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error)
+	CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*DatabaseBuild, error)
+	GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*DatabaseBuild, error)
+	GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error)
+	ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error)
 }
 
 type DatabaseBuild struct {
@@ -109,10 +110,10 @@ type CreateBuildParams struct {
 	UserID         uuid.UUID
 }
 
-func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, error) {
+func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuildParams) (*Build, error) {
 	var b *Build
 
-	databaseBuildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(&DatabaseGetBuildByIdempotencyKeyParams{
+	databaseBuildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
 		IdempotencyKey: createBuildParams.IdempotencyKey,
 		UserID:         createBuildParams.UserID,
 	})
@@ -129,15 +130,15 @@ func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, err
 	// that an idempotency key can be used and fail later
 	// when Database.CreateBuild is called.
 
-	err = s.database.BeginFunc(func(tx Database) error {
-		if err := tx.LockUser(&DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
+	err = s.database.BeginFunc(ctx, func(tx Database) error {
+		if err := tx.LockUser(ctx, &DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
 			return err
 		}
 
 		startTime := time.Now().UTC().Truncate(24 * time.Hour)
 		endTime := startTime.Add(24 * time.Hour)
 
-		used, err := tx.GetBuildCount(&DatabaseGetBuildCountParams{
+		used, err := tx.GetBuildCount(ctx, &DatabaseGetBuildCountParams{
 			UserID:    createBuildParams.UserID,
 			StartTime: startTime,
 			EndTime:   endTime,
@@ -150,7 +151,7 @@ func (s *Service) CreateBuild(createBuildParams *CreateBuildParams) (*Build, err
 			return ErrLimitExceeded
 		}
 
-		databaseBuild, err := tx.CreateBuild(&DatabaseCreateBuildParams{
+		databaseBuild, err := tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
 			ContextToken:   createBuildParams.ContextToken,
 			DocumentFiles:  createBuildParams.DocumentFiles,
 			IdempotencyKey: createBuildParams.IdempotencyKey,
@@ -175,7 +176,7 @@ type GetBuildParams struct {
 	UserID uuid.UUID
 }
 
-func (s *Service) GetBuild(getBuildParams *GetBuildParams) (*Build, error) {
+func (s *Service) GetBuild(ctx context.Context, getBuildParams *GetBuildParams) (*Build, error) {
 	panic("not implemented")
 }
 
@@ -186,7 +187,7 @@ type GetBuildWithTimeout struct {
 	UserID  uuid.UUID
 }
 
-func (s *Service) GetBuildWithTimeout(getBuildWithTimeoutParams *GetBuildWithTimeout) (*Build, error) {
+func (s *Service) GetBuildWithTimeout(ctx context.Context, getBuildWithTimeoutParams *GetBuildWithTimeout) (*Build, error) {
 	panic("not implemented")
 }
 
@@ -203,7 +204,7 @@ type ListBuildsResult struct {
 	TotalSize     int
 }
 
-func (s *Service) ListBuilds(listBuildsParams *ListBuildsParams) (*ListBuildsResult, error) {
+func (s *Service) ListBuilds(ctx context.Context, listBuildsParams *ListBuildsParams) (*ListBuildsResult, error) {
 	panic("not implemented")
 }
 
@@ -214,7 +215,7 @@ type CancelBuildParams struct {
 
 // CancelBuild.
 // It is idempotent without idempotency key.
-func (s *Service) CancelBuild(cancelBuildParams *CancelBuildParams) error {
+func (s *Service) CancelBuild(ctx context.Context, cancelBuildParams *CancelBuildParams) error {
 	panic("not implemented")
 }
 
@@ -228,7 +229,7 @@ type GetLimitsResult struct {
 	ResetsAt      time.Time
 }
 
-func (s *Service) GetLimits(getLimitsParams *GetLimitsParams) (*GetLimitsResult, error) {
+func (s *Service) GetLimits(ctx context.Context, getLimitsParams *GetLimitsParams) (*GetLimitsResult, error) {
 	panic("not implemented")
 }
 
