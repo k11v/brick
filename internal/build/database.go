@@ -16,12 +16,12 @@ func NewPostgresDatabase(pool *pgxpool.Pool) *PostgresDatabase {
 }
 
 // BeginFunc implements Database.
-func (p *PostgresDatabase) BeginFunc(f func(tx Database) error) error {
+func (d *PostgresDatabase) BeginFunc(f func(tx Database) error) error {
 	panic("unimplemented")
 }
 
 // CreateBuild implements Database.
-func (p *PostgresDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
+func (d *PostgresDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
 	return &DatabaseBuild{
 		Done:             false,
 		Error:            nil,
@@ -32,7 +32,7 @@ func (p *PostgresDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*Data
 }
 
 // GetBuild implements Database.
-func (p *PostgresDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
+func (d *PostgresDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
 	return &DatabaseBuild{
 		Done:             false,
 		Error:            nil,
@@ -43,21 +43,21 @@ func (p *PostgresDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBu
 }
 
 // GetBuildByIdempotencyKey implements Database.
-func (p *PostgresDatabase) GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error) {
+func (d *PostgresDatabase) GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error) {
 	panic("unimplemented")
 }
 
 // GetBuildCount implements Database.
-func (p *PostgresDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
+func (d *PostgresDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
 	panic("unimplemented")
 }
 
 // ListBuilds implements Database.
-func (p *PostgresDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
+func (d *PostgresDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
 	panic("unimplemented")
 }
 
 // LockUser implements Database.
-func (p *PostgresDatabase) LockUser(params *DatabaseLockUserParams) error {
+func (d *PostgresDatabase) LockUser(params *DatabaseLockUserParams) error {
 	panic("unimplemented")
 }
