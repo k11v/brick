@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"slices"
@@ -38,12 +39,12 @@ func (d *SpyDatabase) appendCalls(c ...string) {
 	*d.Calls = append(*d.Calls, c...)
 }
 
-func (d *SpyDatabase) CreateBuild(params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
+func (d *SpyDatabase) CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
 	d.appendCalls(callCreateBuild)
 	return d.CreateBuildResult, nil
 }
 
-func (d *SpyDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
+func (d *SpyDatabase) GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
 	d.appendCalls(callGetBuild)
 	if d.GetBuildFunc == nil {
 		return &DatabaseBuild{}, nil
@@ -51,7 +52,7 @@ func (d *SpyDatabase) GetBuild(params *DatabaseGetBuildParams) (*DatabaseBuild, 
 	return d.GetBuildFunc()
 }
 
-func (d *SpyDatabase) GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error) {
+func (d *SpyDatabase) GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error) {
 	d.appendCalls(callGetBuildByIdempotencyKey)
 	if d.GetBuildByIdempotencyKeyFunc == nil {
 		return nil, ErrDatabaseNotFound
@@ -59,22 +60,22 @@ func (d *SpyDatabase) GetBuildByIdempotencyKey(params *DatabaseGetBuildByIdempot
 	return d.GetBuildByIdempotencyKeyFunc()
 }
 
-func (d *SpyDatabase) GetBuildCount(params *DatabaseGetBuildCountParams) (int, error) {
+func (d *SpyDatabase) GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error) {
 	d.appendCalls(callGetBuildCount)
 	return d.GetBuildCountResult, nil
 }
 
-func (d *SpyDatabase) ListBuilds(params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
+func (d *SpyDatabase) ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
 	d.appendCalls(callListBuilds)
 	return d.ListBuildsResult, nil
 }
 
-func (d *SpyDatabase) LockUser(params *DatabaseLockUserParams) error {
+func (d *SpyDatabase) LockUser(ctx context.Context, params *DatabaseLockUserParams) error {
 	d.appendCalls(callLockUser)
 	return nil
 }
 
-func (d *SpyDatabase) BeginFunc(f func(tx Database) error) error {
+func (d *SpyDatabase) BeginFunc(ctx context.Context, f func(tx Database) error) error {
 	d.appendCalls(callBegin)
 
 	tx := *d
@@ -91,6 +92,7 @@ func (d *SpyDatabase) BeginFunc(f func(tx Database) error) error {
 
 // TODO: Add t.Parallel().
 func TestServiceCreateBuild(t *testing.T) {
+	ctx := context.Background()
 	config := &Config{
 		BuildsAllowed: 10,
 	}
@@ -212,7 +214,7 @@ func TestServiceCreateBuild(t *testing.T) {
 
 			service := NewService(config, tt.spyDatabase, 0, 0)
 
-			got, gotErr := service.CreateBuild(tt.createBuildParams)
+			got, gotErr := service.CreateBuild(ctx, tt.createBuildParams)
 			want, wantErr := tt.want, tt.wantErr
 			if !reflect.DeepEqual(got, want) || !errors.Is(gotErr, wantErr) {
 				t.Logf("got %#v, %#v", got, gotErr)

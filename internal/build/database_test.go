@@ -35,7 +35,7 @@ func TestPostgresDatabase(t *testing.T) {
 		ctx := context.Background()
 		database := newPostgresDatabase(ctx, t)
 
-		databaseBuild, err := database.CreateBuild(&DatabaseCreateBuildParams{
+		databaseBuild, err := database.CreateBuild(ctx, &DatabaseCreateBuildParams{
 			ContextToken:   "",
 			DocumentFiles:  make(map[string][]byte),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
@@ -45,7 +45,7 @@ func TestPostgresDatabase(t *testing.T) {
 			t.Errorf("didn't want %v", err)
 		}
 
-		got, err := database.GetBuild(&DatabaseGetBuildParams{
+		got, err := database.GetBuild(ctx, &DatabaseGetBuildParams{
 			ID:     databaseBuild.ID,
 			UserID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 		})
@@ -62,7 +62,7 @@ func TestPostgresDatabase(t *testing.T) {
 		ctx := context.Background()
 		database := newPostgresDatabase(ctx, t)
 
-		databaseBuild, err := database.CreateBuild(&DatabaseCreateBuildParams{
+		databaseBuild, err := database.CreateBuild(ctx, &DatabaseCreateBuildParams{
 			ContextToken:   "",
 			DocumentFiles:  make(map[string][]byte),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
@@ -72,7 +72,7 @@ func TestPostgresDatabase(t *testing.T) {
 			t.Errorf("didn't want %v", err)
 		}
 
-		got, gotErr := database.GetBuild(&DatabaseGetBuildParams{
+		got, gotErr := database.GetBuild(ctx, &DatabaseGetBuildParams{
 			ID:     databaseBuild.ID,
 			UserID: uuid.MustParse("dddddddd-0000-0000-0000-000000000000"),
 		})
@@ -106,7 +106,7 @@ func TestPostgresDatabaseCreateBuild(t *testing.T) {
 	}
 
 	database := NewPostgresDatabase(pool)
-	gotDatabaseBuild, err := database.CreateBuild(&DatabaseCreateBuildParams{
+	gotDatabaseBuild, err := database.CreateBuild(ctx, &DatabaseCreateBuildParams{
 		ContextToken:   "",
 		DocumentFiles:  make(map[string][]byte),
 		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
