@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -87,6 +88,30 @@ func (d *PostgresDatabase) GetBuildCount(ctx context.Context, params *DatabaseGe
 
 // ListBuilds implements Database.
 func (d *PostgresDatabase) ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
+	// Currently db struct tags aren't used.
+	type row struct {
+		ID             uuid.UUID `db:"id"`
+		CreatedAt      time.Time `db:"created_at"`
+		IdempotencyKey uuid.UUID `db:"idempotency_key"`
+		Status         string    `db:"status"`
+		UserID         uuid.UUID `db:"user_id"`
+	}
+
+	rows, err := d.db.Query(ctx, `SELECT id, created_at, idempotency_key, status, user_id FROM builds`)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var r row
+		if err = rows.Scan(&r.ID, &r.CreatedAt, &r.IdempotencyKey, &r.Status, &r.UserID); err != nil {
+			return nil, err
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
 	panic("unimplemented")
 }
 
