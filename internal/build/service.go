@@ -14,10 +14,6 @@ var (
 	ErrDatabaseNotFound          = errors.New("database: not found")
 )
 
-type Config struct {
-	BuildsAllowed int
-}
-
 type Service struct {
 	config   *Config  // required
 	database Database // required
