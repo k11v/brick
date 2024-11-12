@@ -1,4 +1,4 @@
-package operation
+package oper
 
 type Config struct {
 	BuildsAllowed int

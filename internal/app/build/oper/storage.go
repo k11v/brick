@@ -1,3 +1,3 @@
-package operation
+package oper
 
 type Storage interface{}
