@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/k11v/brick/internal/app/build"
-	"github.com/k11v/brick/internal/app/build/oper"
+	"github.com/k11v/brick/internal/app/build/operation"
 )
 
 type Database struct {
@@ -17,14 +17,14 @@ type Database struct {
 }
 
 // TODO: Remove.
-var _ oper.Database = (*Database)(nil)
+var _ operation.Database = (*Database)(nil)
 
 func NewDatabase(db Querier) *Database {
 	return &Database{db: db}
 }
 
 // BeginFunc implements Database.
-func (d *Database) BeginFunc(ctx context.Context, f func(tx oper.Database) error) error {
+func (d *Database) BeginFunc(ctx context.Context, f func(tx operation.Database) error) error {
 	tx, err := d.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -44,7 +44,7 @@ func (d *Database) BeginFunc(ctx context.Context, f func(tx oper.Database) error
 }
 
 // CreateBuild implements Database.
-func (d *Database) CreateBuild(ctx context.Context, params *oper.DatabaseCreateBuildParams) (*build.Build, error) {
+func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCreateBuildParams) (*build.Build, error) {
 	return &build.Build{
 		// Done:             false,
 		// Error:            nil,
@@ -55,7 +55,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *oper.DatabaseCreateB
 }
 
 // GetBuild implements Database.
-func (d *Database) GetBuild(ctx context.Context, params *oper.DatabaseGetBuildParams) (*build.Build, error) {
+func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBuildParams) (*build.Build, error) {
 	return &build.Build{
 		// Done:             false,
 		// Error:            nil,
@@ -66,17 +66,17 @@ func (d *Database) GetBuild(ctx context.Context, params *oper.DatabaseGetBuildPa
 }
 
 // GetBuildByIdempotencyKey implements Database.
-func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *oper.DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
+func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operation.DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
 	panic("unimplemented")
 }
 
 // GetBuildCount implements Database.
-func (d *Database) GetBuildCount(ctx context.Context, params *oper.DatabaseGetBuildCountParams) (int, error) {
+func (d *Database) GetBuildCount(ctx context.Context, params *operation.DatabaseGetBuildCountParams) (int, error) {
 	panic("unimplemented")
 }
 
 // ListBuilds implements Database.
-func (d *Database) ListBuilds(ctx context.Context, params *oper.DatabaseListBuildsParams) (*oper.DatabaseListBuildsResult, error) {
+func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseListBuildsParams) (*operation.DatabaseListBuildsResult, error) {
 	// Currently db struct tags aren't used.
 	type row struct {
 		ID             uuid.UUID `db:"id"`
@@ -105,6 +105,6 @@ func (d *Database) ListBuilds(ctx context.Context, params *oper.DatabaseListBuil
 }
 
 // LockUser implements Database.
-func (d *Database) LockUser(ctx context.Context, params *oper.DatabaseLockUserParams) error {
+func (d *Database) LockUser(ctx context.Context, params *operation.DatabaseLockUserParams) error {
 	panic("unimplemented")
 }
