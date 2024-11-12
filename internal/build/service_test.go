@@ -120,11 +120,11 @@ func TestServiceCreateBuild(t *testing.T) {
 		UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 	}
 	defaultWant := &Build{
-		Done:             false,
-		Error:            nil,
-		ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-		NextContextToken: "",
-		OutputFile:       nil,
+		// Done:             false,
+		// Error:            nil,
+		ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+		// NextContextToken: "",
+		OutputFile: nil,
 	}
 
 	tests := []struct {
