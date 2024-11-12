@@ -14,67 +14,6 @@ var (
 	ErrDatabaseNotFound          = errors.New("database: not found")
 )
 
-type Database interface {
-	BeginFunc(ctx context.Context, f func(tx Database) error) error
-	LockUser(ctx context.Context, params *DatabaseLockUserParams) error
-	GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error)
-	CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*DatabaseBuild, error)
-	GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*DatabaseBuild, error)
-	GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error)
-	ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error)
-}
-
-type DatabaseBuild struct {
-	Done             bool
-	Error            error
-	ID               uuid.UUID
-	NextContextToken string
-	OutputFile       []byte
-}
-
-type DatabaseLockUserParams struct {
-	UserID uuid.UUID
-}
-
-type DatabaseGetBuildCountParams struct {
-	EndTime   time.Time
-	StartTime time.Time
-	UserID    uuid.UUID
-}
-
-type DatabaseGetBuildCountResult struct {
-	Count int
-}
-
-type DatabaseCreateBuildParams struct {
-	ContextToken   string
-	DocumentFiles  map[string][]byte
-	IdempotencyKey uuid.UUID
-	UserID         uuid.UUID
-}
-
-type DatabaseGetBuildParams struct {
-	ID     uuid.UUID
-	UserID uuid.UUID
-}
-
-type DatabaseGetBuildByIdempotencyKeyParams struct {
-	IdempotencyKey uuid.UUID
-	UserID         uuid.UUID
-}
-
-type DatabaseListBuildsParams struct {
-	PageLimit  int
-	PageOffset int
-	UserID     uuid.UUID
-}
-
-type DatabaseListBuildsResult struct {
-	Builds         []*DatabaseBuild
-	NextPageOffset *int // zero value (nil) means no more pages
-	TotalSize      int
-}
-
 type Storage interface{}
 
 type Broker interface{}
