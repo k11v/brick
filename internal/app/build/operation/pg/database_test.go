@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/k11v/brick/internal/app/build"
-	"github.com/k11v/brick/internal/app/build/oper"
+	"github.com/k11v/brick/internal/app/build/operation"
 	"github.com/k11v/brick/internal/postgrestest"
 	"github.com/k11v/brick/internal/postgresutil"
 )
@@ -38,7 +38,7 @@ func TestDatabase(t *testing.T) {
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
 
-		databaseBuild, err := database.CreateBuild(ctx, &oper.DatabaseCreateBuildParams{
+		databaseBuild, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 			ContextToken:   "",
 			DocumentFiles:  make(map[string][]byte),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
@@ -48,7 +48,7 @@ func TestDatabase(t *testing.T) {
 			t.Errorf("didn't want %v", err)
 		}
 
-		got, err := database.GetBuild(ctx, &oper.DatabaseGetBuildParams{
+		got, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
 			ID:     databaseBuild.ID,
 			UserID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 		})
@@ -65,7 +65,7 @@ func TestDatabase(t *testing.T) {
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
 
-		databaseBuild, err := database.CreateBuild(ctx, &oper.DatabaseCreateBuildParams{
+		databaseBuild, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 			ContextToken:   "",
 			DocumentFiles:  make(map[string][]byte),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
@@ -75,7 +75,7 @@ func TestDatabase(t *testing.T) {
 			t.Errorf("didn't want %v", err)
 		}
 
-		got, gotErr := database.GetBuild(ctx, &oper.DatabaseGetBuildParams{
+		got, gotErr := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
 			ID:     databaseBuild.ID,
 			UserID: uuid.MustParse("dddddddd-0000-0000-0000-000000000000"),
 		})
@@ -109,7 +109,7 @@ func TestDatabaseCreateBuild(t *testing.T) {
 	}
 
 	database := NewDatabase(pool)
-	gotDatabaseBuild, err := database.CreateBuild(ctx, &oper.DatabaseCreateBuildParams{
+	gotDatabaseBuild, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 		ContextToken:   "",
 		DocumentFiles:  make(map[string][]byte),
 		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
