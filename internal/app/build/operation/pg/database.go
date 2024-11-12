@@ -2,6 +2,7 @@ package pg
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -44,7 +45,72 @@ func (d *Database) BeginFunc(ctx context.Context, f func(tx operation.Database) 
 
 // CreateBuild implements operation.Database.
 func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCreateBuildParams) (*build.Build, error) {
-	panic("unimplemented")
+	query := `
+		INSERT INTO builds (idempotency_key, user_id, document_token, status)
+		VALUES ($1, $2, $3, $4)
+		RETURNING
+			id, idempotency_key,
+			user_id, created_at,
+			document_token,
+			process_log_token, process_used_time, process_used_memory, process_exit_code,
+			output_token, next_document_token, output_expires_at,
+			status
+	`
+	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, "pending"}
+
+	type row struct {
+		ID                uuid.UUID     `db:"id"`
+		IdempotencyKey    uuid.UUID     `db:"idempotency_key"`
+		UserID            uuid.UUID     `db:"user_id"`
+		CreatedAt         time.Time     `db:"created_at"`
+		DocumentToken     string        `db:"document_token"`
+		ProcessLogToken   string        `db:"process_log_token"`
+		ProcessUsedTime   time.Duration `db:"process_used_time"`
+		ProcessUsedMemory int           `db:"process_used_memory"`
+		ProcessExitCode   int           `db:"process_exit_code"`
+		OutputToken       string        `db:"output_token"`
+		NextDocumentToken string        `db:"next_document_token"`
+		OutputExpiresAt   time.Time     `db:"output_expires_at"`
+		Status            string        `db:"status"`
+	}
+
+	rows, _ := d.db.Query(ctx, query, args)
+	resultRow, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[row])
+	if err != nil {
+		return nil, fmt.Errorf("database create build: %w", err)
+	}
+
+	var status build.Status
+	switch resultRow.Status {
+	case "pending":
+		status = build.StatusPending
+	case "running":
+		status = build.StatusRunning
+	case "completed":
+		status = build.StatusCompleted
+	case "canceled":
+		status = build.StatusCanceled
+	default:
+		return nil, fmt.Errorf("unknown status: %s", resultRow.Status)
+	}
+
+	b := &build.Build{
+		ID:                resultRow.ID,
+		IdempotencyKey:    resultRow.IdempotencyKey,
+		UserID:            resultRow.UserID,
+		CreatedAt:         resultRow.CreatedAt,
+		DocumentToken:     "",
+		DocumentFiles:     map[string][]byte{},
+		ProcessLogFile:    []byte{},
+		ProcessUsedTime:   resultRow.ProcessUsedTime,
+		ProcessUsedMemory: resultRow.ProcessUsedMemory,
+		ProcessExitCode:   resultRow.ProcessExitCode,
+		OutputFile:        []byte{},
+		NextDocumentToken: "",
+		OutputExpiresAt:   resultRow.OutputExpiresAt,
+		Status:            status,
+	}
+	return b, nil
 }
 
 // GetBuild implements operation.Database.
