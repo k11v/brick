@@ -8,6 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var (
+	_ Querier = (*pgxpool.Pool)(nil)
+	_ Querier = pgx.Tx(nil)
+)
+
 type Querier interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 	Exec(ctx context.Context, sql string, arguments ...any) (commandTag pgconn.CommandTag, err error)
@@ -15,8 +20,3 @@ type Querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
-
-var (
-	_ Querier = (*pgxpool.Pool)(nil)
-	_ Querier = pgx.Tx(nil)
-)

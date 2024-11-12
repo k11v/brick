@@ -9,7 +9,7 @@ import (
 type Status int
 
 const (
-	StatusCreated Status = iota
+	StatusPending Status = iota
 	StatusRunning
 	StatusCompleted
 	StatusCanceled

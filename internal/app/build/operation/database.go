@@ -34,10 +34,12 @@ type DatabaseGetBuildCountResult struct {
 }
 
 type DatabaseCreateBuildParams struct {
-	ContextToken   string
-	DocumentFiles  map[string][]byte
 	IdempotencyKey uuid.UUID
 	UserID         uuid.UUID
+	DocumentToken  string
+
+	ContextToken  string            // deprecated
+	DocumentFiles map[string][]byte // deprecated
 }
 
 type DatabaseGetBuildParams struct {
