@@ -14,8 +14,6 @@ var (
 	ErrDatabaseNotFound          = errors.New("database: not found")
 )
 
-type Broker interface{}
-
 type Config struct {
 	BuildsAllowed int
 }
