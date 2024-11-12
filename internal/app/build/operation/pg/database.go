@@ -12,18 +12,17 @@ import (
 	"github.com/k11v/brick/internal/app/build/operation"
 )
 
+var _ operation.Database = (*Database)(nil)
+
 type Database struct {
 	db Querier // required
 }
-
-// TODO: Remove.
-var _ operation.Database = (*Database)(nil)
 
 func NewDatabase(db Querier) *Database {
 	return &Database{db: db}
 }
 
-// BeginFunc implements Database.
+// BeginFunc implements operation.Database.
 func (d *Database) BeginFunc(ctx context.Context, f func(tx operation.Database) error) error {
 	tx, err := d.db.Begin(ctx)
 	if err != nil {
@@ -43,39 +42,26 @@ func (d *Database) BeginFunc(ctx context.Context, f func(tx operation.Database) 
 	return tx.Commit(ctx)
 }
 
-// CreateBuild implements Database.
+// CreateBuild implements operation.Database.
 func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCreateBuildParams) (*build.Build, error) {
-	return &build.Build{
-		// Done:             false,
-		// Error:            nil,
-		ID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-		// NextContextToken: "",
-		OutputFile: nil,
-	}, nil
+	panic("unimplemented")
 }
 
-// GetBuild implements Database.
+// GetBuild implements operation.Database.
 func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBuildParams) (*build.Build, error) {
-	return &build.Build{
-		// Done:             false,
-		// Error:            nil,
-		ID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-		// NextContextToken: "",
-		OutputFile: nil,
-	}, nil
+	panic("unimplemented")
 }
 
-// GetBuildByIdempotencyKey implements Database.
+// GetBuildByIdempotencyKey implements operation.Database.
 func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operation.DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
 	panic("unimplemented")
 }
 
-// GetBuildCount implements Database.
+// GetBuildCount implements operation.Database.
 func (d *Database) GetBuildCount(ctx context.Context, params *operation.DatabaseGetBuildCountParams) (int, error) {
 	panic("unimplemented")
 }
 
-// ListBuilds implements Database.
 func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseListBuildsParams) (*operation.DatabaseListBuildsResult, error) {
 	// Currently db struct tags aren't used.
 	type row struct {
@@ -104,7 +90,7 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 	panic("unimplemented")
 }
 
-// LockUser implements Database.
+// LockUser implements operation.Database.
 func (d *Database) LockUser(ctx context.Context, params *operation.DatabaseLockUserParams) error {
 	panic("unimplemented")
 }
