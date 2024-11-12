@@ -1,4 +1,4 @@
-package operpostgres
+package pg
 
 import (
 	"context"
