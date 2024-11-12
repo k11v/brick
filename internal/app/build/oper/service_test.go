@@ -1,4 +1,4 @@
-package build
+package oper
 
 import (
 	"context"
@@ -8,87 +8,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/k11v/brick/internal/app/build"
 )
-
-const (
-	callBegin                    = "Begin"
-	callCommit                   = "Commit"
-	callCreateBuild              = "CreateBuild"
-	callGetBuild                 = "GetBuild"
-	callGetBuildByIdempotencyKey = "GetBuildByIdempotencyKey"
-	callGetBuildCount            = "GetBuildCount"
-	callListBuilds               = "ListBuilds"
-	callLockUser                 = "LockUser"
-	callRollback                 = "Rollback"
-)
-
-type SpyDatabase struct {
-	GetBuildCountResult          int
-	CreateBuildResult            *DatabaseBuild
-	GetBuildFunc                 func() (*DatabaseBuild, error)
-	GetBuildByIdempotencyKeyFunc func() (*DatabaseBuild, error)
-	ListBuildsResult             *DatabaseListBuildsResult
-
-	Calls *[]string // doesn't contain rolled back calls
-}
-
-func (d *SpyDatabase) appendCalls(c ...string) {
-	if d.Calls == nil {
-		d.Calls = new([]string)
-	}
-	*d.Calls = append(*d.Calls, c...)
-}
-
-func (d *SpyDatabase) CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*DatabaseBuild, error) {
-	d.appendCalls(callCreateBuild)
-	return d.CreateBuildResult, nil
-}
-
-func (d *SpyDatabase) GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*DatabaseBuild, error) {
-	d.appendCalls(callGetBuild)
-	if d.GetBuildFunc == nil {
-		return &DatabaseBuild{}, nil
-	}
-	return d.GetBuildFunc()
-}
-
-func (d *SpyDatabase) GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*DatabaseBuild, error) {
-	d.appendCalls(callGetBuildByIdempotencyKey)
-	if d.GetBuildByIdempotencyKeyFunc == nil {
-		return nil, ErrDatabaseNotFound
-	}
-	return d.GetBuildByIdempotencyKeyFunc()
-}
-
-func (d *SpyDatabase) GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error) {
-	d.appendCalls(callGetBuildCount)
-	return d.GetBuildCountResult, nil
-}
-
-func (d *SpyDatabase) ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
-	d.appendCalls(callListBuilds)
-	return d.ListBuildsResult, nil
-}
-
-func (d *SpyDatabase) LockUser(ctx context.Context, params *DatabaseLockUserParams) error {
-	d.appendCalls(callLockUser)
-	return nil
-}
-
-func (d *SpyDatabase) BeginFunc(ctx context.Context, f func(tx Database) error) error {
-	d.appendCalls(callBegin)
-
-	tx := *d
-	tx.Calls = new([]string)
-	if err := f(&tx); err != nil {
-		d.appendCalls(callRollback)
-		return err
-	}
-
-	d.appendCalls(*tx.Calls...)
-	d.appendCalls(callCommit)
-	return nil
-}
 
 // TODO: Add t.Parallel().
 func TestServiceCreateBuild(t *testing.T) {
@@ -97,20 +19,20 @@ func TestServiceCreateBuild(t *testing.T) {
 		BuildsAllowed: 10,
 	}
 
-	defaultCreateBuildResult := &DatabaseBuild{
-		Done:             false,
-		Error:            nil,
-		ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-		NextContextToken: "",
-		OutputFile:       nil,
+	defaultCreateBuildResult := &build.Build{
+		// Done:             false,
+		// Error:            nil,
+		ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+		// NextContextToken: "",
+		OutputFile: nil,
 	}
-	defaultGetBuildByIdempotencyKeyFunc := func() (*DatabaseBuild, error) {
-		return &DatabaseBuild{
-			Done:             false,
-			Error:            nil,
-			ID:               uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
-			NextContextToken: "",
-			OutputFile:       nil,
+	defaultGetBuildByIdempotencyKeyFunc := func() (*build.Build, error) {
+		return &build.Build{
+			// Done:             false,
+			// Error:            nil,
+			ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+			// NextContextToken: "",
+			OutputFile: nil,
 		}, nil
 	}
 	defaultCreateBuildParams := &CreateBuildParams{
@@ -119,7 +41,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
 		UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 	}
-	defaultWant := &Build{
+	defaultWant := &build.Build{
 		// Done:             false,
 		// Error:            nil,
 		ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
@@ -131,7 +53,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		name               string
 		spyDatabase        *SpyDatabase
 		createBuildParams  *CreateBuildParams
-		want               *Build
+		want               *build.Build
 		wantErr            error
 		wantCallsPredicate func(calls []string) bool
 		skip               bool
