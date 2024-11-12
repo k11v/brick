@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
 	"github.com/k11v/brick/internal/postgrestest"
 	"github.com/k11v/brick/internal/postgresutil"
 )

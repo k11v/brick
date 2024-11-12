@@ -257,10 +257,10 @@ func (s *Service) GetLimits(ctx context.Context, getLimitsParams *GetLimitsParam
 
 func buildFromDatabaseBuild(databaseBuild *DatabaseBuild) *Build {
 	return &Build{
-		Done:             databaseBuild.Done,
-		Error:            databaseBuild.Error,
-		ID:               databaseBuild.ID,
-		NextContextToken: databaseBuild.NextContextToken,
-		OutputFile:       databaseBuild.OutputFile,
+		// Done:             databaseBuild.Done,
+		// Error:            databaseBuild.Error,
+		ID: databaseBuild.ID,
+		// NextContextToken: databaseBuild.NextContextToken,
+		OutputFile: databaseBuild.OutputFile,
 	}
 }
