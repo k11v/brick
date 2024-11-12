@@ -1,4 +1,4 @@
-package build
+package operation
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/k11v/brick/internal/app/build"
 )
 
 var (
@@ -32,10 +34,10 @@ type CreateBuildParams struct {
 	UserID         uuid.UUID
 }
 
-func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuildParams) (*Build, error) {
-	var b *Build
+func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuildParams) (*build.Build, error) {
+	var b *build.Build
 
-	databaseBuildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
+	buildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
 		IdempotencyKey: createBuildParams.IdempotencyKey,
 		UserID:         createBuildParams.UserID,
 	})
@@ -45,7 +47,7 @@ func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuil
 	}
 	if err == nil {
 		// FIXME: Check request payload.
-		b = buildFromDatabaseBuild(databaseBuildByIdempotencyKey)
+		b = buildByIdempotencyKey
 		return b, nil
 	}
 	// TODO: Consider a race condition where multiple requests determine
@@ -73,7 +75,7 @@ func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuil
 			return ErrLimitExceeded
 		}
 
-		databaseBuild, err := tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
+		b, err = tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
 			ContextToken:   createBuildParams.ContextToken,
 			DocumentFiles:  createBuildParams.DocumentFiles,
 			IdempotencyKey: createBuildParams.IdempotencyKey,
@@ -83,7 +85,6 @@ func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuil
 			return err
 		}
 
-		b = buildFromDatabaseBuild(databaseBuild)
 		return nil
 	})
 	if err != nil {
@@ -98,7 +99,7 @@ type GetBuildParams struct {
 	UserID uuid.UUID
 }
 
-func (s *Service) GetBuild(ctx context.Context, getBuildParams *GetBuildParams) (*Build, error) {
+func (s *Service) GetBuild(ctx context.Context, getBuildParams *GetBuildParams) (*build.Build, error) {
 	panic("not implemented")
 }
 
@@ -109,7 +110,7 @@ type GetBuildWithTimeout struct {
 	UserID  uuid.UUID
 }
 
-func (s *Service) GetBuildWithTimeout(ctx context.Context, getBuildWithTimeoutParams *GetBuildWithTimeout) (*Build, error) {
+func (s *Service) GetBuildWithTimeout(ctx context.Context, getBuildWithTimeoutParams *GetBuildWithTimeout) (*build.Build, error) {
 	panic("not implemented")
 }
 
@@ -121,7 +122,7 @@ type ListBuildsParams struct {
 }
 
 type ListBuildsResult struct {
-	Builds        []*Build
+	Builds        []*build.Build
 	NextPageToken string // zero value ("") means no more pages
 	TotalSize     int
 }
@@ -153,14 +154,4 @@ type GetLimitsResult struct {
 
 func (s *Service) GetLimits(ctx context.Context, getLimitsParams *GetLimitsParams) (*GetLimitsResult, error) {
 	panic("not implemented")
-}
-
-func buildFromDatabaseBuild(databaseBuild *DatabaseBuild) *Build {
-	return &Build{
-		// Done:             databaseBuild.Done,
-		// Error:            databaseBuild.Error,
-		ID: databaseBuild.ID,
-		// NextContextToken: databaseBuild.NextContextToken,
-		OutputFile: databaseBuild.OutputFile,
-	}
 }
