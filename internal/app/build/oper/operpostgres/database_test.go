@@ -1,4 +1,4 @@
-package build
+package operpostgres
 
 import (
 	"context"
@@ -8,11 +8,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/k11v/brick/internal/app/build"
+	"github.com/k11v/brick/internal/app/build/oper"
 	"github.com/k11v/brick/internal/postgrestest"
 	"github.com/k11v/brick/internal/postgresutil"
 )
 
-func newPostgresDatabase(ctx context.Context, t testing.TB) *PostgresDatabase {
+func newDatabase(ctx context.Context, t testing.TB) *Database {
 	connectionString, teardown, err := postgrestest.Setup(ctx)
 	if err != nil {
 		t.Fatalf("didn't want %v", err)
@@ -28,15 +30,15 @@ func newPostgresDatabase(ctx context.Context, t testing.TB) *PostgresDatabase {
 		t.Fatalf("didn't want %v", err)
 	}
 
-	return NewPostgresDatabase(pool)
+	return NewDatabase(pool)
 }
 
-func TestPostgresDatabase(t *testing.T) {
+func TestDatabase(t *testing.T) {
 	t.Run("creates and gets a build", func(t *testing.T) {
 		ctx := context.Background()
-		database := newPostgresDatabase(ctx, t)
+		database := newDatabase(ctx, t)
 
-		databaseBuild, err := database.CreateBuild(ctx, &DatabaseCreateBuildParams{
+		databaseBuild, err := database.CreateBuild(ctx, &oper.DatabaseCreateBuildParams{
 			ContextToken:   "",
 			DocumentFiles:  make(map[string][]byte),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
@@ -46,7 +48,7 @@ func TestPostgresDatabase(t *testing.T) {
 			t.Errorf("didn't want %v", err)
 		}
 
-		got, err := database.GetBuild(ctx, &DatabaseGetBuildParams{
+		got, err := database.GetBuild(ctx, &oper.DatabaseGetBuildParams{
 			ID:     databaseBuild.ID,
 			UserID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 		})
@@ -61,9 +63,9 @@ func TestPostgresDatabase(t *testing.T) {
 
 	t.Run("doesn't get a build for another user", func(t *testing.T) {
 		ctx := context.Background()
-		database := newPostgresDatabase(ctx, t)
+		database := newDatabase(ctx, t)
 
-		databaseBuild, err := database.CreateBuild(ctx, &DatabaseCreateBuildParams{
+		databaseBuild, err := database.CreateBuild(ctx, &oper.DatabaseCreateBuildParams{
 			ContextToken:   "",
 			DocumentFiles:  make(map[string][]byte),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
@@ -73,22 +75,22 @@ func TestPostgresDatabase(t *testing.T) {
 			t.Errorf("didn't want %v", err)
 		}
 
-		got, gotErr := database.GetBuild(ctx, &DatabaseGetBuildParams{
+		got, gotErr := database.GetBuild(ctx, &oper.DatabaseGetBuildParams{
 			ID:     databaseBuild.ID,
 			UserID: uuid.MustParse("dddddddd-0000-0000-0000-000000000000"),
 		})
-		if want, wantErr := (*DatabaseBuild)(nil), errors.New("access denied"); !reflect.DeepEqual(got, want) || !errors.Is(err, wantErr) {
+		if want, wantErr := (*build.Build)(nil), errors.New("access denied"); !reflect.DeepEqual(got, want) || !errors.Is(err, wantErr) {
 			t.Logf("got %#v, %#v", got, gotErr)
 			t.Errorf("want %#v, %#v", want, wantErr)
 		}
 	})
 }
 
-func TestPostgresDatabaseBeginFunc(t *testing.T) {
+func TestDatabaseBeginFunc(t *testing.T) {
 	t.SkipNow()
 }
 
-func TestPostgresDatabaseCreateBuild(t *testing.T) {
+func TestDatabaseCreateBuild(t *testing.T) {
 	ctx := context.Background()
 
 	connectionString, teardown, err := postgrestest.Setup(ctx)
@@ -106,8 +108,8 @@ func TestPostgresDatabaseCreateBuild(t *testing.T) {
 		t.Fatalf("didn't want %v", err)
 	}
 
-	database := NewPostgresDatabase(pool)
-	gotDatabaseBuild, err := database.CreateBuild(ctx, &DatabaseCreateBuildParams{
+	database := NewDatabase(pool)
+	gotDatabaseBuild, err := database.CreateBuild(ctx, &oper.DatabaseCreateBuildParams{
 		ContextToken:   "",
 		DocumentFiles:  make(map[string][]byte),
 		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
@@ -116,34 +118,34 @@ func TestPostgresDatabaseCreateBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("didn't want %v", err)
 	}
-	wantDatabaseBuild := &DatabaseBuild{
-		Done:             false,
-		Error:            nil,
-		ID:               uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-		NextContextToken: "",
-		OutputFile:       nil,
+	wantDatabaseBuild := &build.Build{
+		// Done:             false,
+		// Error:            nil,
+		ID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+		// NextContextToken: "",
+		OutputFile: nil,
 	}
 	if !reflect.DeepEqual(gotDatabaseBuild, wantDatabaseBuild) {
 		t.Errorf("didn't want %v", err)
 	}
 }
 
-func TestPostgresDatabaseGetBuild(t *testing.T) {
+func TestDatabaseGetBuild(t *testing.T) {
 	t.SkipNow()
 }
 
-func TestPostgresDatabaseGetBuildByIdempotencyKey(t *testing.T) {
+func TestDatabaseGetBuildByIdempotencyKey(t *testing.T) {
 	t.SkipNow()
 }
 
-func TestPostgresDatabaseGetBuildCount(t *testing.T) {
+func TestDatabaseGetBuildCount(t *testing.T) {
 	t.SkipNow()
 }
 
-func TestPostgresDatabaseListBuilds(t *testing.T) {
+func TestDatabaseListBuilds(t *testing.T) {
 	t.SkipNow()
 }
 
-func TestPostgresDatabaseLockUser(t *testing.T) {
+func TestDatabaseLockUser(t *testing.T) {
 	t.SkipNow()
 }
