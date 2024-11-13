@@ -69,7 +69,26 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 
 // GetBuild implements operation.Database.
 func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBuildParams) (*build.Build, error) {
-	panic("unimplemented")
+	query := `
+		SELECT
+			id, idempotency_key,
+			user_id, created_at,
+			document_token,
+			process_log_token, process_used_time, process_used_memory, process_exit_code,
+			output_token, next_document_token, output_expires_at,
+			status
+		FROM builds
+		WHERE id = $1 AND user_id = $2
+	`
+	args := []any{params.ID, params.UserID}
+
+	rows, _ := d.db.Query(ctx, query, args)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
+	if err != nil {
+		return nil, fmt.Errorf("database create build: %w", err)
+	}
+
+	return b, nil
 }
 
 // GetBuildByIdempotencyKey implements operation.Database.
