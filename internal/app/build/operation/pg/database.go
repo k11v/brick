@@ -58,53 +58,12 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 	`
 	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, "pending"}
 
-	type row struct {
-		ID                uuid.UUID     `db:"id"`
-		IdempotencyKey    uuid.UUID     `db:"idempotency_key"`
-		UserID            uuid.UUID     `db:"user_id"`
-		CreatedAt         time.Time     `db:"created_at"`
-		DocumentToken     string        `db:"document_token"`
-		ProcessLogToken   string        `db:"process_log_token"`
-		ProcessUsedTime   time.Duration `db:"process_used_time"`
-		ProcessUsedMemory int           `db:"process_used_memory"`
-		ProcessExitCode   int           `db:"process_exit_code"`
-		OutputToken       string        `db:"output_token"`
-		NextDocumentToken string        `db:"next_document_token"`
-		OutputExpiresAt   time.Time     `db:"output_expires_at"`
-		Status            string        `db:"status"`
-	}
-
 	rows, _ := d.db.Query(ctx, query, args)
-	resultRow, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[row])
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
 		return nil, fmt.Errorf("database create build: %w", err)
 	}
 
-	status, known := build.StatusFromString(resultRow.Status)
-	if !known {
-		slog.Default().Warn(
-			"unknown status encountered while creating build",
-			"status", resultRow.Status,
-			"build_id", resultRow.ID,
-		)
-	}
-
-	b := &build.Build{
-		ID:                resultRow.ID,
-		IdempotencyKey:    resultRow.IdempotencyKey,
-		UserID:            resultRow.UserID,
-		CreatedAt:         resultRow.CreatedAt,
-		DocumentToken:     "",
-		DocumentFiles:     map[string][]byte{},
-		ProcessLogFile:    []byte{},
-		ProcessUsedTime:   resultRow.ProcessUsedTime,
-		ProcessUsedMemory: resultRow.ProcessUsedMemory,
-		ProcessExitCode:   resultRow.ProcessExitCode,
-		OutputFile:        []byte{},
-		NextDocumentToken: "",
-		OutputExpiresAt:   resultRow.OutputExpiresAt,
-		Status:            status,
-	}
 	return b, nil
 }
 
