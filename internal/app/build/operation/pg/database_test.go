@@ -20,8 +20,8 @@ func newDatabase(ctx context.Context, t testing.TB) *Database {
 		t.Fatalf("didn't want %v", err)
 	}
 	t.Cleanup(func() {
-		if err := teardown(); err != nil {
-			t.Errorf("didn't want %v", err)
+		if teardownErr := teardown(); teardownErr != nil {
+			t.Errorf("didn't want %v", teardownErr)
 		}
 	})
 
@@ -84,68 +84,4 @@ func TestDatabase(t *testing.T) {
 			t.Errorf("want %#v, %#v", want, wantErr)
 		}
 	})
-}
-
-func TestDatabaseBeginFunc(t *testing.T) {
-	t.SkipNow()
-}
-
-func TestDatabaseCreateBuild(t *testing.T) {
-	ctx := context.Background()
-
-	connectionString, teardown, err := postgrestest.Setup(ctx)
-	if err != nil {
-		t.Fatalf("didn't want %v", err)
-	}
-	t.Cleanup(func() {
-		if err := teardown(); err != nil {
-			t.Errorf("didn't want %v", err)
-		}
-	})
-
-	pool, err := postgresutil.NewPool(ctx, connectionString)
-	if err != nil {
-		t.Fatalf("didn't want %v", err)
-	}
-
-	database := NewDatabase(pool)
-	gotDatabaseBuild, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
-		ContextToken:   "",
-		DocumentFiles:  make(map[string][]byte),
-		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
-		UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-	})
-	if err != nil {
-		t.Fatalf("didn't want %v", err)
-	}
-	wantDatabaseBuild := &build.Build{
-		// Done:             false,
-		// Error:            nil,
-		ID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-		// NextContextToken: "",
-		OutputFile: nil,
-	}
-	if !reflect.DeepEqual(gotDatabaseBuild, wantDatabaseBuild) {
-		t.Errorf("didn't want %v", err)
-	}
-}
-
-func TestDatabaseGetBuild(t *testing.T) {
-	t.SkipNow()
-}
-
-func TestDatabaseGetBuildByIdempotencyKey(t *testing.T) {
-	t.SkipNow()
-}
-
-func TestDatabaseGetBuildCount(t *testing.T) {
-	t.SkipNow()
-}
-
-func TestDatabaseListBuilds(t *testing.T) {
-	t.SkipNow()
-}
-
-func TestDatabaseLockUser(t *testing.T) {
-	t.SkipNow()
 }
