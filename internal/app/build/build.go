@@ -6,15 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Status int
-
-const (
-	StatusPending Status = iota
-	StatusRunning
-	StatusCompleted
-	StatusCanceled
-)
-
 type Build struct {
 	ID             uuid.UUID
 	IdempotencyKey uuid.UUID
