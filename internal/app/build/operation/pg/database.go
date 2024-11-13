@@ -117,7 +117,20 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 
 // GetBuildCount implements operation.Database.
 func (d *Database) GetBuildCount(ctx context.Context, params *operation.DatabaseGetBuildCountParams) (int, error) {
-	panic("unimplemented")
+	query := `
+		SELECT count(*) AS count
+		FROM builds
+		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
+	`
+	args := []any{params.UserID, params.StartTime, params.EndTime}
+
+	rows, _ := d.db.Query(ctx, query, args...)
+	count, err := pgx.CollectExactlyOneRow(rows, rowToInt)
+	if err != nil {
+		return 0, fmt.Errorf("database create build: %w", err)
+	}
+
+	return count, nil
 }
 
 func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseListBuildsParams) (*operation.DatabaseListBuildsResult, error) {
