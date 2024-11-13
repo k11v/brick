@@ -144,6 +144,7 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 		WHERE user_id = $1
 		LIMIT $2
 		OFFSET $3
+		ORDER BY created_at DESC, id ASC
 	`
 	args := []any{params.UserID, params.PageLimit, params.PageOffset}
 
