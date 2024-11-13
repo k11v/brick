@@ -80,18 +80,13 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 		return nil, fmt.Errorf("database create build: %w", err)
 	}
 
-	var status build.Status
-	switch resultRow.Status {
-	case "pending":
-		status = build.StatusPending
-	case "running":
-		status = build.StatusRunning
-	case "completed":
-		status = build.StatusCompleted
-	case "canceled":
-		status = build.StatusCanceled
-	default:
-		return nil, fmt.Errorf("unknown status: %s", resultRow.Status)
+	status, known := build.StatusFromString(resultRow.Status)
+	if !known {
+		slog.Default().Warn(
+			"unknown status encountered while creating build",
+			"status", resultRow.Status,
+			"build_id", resultRow.ID,
+		)
 	}
 
 	b := &build.Build{
