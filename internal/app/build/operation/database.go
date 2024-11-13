@@ -11,7 +11,7 @@ import (
 
 type Database interface {
 	BeginFunc(ctx context.Context, f func(tx Database) error) error
-	LockUser(ctx context.Context, params *DatabaseLockUserParams) error
+	LockUser(ctx context.Context, params *DatabaseLockUserParams) (DatabaseUnlockFunc, error)
 	GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error)
 	CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*build.Build, error)
 	GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*build.Build, error)
@@ -22,6 +22,8 @@ type Database interface {
 type DatabaseLockUserParams struct {
 	UserID uuid.UUID
 }
+
+type DatabaseUnlockFunc func() error
 
 type DatabaseGetBuildCountParams struct {
 	EndTime   time.Time

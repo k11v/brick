@@ -30,4 +30,10 @@ CREATE TABLE IF NOT EXISTS builds (
     CHECK (status IN ('pending', 'running', 'completed', 'canceled'))
 );
 
+CREATE TABLE IF NOT EXISTS user_locks (
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id)
+);
+
 COMMIT;
