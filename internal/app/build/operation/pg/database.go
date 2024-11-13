@@ -61,7 +61,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
-		return nil, fmt.Errorf("database create build: %w", err)
+		return nil, fmt.Errorf("create build: %w", err)
 	}
 
 	return b, nil
@@ -85,7 +85,7 @@ func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBu
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
-		return nil, fmt.Errorf("database create build: %w", err)
+		return nil, fmt.Errorf("get build: %w", err)
 	}
 
 	return b, nil
@@ -109,7 +109,7 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
-		return nil, fmt.Errorf("database create build: %w", err)
+		return nil, fmt.Errorf("get build by idempotency key: %w", err)
 	}
 
 	return b, nil
@@ -127,7 +127,7 @@ func (d *Database) GetBuildCount(ctx context.Context, params *operation.Database
 	rows, _ := d.db.Query(ctx, query, args...)
 	count, err := pgx.CollectExactlyOneRow(rows, rowToInt)
 	if err != nil {
-		return 0, fmt.Errorf("database create build: %w", err)
+		return 0, fmt.Errorf("get build count: %w", err)
 	}
 
 	return count, nil
