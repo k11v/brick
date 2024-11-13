@@ -21,24 +21,14 @@ func NewDatabase(db Querier) *Database {
 	return &Database{db: db}
 }
 
-// BeginFunc implements operation.Database.
-func (d *Database) BeginFunc(ctx context.Context, f func(tx operation.Database) error) error {
-	tx, err := d.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func(tx pgx.Tx) {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			slog.Default().Error("failed to rollback", "error", rollbackErr)
-		}
-	}(tx)
+// Begin implements operation.Database.
+func (d *Database) Begin(ctx context.Context) (operation.Tx, error) {
+	panic("unimplemented")
+}
 
-	txDatabase := NewDatabase(tx)
-	if err = f(txDatabase); err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
+// LockUser implements operation.Database.
+func (d *Database) LockUser(ctx context.Context, params *operation.DatabaseLockUserParams) error {
+	panic("unimplemented")
 }
 
 // CreateBuild implements operation.Database.
@@ -181,6 +171,26 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 	return result, nil
 }
 
+// BeginFunc implements operation.Database.
+func (d *Database) BeginFunc(ctx context.Context, f func(tx operation.Database) error) error {
+	tx, err := d.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func(tx pgx.Tx) {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			slog.Default().Error("failed to rollback", "error", rollbackErr)
+		}
+	}(tx)
+
+	txDatabase := NewDatabase(tx)
+	if err = f(txDatabase); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 // FIXME: LockUser's implementation is not good.
 //
 // Problems:
@@ -211,7 +221,7 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 //    to panic on another Begin. Another way to prevent this behavior is welcome.
 
 // LockUser implements operation.Database.
-func (d *Database) LockUser(ctx context.Context, params *operation.DatabaseLockUserParams) (operation.DatabaseUnlockFunc, error) {
+func (d *Database) LockUserWithUnlockFunc(ctx context.Context, params *operation.DatabaseLockUserParams) (operation.DatabaseUnlockFunc, error) {
 	lockQuery := `
 		INSERT INTO user_locks (user_id)
 		VALUES ($1)
@@ -230,9 +240,9 @@ func (d *Database) LockUser(ctx context.Context, params *operation.DatabaseLockU
 		`
 		unlockArgs := []any{params.UserID}
 
-		_, err := d.db.Exec(ctx, unlockQuery, unlockArgs...)
-		if err != nil {
-			return fmt.Errorf("unlock user: %w", err)
+		_, execErr := d.db.Exec(ctx, unlockQuery, unlockArgs...)
+		if execErr != nil {
+			return fmt.Errorf("unlock user: %w", execErr)
 		}
 
 		return nil
