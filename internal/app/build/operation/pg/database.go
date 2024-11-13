@@ -58,7 +58,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 	`
 	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, "pending"}
 
-	rows, _ := d.db.Query(ctx, query, args)
+	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
 		return nil, fmt.Errorf("database create build: %w", err)
@@ -82,7 +82,7 @@ func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBu
 	`
 	args := []any{params.ID, params.UserID}
 
-	rows, _ := d.db.Query(ctx, query, args)
+	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
 		return nil, fmt.Errorf("database create build: %w", err)
