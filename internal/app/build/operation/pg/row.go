@@ -12,19 +12,19 @@ import (
 )
 
 type row struct {
-	ID                uuid.UUID     `db:"id"`
-	IdempotencyKey    uuid.UUID     `db:"idempotency_key"`
-	UserID            uuid.UUID     `db:"user_id"`
-	CreatedAt         time.Time     `db:"created_at"`
-	DocumentToken     string        `db:"document_token"`
-	ProcessLogToken   string        `db:"process_log_token"`
-	ProcessUsedTime   time.Duration `db:"process_used_time"`
-	ProcessUsedMemory int           `db:"process_used_memory"`
-	ProcessExitCode   int           `db:"process_exit_code"`
-	OutputToken       string        `db:"output_token"`
-	NextDocumentToken string        `db:"next_document_token"`
-	OutputExpiresAt   time.Time     `db:"output_expires_at"`
-	Status            string        `db:"status"`
+	ID                uuid.UUID      `db:"id"`
+	IdempotencyKey    uuid.UUID      `db:"idempotency_key"`
+	UserID            uuid.UUID      `db:"user_id"`
+	CreatedAt         time.Time      `db:"created_at"`
+	DocumentToken     *string        `db:"document_token"`
+	ProcessLogToken   *string        `db:"process_log_token"`
+	ProcessUsedTime   *time.Duration `db:"process_used_time"`
+	ProcessUsedMemory *int           `db:"process_used_memory"`
+	ProcessExitCode   *int           `db:"process_exit_code"`
+	OutputToken       *string        `db:"output_token"`
+	NextDocumentToken *string        `db:"next_document_token"`
+	OutputExpiresAt   *time.Time     `db:"output_expires_at"`
+	Status            string         `db:"status"`
 }
 
 func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
@@ -42,6 +42,26 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
 		)
 	}
 
+	processUsedTime := time.Duration(0)
+	if collectedRow.ProcessUsedTime != nil {
+		processUsedTime = *collectedRow.ProcessUsedTime
+	}
+
+	processUsedMemory := 0
+	if collectedRow.ProcessUsedMemory != nil {
+		processUsedMemory = *collectedRow.ProcessUsedMemory
+	}
+
+	processExitCode := 0
+	if collectedRow.ProcessExitCode != nil {
+		processExitCode = *collectedRow.ProcessExitCode
+	}
+
+	outputExpiresAt := time.Time{}
+	if collectedRow.OutputExpiresAt != nil {
+		outputExpiresAt = *collectedRow.OutputExpiresAt
+	}
+
 	b := &build.Build{
 		ID:                collectedRow.ID,
 		IdempotencyKey:    collectedRow.IdempotencyKey,
@@ -50,12 +70,12 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
 		DocumentToken:     "",
 		DocumentFiles:     map[string][]byte{},
 		ProcessLogFile:    []byte{},
-		ProcessUsedTime:   collectedRow.ProcessUsedTime,
-		ProcessUsedMemory: collectedRow.ProcessUsedMemory,
-		ProcessExitCode:   collectedRow.ProcessExitCode,
+		ProcessUsedTime:   processUsedTime,
+		ProcessUsedMemory: processUsedMemory,
+		ProcessExitCode:   processExitCode,
 		OutputFile:        []byte{},
 		NextDocumentToken: "",
-		OutputExpiresAt:   collectedRow.OutputExpiresAt,
+		OutputExpiresAt:   outputExpiresAt,
 		Status:            status,
 	}
 	return b, nil
