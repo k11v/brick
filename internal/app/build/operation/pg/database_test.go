@@ -17,17 +17,17 @@ import (
 func newDatabase(ctx context.Context, t testing.TB) *Database {
 	connectionString, teardown, err := postgrestest.Setup(ctx)
 	if err != nil {
-		t.Fatalf("didn't want %v", err)
+		t.Fatalf("didn't want %q", err)
 	}
 	t.Cleanup(func() {
 		if teardownErr := teardown(); teardownErr != nil {
-			t.Errorf("didn't want %v", teardownErr)
+			t.Errorf("didn't want %q", teardownErr)
 		}
 	})
 
 	pool, err := postgresutil.NewPool(ctx, connectionString)
 	if err != nil {
-		t.Fatalf("didn't want %v", err)
+		t.Fatalf("didn't want %q", err)
 	}
 
 	return NewDatabase(pool)
@@ -38,25 +38,24 @@ func TestDatabase(t *testing.T) {
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
 
-		databaseBuild, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
-			ContextToken:   "",
-			DocumentFiles:  make(map[string][]byte),
+		created, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
 			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+			DocumentToken:  "",
 		})
 		if err != nil {
-			t.Errorf("didn't want %v", err)
+			t.Errorf("didn't want %q", err)
 		}
 
 		got, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
-			ID:     databaseBuild.ID,
+			ID:     created.ID,
 			UserID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 		})
 		if err != nil {
-			t.Errorf("didn't want %v", err)
+			t.Errorf("didn't want %q", err)
 		}
 
-		if want := databaseBuild; !reflect.DeepEqual(got, want) {
+		if want := created; !reflect.DeepEqual(got, want) {
 			t.Errorf("got %v, want %v", got, want)
 		}
 	})
@@ -72,7 +71,7 @@ func TestDatabase(t *testing.T) {
 			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 		})
 		if err != nil {
-			t.Errorf("didn't want %v", err)
+			t.Errorf("didn't want %q", err)
 		}
 
 		got, gotErr := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
