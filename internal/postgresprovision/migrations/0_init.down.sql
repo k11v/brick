@@ -1,5 +1,7 @@
 BEGIN;
 
+DROP TABLE IF EXISTS user_locks;
+
 DROP TABLE IF EXISTS builds;
 
 DROP EXTENSION IF EXISTS "uuid-ossp";
