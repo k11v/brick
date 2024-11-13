@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/k11v/brick/internal/app/build"
@@ -118,7 +116,7 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 // GetBuildCount implements operation.Database.
 func (d *Database) GetBuildCount(ctx context.Context, params *operation.DatabaseGetBuildCountParams) (int, error) {
 	query := `
-		SELECT count(*) AS count
+		SELECT count(*)
 		FROM builds
 		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
 	`
@@ -134,31 +132,52 @@ func (d *Database) GetBuildCount(ctx context.Context, params *operation.Database
 }
 
 func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseListBuildsParams) (*operation.DatabaseListBuildsResult, error) {
-	// Currently db struct tags aren't used.
-	type row struct {
-		ID             uuid.UUID `db:"id"`
-		CreatedAt      time.Time `db:"created_at"`
-		IdempotencyKey uuid.UUID `db:"idempotency_key"`
-		Status         string    `db:"status"`
-		UserID         uuid.UUID `db:"user_id"`
-	}
+	query := `
+		SELECT
+			id, idempotency_key,
+			user_id, created_at,
+			document_token,
+			process_log_token, process_used_time, process_used_memory, process_exit_code,
+			output_token, next_document_token, output_expires_at,
+			status
+		FROM builds
+		WHERE user_id = $1
+		LIMIT $2
+		OFFSET $3
+	`
+	args := []any{params.UserID, params.PageLimit, params.PageOffset}
 
-	rows, err := d.db.Query(ctx, `SELECT id, created_at, idempotency_key, status, user_id FROM builds`)
+	rows, _ := d.db.Query(ctx, query, args...)
+	builds, err := pgx.CollectRows(rows, rowToBuild)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list builds: %w", err)
 	}
 
-	for rows.Next() {
-		var r row
-		if err = rows.Scan(&r.ID, &r.CreatedAt, &r.IdempotencyKey, &r.Status, &r.UserID); err != nil {
-			return nil, err
-		}
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
+	query = `
+		SELECT count(*)
+		FROM builds
+		WHERE user_id = $1
+	`
+	args = []any{params.UserID}
+
+	rows, _ = d.db.Query(ctx, query, args...)
+	totalSize, err := pgx.CollectExactlyOneRow(rows, rowToInt)
+	if err != nil {
+		return nil, fmt.Errorf("list builds: %w", err)
 	}
 
-	panic("unimplemented")
+	nextPageOffset := new(int)
+	*nextPageOffset = params.PageOffset + len(builds)
+	if *nextPageOffset >= totalSize {
+		nextPageOffset = nil
+	}
+
+	result := &operation.DatabaseListBuildsResult{
+		Builds:         builds,
+		NextPageOffset: nextPageOffset,
+		TotalSize:      totalSize,
+	}
+	return result, nil
 }
 
 // LockUser implements operation.Database.
