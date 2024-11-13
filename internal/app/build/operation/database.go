@@ -10,13 +10,21 @@ import (
 )
 
 type Database interface {
-	BeginFunc(ctx context.Context, f func(tx Database) error) error
+	Begin(ctx context.Context) (Tx, error)
 	LockUser(ctx context.Context, params *DatabaseLockUserParams) (DatabaseUnlockFunc, error)
 	GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error)
 	CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*build.Build, error)
 	GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*build.Build, error)
 	GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error)
 	ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error)
+
+	BeginFunc(ctx context.Context, f func(tx Database) error) error // deprecated
+}
+
+type Tx interface {
+	Database
+	Commit(ctx context.Context) error
+	Rollback(ctx context.Context) error
 }
 
 type DatabaseLockUserParams struct {
