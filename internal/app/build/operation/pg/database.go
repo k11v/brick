@@ -93,7 +93,26 @@ func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBu
 
 // GetBuildByIdempotencyKey implements operation.Database.
 func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operation.DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
-	panic("unimplemented")
+	query := `
+		SELECT
+			id, idempotency_key,
+			user_id, created_at,
+			document_token,
+			process_log_token, process_used_time, process_used_memory, process_exit_code,
+			output_token, next_document_token, output_expires_at,
+			status
+		FROM builds
+		WHERE idempotency_key = $1 AND user_id = $2
+	`
+	args := []any{params.IdempotencyKey, params.UserID}
+
+	rows, _ := d.db.Query(ctx, query, args...)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
+	if err != nil {
+		return nil, fmt.Errorf("database create build: %w", err)
+	}
+
+	return b, nil
 }
 
 // GetBuildCount implements operation.Database.
