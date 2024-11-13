@@ -80,3 +80,11 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
 	}
 	return b, nil
 }
+
+func rowToInt(collectableRow pgx.CollectableRow) (int, error) {
+	collectedRow, err := pgx.RowToStructByPos[struct{ x int }](collectableRow)
+	if err != nil {
+		return 0, fmt.Errorf("row to build: %w", err)
+	}
+	return collectedRow.x, nil
+}
