@@ -147,4 +147,85 @@ func TestDatabase(t *testing.T) {
 			t.Errorf("got %q, want %q", got, want)
 		}
 	})
+
+	t.Run("gets a build when the build is created in a committed transaction", func(t *testing.T) {
+		ctx := context.Background()
+		database := newDatabase(ctx, t)
+		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
+		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
+		documentToken := "document token"
+
+		tx, err := database.Begin(ctx)
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+		t.Cleanup(func() {
+			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, operation.ErrTxAlreadyClosed) {
+				t.Errorf("didn't want %q", rollbackErr)
+			}
+		})
+
+		createdBuild, err := tx.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: idempotencyKey,
+			UserID:         userID,
+			DocumentToken:  documentToken,
+		})
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+
+		if err = tx.Commit(ctx); err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+
+		gotBuild, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
+			ID:     createdBuild.ID,
+			UserID: userID,
+		})
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+		if got, want := gotBuild, createdBuild; !reflect.DeepEqual(got, want) {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("doesn't get a build when the build is created in a rolled back transaction", func(t *testing.T) {
+		ctx := context.Background()
+		database := newDatabase(ctx, t)
+		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
+		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
+		documentToken := "document token"
+
+		tx, err := database.Begin(ctx)
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+		t.Cleanup(func() {
+			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, operation.ErrTxAlreadyClosed) {
+				t.Errorf("didn't want %q", rollbackErr)
+			}
+		})
+
+		createdBuild, err := tx.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: idempotencyKey,
+			UserID:         userID,
+			DocumentToken:  documentToken,
+		})
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+
+		if err = tx.Rollback(ctx); err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+
+		_, err = database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
+			ID:     createdBuild.ID,
+			UserID: userID,
+		})
+		if got, want := err, operation.ErrNotFound; !errors.Is(got, want) {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
 }
