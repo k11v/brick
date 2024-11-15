@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS builds (
     PRIMARY KEY (id),
     CHECK (status IN ('pending', 'running', 'completed', 'canceled'))
 );
+CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);
 
 CREATE TABLE IF NOT EXISTS user_locks (
     user_id uuid NOT NULL,
