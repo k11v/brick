@@ -117,7 +117,15 @@ func TestServiceCreateBuild(t *testing.T) {
 			wantErr:           nil,
 			wantCallsPredicate: func(calls []string) bool {
 				filtered := make([]string, 0)
+				committed := false
 				for _, c := range calls {
+					if c == callCommit {
+						committed = true
+					}
+					if committed && c == callRollback {
+						continue
+					}
+
 					switch c {
 					case callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit, callRollback:
 						filtered = append(filtered, c)

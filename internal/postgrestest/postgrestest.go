@@ -6,9 +6,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/k11v/brick/internal/postgresprovision"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/k11v/brick/internal/postgresprovision"
 )
 
 func Setup(ctx context.Context) (connectionString string, teardown func() error, err error) {

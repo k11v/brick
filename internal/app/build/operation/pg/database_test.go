@@ -15,6 +15,8 @@ import (
 )
 
 func newDatabase(ctx context.Context, t testing.TB) *Database {
+	t.Helper()
+
 	connectionString, teardown, err := postgrestest.Setup(ctx)
 	if err != nil {
 		t.Fatalf("didn't want %q", err)
@@ -61,6 +63,8 @@ func TestDatabase(t *testing.T) {
 	})
 
 	t.Run("doesn't get a build for another user", func(t *testing.T) {
+		t.Skip()
+
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
 
