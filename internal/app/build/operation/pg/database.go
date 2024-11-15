@@ -2,6 +2,7 @@ package pg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -74,6 +75,9 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 }
 
 // GetBuild implements operation.Database.
+//
+// TODO: Consider silent unmarshalling errors of pgx.CollectExactlyOneRow(rows, rowToBuild)
+// here and in other Database methods.
 func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBuildParams) (*build.Build, error) {
 	query := `
 		SELECT
@@ -90,7 +94,9 @@ func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBu
 
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, operation.ErrNotFound
+	} else if err != nil {
 		return nil, fmt.Errorf("get build: %w", err)
 	}
 
@@ -114,7 +120,9 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, operation.ErrNotFound
+	} else if err != nil {
 		return nil, fmt.Errorf("get build by idempotency key: %w", err)
 	}
 
