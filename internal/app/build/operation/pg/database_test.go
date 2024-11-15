@@ -228,4 +228,12 @@ func TestDatabase(t *testing.T) {
 			t.Errorf("got %q, want %q", got, want)
 		}
 	})
+
+	t.Run("locks builds", func(t *testing.T) {
+		t.Skip()
+	})
+
+	t.Run("doesn't lock builds for another user", func(t *testing.T) {
+		t.Skip()
+	})
 }
