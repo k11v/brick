@@ -2,12 +2,15 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/k11v/brick/internal/app/build"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type Database interface {
 	Begin(ctx context.Context) (DatabaseTx, error)
