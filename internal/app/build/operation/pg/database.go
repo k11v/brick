@@ -130,6 +130,12 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 }
 
 // GetBuildCount implements operation.Database.
+//
+// TODO: params.StartTime and params.EndTime could be invalid.
+// What should we do about this? Options:
+// a) leave it as it is, then the select query will always return zero;
+// b) return a validation error;
+// c) panic (we consider calling GetBuildCount like that a programming error).
 func (d *Database) GetBuildCount(ctx context.Context, params *operation.DatabaseGetBuildCountParams) (int, error) {
 	query := `
 		SELECT count(*)
@@ -147,6 +153,13 @@ func (d *Database) GetBuildCount(ctx context.Context, params *operation.Database
 	return count, nil
 }
 
+// ListBuilds implements operation.Database.
+//
+// TODO: params.PageLimit and params.PageOffset could be invalid.
+// What should we do about that? Options:
+// a) leave it as it is, then the select query will always return zero;
+// b) return a validation error;
+// c) panic.
 func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseListBuildsParams) (*operation.DatabaseListBuildsResult, error) {
 	query := `
 		SELECT
@@ -158,9 +171,9 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 			status
 		FROM builds
 		WHERE user_id = $1
+		ORDER BY created_at DESC, id ASC
 		LIMIT $2
 		OFFSET $3
-		ORDER BY created_at DESC, id ASC
 	`
 	args := []any{params.UserID, params.PageLimit, params.PageOffset}
 
