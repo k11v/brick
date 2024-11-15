@@ -18,7 +18,7 @@ var (
 
 type Database interface {
 	Begin(ctx context.Context) (DatabaseTx, error)
-	LockUser(ctx context.Context, params *DatabaseLockUserParams) error
+	LockBuilds(ctx context.Context, params *DatabaseLockBuildsParams) error
 	GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error)
 	CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*build.Build, error)
 	GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*build.Build, error)
@@ -38,7 +38,7 @@ type DatabaseTx interface {
 	Rollback(ctx context.Context) error
 }
 
-type DatabaseLockUserParams struct {
+type DatabaseLockBuildsParams struct {
 	UserID uuid.UUID
 }
 

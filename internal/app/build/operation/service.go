@@ -58,7 +58,7 @@ func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuil
 		}
 	}(ctx, tx)
 
-	if err := tx.LockUser(ctx, &DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
+	if err := tx.LockBuilds(ctx, &DatabaseLockBuildsParams{UserID: createBuildParams.UserID}); err != nil {
 		return nil, err
 	}
 

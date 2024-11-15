@@ -127,11 +127,11 @@ func TestServiceCreateBuild(t *testing.T) {
 					}
 
 					switch c {
-					case callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit, callRollback:
+					case callBegin, callLockBuilds, callGetBuildCount, callCreateBuild, callCommit, callRollback:
 						filtered = append(filtered, c)
 					}
 				}
-				return reflect.DeepEqual(filtered, []string{callBegin, callLockUser, callGetBuildCount, callCreateBuild, callCommit})
+				return reflect.DeepEqual(filtered, []string{callBegin, callLockBuilds, callGetBuildCount, callCreateBuild, callCommit})
 			},
 		},
 	}
