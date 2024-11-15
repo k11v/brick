@@ -64,6 +64,30 @@ func TestDatabase(t *testing.T) {
 		}
 	})
 
+	t.Run("doesn't get a build for another user", func(t *testing.T) {
+		ctx := context.Background()
+		database := newDatabase(ctx, t)
+		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
+		documentToken := "document token"
+
+		b, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: idempotencyKey,
+			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+			DocumentToken:  documentToken,
+		})
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+
+		_, err = database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
+			ID:     b.ID,
+			UserID: uuid.MustParse("dddddddd-0000-0000-0000-000000000000"),
+		})
+		if got, want := err, operation.ErrNotFound; !errors.Is(got, want) {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
 	// TODO: Consider getting a build instead of relying on CreateBuild's error.
 	t.Run("creates a build for unused idempotency key", func(t *testing.T) {
 		ctx := context.Background()
@@ -120,30 +144,6 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  "another document token",
 		})
 		if got, want := err, operation.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
-			t.Errorf("got %q, want %q", got, want)
-		}
-	})
-
-	t.Run("doesn't get a build for another user", func(t *testing.T) {
-		ctx := context.Background()
-		database := newDatabase(ctx, t)
-		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
-		documentToken := "document token"
-
-		b, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
-			IdempotencyKey: idempotencyKey,
-			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			DocumentToken:  documentToken,
-		})
-		if err != nil {
-			t.Errorf("didn't want %q", err)
-		}
-
-		_, err = database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
-			ID:     b.ID,
-			UserID: uuid.MustParse("dddddddd-0000-0000-0000-000000000000"),
-		})
-		if got, want := err, operation.ErrNotFound; !errors.Is(got, want) {
 			t.Errorf("got %q, want %q", got, want)
 		}
 	})
