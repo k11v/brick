@@ -63,7 +63,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 			output_token, next_document_token, output_expires_at,
 			status
 	`
-	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, "pending"}
+	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, build.StatusPending}
 
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
