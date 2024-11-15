@@ -14,7 +14,7 @@ const (
 	callGetBuildByIdempotencyKey = "GetBuildByIdempotencyKey"
 	callGetBuildCount            = "GetBuildCount"
 	callListBuilds               = "ListBuilds"
-	callLockUser                 = "LockUser"
+	callLockBuilds                 = "LockBuilds"
 	callRollback                 = "Rollback"
 )
 
@@ -63,8 +63,8 @@ func (d *SpyDatabase) Begin(ctx context.Context) (DatabaseTx, error) {
 	return tx, nil
 }
 
-func (d *SpyDatabase) LockUser(ctx context.Context, params *DatabaseLockUserParams) error {
-	d.appendCalls(callLockUser)
+func (d *SpyDatabase) LockBuilds(ctx context.Context, params *DatabaseLockBuildsParams) error {
+	d.appendCalls(callLockBuilds)
 	return nil
 }
 

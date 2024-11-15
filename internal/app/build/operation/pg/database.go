@@ -32,9 +32,9 @@ func (d *Database) Begin(ctx context.Context) (operation.DatabaseTx, error) {
 	return newDatabaseTx(pgxTx), nil
 }
 
-// LockUser implements operation.Database.
-// FIXME: LockUser likely sets locked_at to now() when the INSERT was started, not when it finished.
-func (d *Database) LockUser(ctx context.Context, params *operation.DatabaseLockUserParams) error {
+// LockBuilds implements operation.Database.
+// FIXME: LockBuilds likely sets locked_at to now() when the INSERT was started, not when it finished.
+func (d *Database) LockBuilds(ctx context.Context, params *operation.DatabaseLockBuildsParams) error {
 	query := `
 		INSERT INTO user_locks (user_id)
 		VALUES ($1)
