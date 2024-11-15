@@ -30,8 +30,23 @@ func (d *Database) Begin(ctx context.Context) (operation.DatabaseTx, error) {
 }
 
 // LockUser implements operation.Database.
+// FIXME: LockUser likely sets locked_at to now() when the INSERT was started, not when it finished.
 func (d *Database) LockUser(ctx context.Context, params *operation.DatabaseLockUserParams) error {
-	panic("unimplemented")
+	query := `
+		INSERT INTO user_locks (user_id)
+		VALUES ($1)
+		RETURNING user_id
+		ON CONFLICT DO UPDATE set locked_at = now()
+	`
+	args := []any{params.UserID}
+
+	rows, _ := d.db.Query(ctx, query, args...)
+	_, err := pgx.CollectExactlyOneRow(rows, rowToUUID)
+	if err != nil {
+		return fmt.Errorf("lock user: %w", err)
+	}
+
+	return nil
 }
 
 // CreateBuild implements operation.Database.

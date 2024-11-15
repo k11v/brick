@@ -88,3 +88,11 @@ func rowToInt(collectableRow pgx.CollectableRow) (int, error) {
 	}
 	return collectedRow.x, nil
 }
+
+func rowToUUID(collectableRow pgx.CollectableRow) (uuid.UUID, error) {
+	collectedRow, err := pgx.RowToStructByPos[struct{ x uuid.UUID }](collectableRow)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("row to build: %w", err)
+	}
+	return collectedRow.x, nil
+}

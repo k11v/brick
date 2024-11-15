@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS builds (
 
 CREATE TABLE IF NOT EXISTS user_locks (
     user_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    locked_at uuid timestamp with time zone NOT NULL now(),
     PRIMARY KEY (user_id)
 );
 
