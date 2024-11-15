@@ -28,6 +28,46 @@ type SpyDatabase struct {
 	Calls *[]string // doesn't contain rolled back calls
 }
 
+type SpyDatabaseTx struct {
+	*SpyDatabase
+	CommitFunc   func() error
+	RollbackFunc func() error
+}
+
+func (tx *SpyDatabaseTx) Commit(ctx context.Context) error {
+	return tx.CommitFunc()
+}
+
+func (tx *SpyDatabaseTx) Rollback(ctx context.Context) error {
+	return tx.RollbackFunc()
+}
+
+func (d *SpyDatabase) Begin(ctx context.Context) (DatabaseTx, error) {
+	d.appendCalls(callBegin)
+
+	txDatabase := *d
+	txDatabase.Calls = new([]string)
+
+	tx := &SpyDatabaseTx{
+		SpyDatabase: &txDatabase,
+		CommitFunc: func() error {
+			d.appendCalls(*txDatabase.Calls...)
+			d.appendCalls(callCommit)
+			return nil
+		},
+		RollbackFunc: func() error {
+			d.appendCalls(callRollback)
+			return nil
+		},
+	}
+	return tx, nil
+}
+
+func (d *SpyDatabase) LockUser(ctx context.Context, params *DatabaseLockUserParams) error {
+	d.appendCalls(callLockUser)
+	return nil
+}
+
 func (d *SpyDatabase) appendCalls(c ...string) {
 	if d.Calls == nil {
 		d.Calls = new([]string)
@@ -64,24 +104,4 @@ func (d *SpyDatabase) GetBuildCount(ctx context.Context, params *DatabaseGetBuil
 func (d *SpyDatabase) ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error) {
 	d.appendCalls(callListBuilds)
 	return d.ListBuildsResult, nil
-}
-
-func (d *SpyDatabase) LockUser(ctx context.Context, params *DatabaseLockUserParams) error {
-	d.appendCalls(callLockUser)
-	return nil
-}
-
-func (d *SpyDatabase) BeginFunc(ctx context.Context, f func(tx Database) error) error {
-	d.appendCalls(callBegin)
-
-	tx := *d
-	tx.Calls = new([]string)
-	if err := f(&tx); err != nil {
-		d.appendCalls(callRollback)
-		return err
-	}
-
-	d.appendCalls(*tx.Calls...)
-	d.appendCalls(callCommit)
-	return nil
 }

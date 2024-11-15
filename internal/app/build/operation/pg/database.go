@@ -3,7 +3,6 @@ package pg
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 
@@ -22,8 +21,12 @@ func NewDatabase(db Querier) *Database {
 }
 
 // Begin implements operation.Database.
-func (d *Database) Begin(ctx context.Context) (operation.Tx, error) {
-	panic("unimplemented")
+func (d *Database) Begin(ctx context.Context) (operation.DatabaseTx, error) {
+	pgxTx, err := d.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	return newDatabaseTx(pgxTx), nil
 }
 
 // LockUser implements operation.Database.
@@ -169,84 +172,4 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 		TotalSize:      totalSize,
 	}
 	return result, nil
-}
-
-// BeginFunc implements operation.Database.
-func (d *Database) BeginFunc(ctx context.Context, f func(tx operation.Database) error) error {
-	tx, err := d.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func(tx pgx.Tx) {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			slog.Default().Error("failed to rollback", "error", rollbackErr)
-		}
-	}(tx)
-
-	txDatabase := NewDatabase(tx)
-	if err = f(txDatabase); err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
-}
-
-// FIXME: LockUser's implementation is not good.
-//
-// Problems:
-//
-// 1. Caller needs to call it in a transaction.
-// 2. If caller doesn't call it in a transaction and crashes before unlock is called,
-//    the user lock is not released until a manual intervention by an external force.
-// 3. The caller can forget to call the unlock function before commit which also
-//    creates a dangling user lock that needs to be detected and cleaned up manually.
-//
-// Approaches:
-//
-// 1. Accept a function parameter that provides an operation.Database object.
-//    LockUser calls this function internally and manages a lock for it.
-//    This is similar to BeginFunc.
-// 2. Use a transaction advisory lock. This lock is automatically released
-//    at the end of the transaction. This should be easy to implement
-//    but it seems that the advisory lock can be hard to debug and impose limits.
-//    Probably they are not well suited for locks with a large number of possible keys.
-// 3. Insert new users into user_locks and don't ever delete from it.
-//    Lock using SELECT ... FOR UPDATE or similar.
-//    It LIKELY locks the row and automatically releases it at the end of the transaction.
-//
-// Questions:
-//
-// 1. How will this behave with nested transactions that use savepoints under the hood?
-//    If it breaks, probably we should change transaction-Database provided by Begin
-//    to panic on another Begin. Another way to prevent this behavior is welcome.
-
-// LockUser implements operation.Database.
-func (d *Database) LockUserWithUnlockFunc(ctx context.Context, params *operation.DatabaseLockUserParams) (operation.DatabaseUnlockFunc, error) {
-	lockQuery := `
-		INSERT INTO user_locks (user_id)
-		VALUES ($1)
-	`
-	lockArgs := []any{params.UserID}
-
-	_, err := d.db.Exec(ctx, lockQuery, lockArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("lock user: %w", err)
-	}
-
-	unlock := func() error {
-		unlockQuery := `
-			DELETE FROM user_locks
-			WHERE user_id = $1
-		`
-		unlockArgs := []any{params.UserID}
-
-		_, execErr := d.db.Exec(ctx, unlockQuery, unlockArgs...)
-		if execErr != nil {
-			return fmt.Errorf("unlock user: %w", execErr)
-		}
-
-		return nil
-	}
-
-	return unlock, nil
 }

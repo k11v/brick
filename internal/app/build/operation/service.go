@@ -3,6 +3,7 @@ package operation
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,8 +36,6 @@ type CreateBuildParams struct {
 }
 
 func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuildParams) (*build.Build, error) {
-	var b *build.Build
-
 	buildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
 		IdempotencyKey: createBuildParams.IdempotencyKey,
 		UserID:         createBuildParams.UserID,
@@ -47,50 +46,52 @@ func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuil
 	}
 	if err == nil {
 		// FIXME: Check request payload.
-		b = buildByIdempotencyKey
-		return b, nil
+		return buildByIdempotencyKey, nil
 	}
 	// TODO: Consider a race condition where multiple requests determine
 	// that an idempotency key can be used and fail later
 	// when Database.CreateBuild is called.
 
-	err = s.database.BeginFunc(ctx, func(tx Database) error {
-		if err := tx.LockUser(ctx, &DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
-			return err
+	tx, err := s.database.Begin(ctx)
+	defer func(ctx context.Context, tx DatabaseTx) {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			slog.Error("failed to rollback", "err", rollbackErr)
 		}
+	}(ctx, tx)
 
-		startTime := time.Now().UTC().Truncate(24 * time.Hour)
-		endTime := startTime.Add(24 * time.Hour)
+	if err := tx.LockUser(ctx, &DatabaseLockUserParams{UserID: createBuildParams.UserID}); err != nil {
+		return nil, err
+	}
 
-		used, err := tx.GetBuildCount(ctx, &DatabaseGetBuildCountParams{
-			UserID:    createBuildParams.UserID,
-			StartTime: startTime,
-			EndTime:   endTime,
-		})
-		if err != nil {
-			return err
-		}
+	startTime := time.Now().UTC().Truncate(24 * time.Hour)
+	endTime := startTime.Add(24 * time.Hour)
 
-		if used >= s.config.BuildsAllowed {
-			return ErrLimitExceeded
-		}
-
-		b, err = tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
-			ContextToken:   createBuildParams.ContextToken,
-			DocumentFiles:  createBuildParams.DocumentFiles,
-			IdempotencyKey: createBuildParams.IdempotencyKey,
-			UserID:         createBuildParams.UserID,
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
+	used, err := tx.GetBuildCount(ctx, &DatabaseGetBuildCountParams{
+		UserID:    createBuildParams.UserID,
+		StartTime: startTime,
+		EndTime:   endTime,
 	})
 	if err != nil {
 		return nil, err
 	}
 
+	if used >= s.config.BuildsAllowed {
+		return nil, ErrLimitExceeded
+	}
+
+	b, err := tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
+		ContextToken:   createBuildParams.ContextToken,
+		DocumentFiles:  createBuildParams.DocumentFiles,
+		IdempotencyKey: createBuildParams.IdempotencyKey,
+		UserID:         createBuildParams.UserID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	return b, nil
 }
 
