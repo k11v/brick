@@ -38,26 +38,28 @@ func TestDatabase(t *testing.T) {
 	t.Run("creates and gets a build", func(t *testing.T) {
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
+		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
+		documentToken := "document token"
 
-		created, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
-			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
+		b, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: idempotencyKey,
 			UserID:         userID,
-			DocumentToken:  "document token",
+			DocumentToken:  documentToken,
 		})
 		if err != nil {
 			t.Errorf("didn't want %q", err)
 		}
 
 		got, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
-			ID:     created.ID,
+			ID:     b.ID,
 			UserID: userID,
 		})
 		if err != nil {
 			t.Errorf("didn't want %q", err)
 		}
 
-		if want := created; !reflect.DeepEqual(got, want) {
+		if want := b; !reflect.DeepEqual(got, want) {
 			t.Errorf("got %v, want %v", got, want)
 		}
 	})
@@ -67,11 +69,12 @@ func TestDatabase(t *testing.T) {
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
+		documentToken := "document token"
 
 		_, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
 			UserID:         userID,
-			DocumentToken:  "document token",
+			DocumentToken:  documentToken,
 		})
 		if err != nil {
 			t.Errorf("didn't want %q", err)
@@ -80,7 +83,7 @@ func TestDatabase(t *testing.T) {
 		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 			IdempotencyKey: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 			UserID:         userID,
-			DocumentToken:  "document token",
+			DocumentToken:  documentToken,
 		})
 		if err != nil {
 			t.Errorf("didn't want %q", err)
@@ -125,11 +128,12 @@ func TestDatabase(t *testing.T) {
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
+		documentToken := "document token"
 
 		b, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			DocumentToken:  "document token",
+			DocumentToken:  documentToken,
 		})
 		if err != nil {
 			t.Errorf("didn't want %q", err)
