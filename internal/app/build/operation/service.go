@@ -12,9 +12,8 @@ import (
 )
 
 var (
-	ErrLimitExceeded             = errors.New("limit exceeded")
-	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
-	ErrDatabaseNotFound          = errors.New("database: not found")
+	ErrLimitExceeded    = errors.New("limit exceeded")
+	ErrDatabaseNotFound = errors.New("database: not found")
 )
 
 type Service struct {
