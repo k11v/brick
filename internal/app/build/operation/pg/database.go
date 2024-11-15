@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/k11v/brick/internal/app/build"
 	"github.com/k11v/brick/internal/app/build/operation"
@@ -67,7 +69,9 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
-	if err != nil {
+	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) {
+		return nil, operation.ErrIdempotencyKeyAlreadyUsed
+	} else if err != nil {
 		return nil, fmt.Errorf("create build: %w", err)
 	}
 
