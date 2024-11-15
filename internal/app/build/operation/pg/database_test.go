@@ -39,11 +39,12 @@ func TestDatabase(t *testing.T) {
 	t.Run("creates and gets a build", func(t *testing.T) {
 		ctx := context.Background()
 		database := newDatabase(ctx, t)
+		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 
 		created, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
-			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
-			DocumentToken:  "",
+			UserID:         userID,
+			DocumentToken:  "document token",
 		})
 		if err != nil {
 			t.Errorf("didn't want %q", err)
@@ -51,7 +52,7 @@ func TestDatabase(t *testing.T) {
 
 		got, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
 			ID:     created.ID,
-			UserID: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+			UserID: userID,
 		})
 		if err != nil {
 			t.Errorf("didn't want %q", err)
@@ -59,6 +60,65 @@ func TestDatabase(t *testing.T) {
 
 		if want := created; !reflect.DeepEqual(got, want) {
 			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	// TODO: Consider getting a build instead of relying on CreateBuild's error.
+	t.Run("creates a build for unused idempotency key", func(t *testing.T) {
+		ctx := context.Background()
+		database := newDatabase(ctx, t)
+		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
+
+		_, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
+			UserID:         userID,
+			DocumentToken:  "document token",
+		})
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+
+		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
+			UserID:         userID,
+			DocumentToken:  "document token",
+		})
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+	})
+
+	t.Run("doesn't create a build for used idempotency key", func(t *testing.T) {
+		ctx := context.Background()
+		database := newDatabase(ctx, t)
+		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
+		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
+
+		_, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: idempotencyKey,
+			UserID:         userID,
+			DocumentToken:  "document token",
+		})
+		if err != nil {
+			t.Errorf("didn't want %q", err)
+		}
+
+		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: idempotencyKey,
+			UserID:         userID,
+			DocumentToken:  "document token",
+		})
+		if got, want := err, operation.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
+			t.Errorf("got %q, want %q", got, want)
+		}
+
+		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+			IdempotencyKey: idempotencyKey,
+			UserID:         userID,
+			DocumentToken:  "different document token",
+		})
+		if got, want := err, operation.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
+			t.Errorf("got %q, want %q", got, want)
 		}
 	})
 

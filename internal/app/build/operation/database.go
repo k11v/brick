@@ -10,7 +10,10 @@ import (
 	"github.com/k11v/brick/internal/app/build"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound                  = errors.New("not found")
+	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
+)
 
 type Database interface {
 	Begin(ctx context.Context) (DatabaseTx, error)
