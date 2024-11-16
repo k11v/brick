@@ -13,7 +13,6 @@ import (
 var (
 	ErrNotFound                  = errors.New("not found")
 	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
-	ErrTxAlreadyClosed           = errors.New("tx already closed")
 )
 
 type Database interface {
@@ -29,12 +28,12 @@ type Database interface {
 type DatabaseTx interface {
 	Database
 
-	// Commit returns a wrapped ErrTxAlreadyClosed if the transaction is already closed.
-	// It is safe to call multiple times.
+	// Commit returns an error if the transaction is already closed.
+	// Otherwise it is safe to call multiple times.
 	Commit(ctx context.Context) error
 
-	// Rollback returns a wrapped ErrTxAlreadyClosed if the transaction is already closed.
-	// It is safe to call multiple times.
+	// Rollback returns an error if the transaction is already closed.
+	// Otherwise it is safe to call multiple times.
 	Rollback(ctx context.Context) error
 }
 
