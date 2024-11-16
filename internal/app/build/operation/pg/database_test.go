@@ -48,7 +48,7 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  documentToken,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		got, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
@@ -56,11 +56,11 @@ func TestDatabase(t *testing.T) {
 			UserID: userID,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		if want := b; !reflect.DeepEqual(got, want) {
-			t.Errorf("got %v, want %v", got, want)
+			t.Fatalf("got %v, want %v", got, want)
 		}
 	})
 
@@ -76,7 +76,7 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  documentToken,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		_, err = database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
@@ -84,7 +84,7 @@ func TestDatabase(t *testing.T) {
 			UserID: uuid.MustParse("dddddddd-0000-0000-0000-000000000000"),
 		})
 		if got, want := err, operation.ErrNotFound; !errors.Is(got, want) {
-			t.Errorf("got %q, want %q", got, want)
+			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
 
@@ -101,7 +101,7 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  documentToken,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
@@ -110,7 +110,7 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  documentToken,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 	})
 
@@ -126,7 +126,7 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  "document token",
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
@@ -135,7 +135,7 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  "document token",
 		})
 		if got, want := err, operation.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
-			t.Errorf("got %q, want %q", got, want)
+			t.Fatalf("got %q, want %q", got, want)
 		}
 
 		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
@@ -144,7 +144,7 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  "another document token",
 		})
 		if got, want := err, operation.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
-			t.Errorf("got %q, want %q", got, want)
+			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
 
@@ -157,7 +157,7 @@ func TestDatabase(t *testing.T) {
 
 		tx, err := database.Begin(ctx)
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 		t.Cleanup(func() {
 			_ = tx.Rollback(ctx)
@@ -169,11 +169,11 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  documentToken,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		if err = tx.Commit(ctx); err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		gotBuild, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
@@ -181,10 +181,10 @@ func TestDatabase(t *testing.T) {
 			UserID: userID,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 		if got, want := gotBuild, createdBuild; !reflect.DeepEqual(got, want) {
-			t.Errorf("got %q, want %q", got, want)
+			t.Fatalf("got %v, want %v", got, want)
 		}
 	})
 
@@ -197,7 +197,7 @@ func TestDatabase(t *testing.T) {
 
 		tx, err := database.Begin(ctx)
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 		t.Cleanup(func() {
 			_ = tx.Rollback(ctx)
@@ -209,11 +209,11 @@ func TestDatabase(t *testing.T) {
 			DocumentToken:  documentToken,
 		})
 		if err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		if err = tx.Rollback(ctx); err != nil {
-			t.Errorf("didn't want %q", err)
+			t.Fatalf("didn't want %q", err)
 		}
 
 		_, err = database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
@@ -221,7 +221,7 @@ func TestDatabase(t *testing.T) {
 			UserID: userID,
 		})
 		if got, want := err, operation.ErrNotFound; !errors.Is(got, want) {
-			t.Errorf("got %q, want %q", got, want)
+			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
 }
