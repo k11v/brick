@@ -118,7 +118,30 @@ type WaitForBuildParams struct {
 }
 
 func (s *Service) WaitForBuild(ctx context.Context, params *WaitForBuildParams) (*build.Build, error) {
-	panic("not implemented")
+	tickCh := time.Tick(1 * time.Second)
+	afterCh := time.After(params.Timeout)
+
+	for {
+		b, err := s.db.GetBuild(ctx, &DatabaseGetBuildParams{
+			ID:     params.ID,
+			UserID: params.UserID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("wait for build: %w", err)
+		}
+
+		if b.Done {
+			return b, nil
+		}
+
+		select {
+		case <-tickCh:
+		case <-afterCh:
+			return b, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 }
 
 type ListBuildsParams struct {
