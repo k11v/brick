@@ -33,20 +33,24 @@ func (d *Database) Begin(ctx context.Context) (operation.DatabaseTx, error) {
 }
 
 // LockBuilds implements operation.Database.
-// FIXME: LockBuilds likely sets locked_at to now() when the INSERT was started, not when it finished.
+//
+// INSERT with ON CONFLICT DO UPDATE should acquire the FOR UPDATE row-level lock
+// when the user_id row exists and acquire a lock when it doesn't exist.
+//
+// TODO: check the INSERT with ON CONFLICT DO UPDATE command.
 func (d *Database) LockBuilds(ctx context.Context, params *operation.DatabaseLockBuildsParams) error {
 	query := `
 		INSERT INTO user_locks (user_id)
 		VALUES ($1)
+		ON CONFLICT (user_id) DO UPDATE SET user_id = excluded.user_id
 		RETURNING user_id
-		ON CONFLICT DO UPDATE set locked_at = now()
 	`
 	args := []any{params.UserID}
 
 	rows, _ := d.db.Query(ctx, query, args...)
 	_, err := pgx.CollectExactlyOneRow(rows, rowToUUID)
 	if err != nil {
-		return fmt.Errorf("lock user: %w", err)
+		return fmt.Errorf("lock builds: %w", err)
 	}
 
 	return nil

@@ -33,7 +33,6 @@ CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);
 
 CREATE TABLE IF NOT EXISTS user_locks (
     user_id uuid NOT NULL,
-    locked_at timestamp with time zone NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id)
 );
 
