@@ -111,11 +111,9 @@ func (s *Service) GetBuild(ctx context.Context, params *GetBuildParams) (*build.
 	})
 }
 
-// TODO: maybe use context.
 type WaitForBuildParams struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Timeout time.Duration
+	ID     uuid.UUID
+	UserID uuid.UUID
 }
 
 func (s *Service) WaitForBuild(ctx context.Context, params *WaitForBuildParams) (*build.Build, error) {
