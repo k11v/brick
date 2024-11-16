@@ -26,4 +26,5 @@ type Build struct {
 	OutputExpiresAt   time.Time
 
 	Status Status
+	Done   bool
 }

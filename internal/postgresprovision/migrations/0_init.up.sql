@@ -25,9 +25,10 @@ CREATE TABLE IF NOT EXISTS builds (
     output_expires_at timestamp with time zone,
 
     status text NOT NULL,
+    done boolean NOT NULL,
 
     PRIMARY KEY (id),
-    CHECK (status IN ('pending', 'running', 'completed', 'canceled'))
+    CHECK (NOT done AND status IN ('pending', 'running') OR done AND status IN ('completed', 'canceled'))
 );
 CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);
 
