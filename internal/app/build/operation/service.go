@@ -3,7 +3,7 @@ package operation
 import (
 	"context"
 	"errors"
-	"log/slog"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,10 +34,10 @@ type CreateBuildParams struct {
 	UserID         uuid.UUID
 }
 
-func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuildParams) (*build.Build, error) {
+func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*build.Build, error) {
 	buildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
-		IdempotencyKey: createBuildParams.IdempotencyKey,
-		UserID:         createBuildParams.UserID,
+		IdempotencyKey: params.IdempotencyKey,
+		UserID:         params.UserID,
 	})
 	if err != nil && !errors.Is(err, ErrDatabaseNotFound) {
 		// TODO: Handle access denied.
@@ -52,45 +52,45 @@ func (s *Service) CreateBuild(ctx context.Context, createBuildParams *CreateBuil
 	// when Database.CreateBuild is called.
 
 	tx, err := s.database.Begin(ctx)
-	defer func(ctx context.Context, tx DatabaseTx) {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			slog.Error("failed to rollback", "err", rollbackErr)
-		}
-	}(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("service create build: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
 
-	if err := tx.LockBuilds(ctx, &DatabaseLockBuildsParams{UserID: createBuildParams.UserID}); err != nil {
-		return nil, err
+	err = tx.LockBuilds(ctx, &DatabaseLockBuildsParams{UserID: params.UserID})
+	if err != nil {
+		return nil, fmt.Errorf("service create build: %w", err)
 	}
 
-	startTime := time.Now().UTC().Truncate(24 * time.Hour)
-	endTime := startTime.Add(24 * time.Hour)
+	todayStartTime := time.Now().UTC().Truncate(24 * time.Hour)
+	todayEndTime := todayStartTime.Add(24 * time.Hour)
 
-	used, err := tx.GetBuildCount(ctx, &DatabaseGetBuildCountParams{
-		UserID:    createBuildParams.UserID,
-		StartTime: startTime,
-		EndTime:   endTime,
+	buildsUsed, err := tx.GetBuildCount(ctx, &DatabaseGetBuildCountParams{
+		UserID:    params.UserID,
+		StartTime: todayStartTime,
+		EndTime:   todayEndTime,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("service create build: %w", err)
 	}
 
-	if used >= s.config.BuildsAllowed {
+	if buildsUsed >= s.config.BuildsAllowed {
 		return nil, ErrLimitExceeded
 	}
 
 	b, err := tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
-		ContextToken:   createBuildParams.ContextToken,
-		DocumentFiles:  createBuildParams.DocumentFiles,
-		IdempotencyKey: createBuildParams.IdempotencyKey,
-		UserID:         createBuildParams.UserID,
+		IdempotencyKey: params.IdempotencyKey,
+		UserID:         params.UserID,
+		DocumentToken:  "document token", // FIXME: remove stub
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("service create build: %w", err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("service create build: %w", err)
 	}
+
 	return b, nil
 }
 
