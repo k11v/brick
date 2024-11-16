@@ -105,7 +105,10 @@ type GetBuildParams struct {
 }
 
 func (s *Service) GetBuild(ctx context.Context, params *GetBuildParams) (*build.Build, error) {
-	panic("not implemented")
+	return s.db.GetBuild(ctx, &DatabaseGetBuildParams{
+		ID:     params.ID,
+		UserID: params.UserID,
+	})
 }
 
 // TODO: maybe use context.
