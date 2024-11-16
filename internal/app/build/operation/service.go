@@ -34,22 +34,27 @@ type CreateBuildParams struct {
 	UserID         uuid.UUID
 }
 
+// CreateBuild.
+//
+// TODO: Check the params when a build is found by the idempotency key.
+//
+// FIXME: There is a race condition when two parallel Service.CreateBuild calls
+// for the same idempotency key conclude that the key is unused, proceed
+// to Database.CreateBuild and fail.
+//
+// FIXME: There is a problem when Database.GetBuildByIdempotencyKey
+// doesn't get a build not because the idempotency key is unused
+// but because the user is different.
 func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*build.Build, error) {
-	buildByIdempotencyKey, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
+	b, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
 		IdempotencyKey: params.IdempotencyKey,
 		UserID:         params.UserID,
 	})
-	if err != nil && !errors.Is(err, ErrDatabaseNotFound) {
-		// TODO: Handle access denied.
-		return nil, err
-	}
 	if err == nil {
-		// FIXME: Check request payload.
-		return buildByIdempotencyKey, nil
+		return b, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return nil, fmt.Errorf("service create build: %w", err)
 	}
-	// TODO: Consider a race condition where multiple requests determine
-	// that an idempotency key can be used and fail later
-	// when Database.CreateBuild is called.
 
 	tx, err := s.database.Begin(ctx)
 	if err != nil {
@@ -78,10 +83,10 @@ func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*
 		return nil, ErrLimitExceeded
 	}
 
-	b, err := tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
+	b, err = tx.CreateBuild(ctx, &DatabaseCreateBuildParams{
 		IdempotencyKey: params.IdempotencyKey,
 		UserID:         params.UserID,
-		DocumentToken:  "document token", // FIXME: remove stub
+		DocumentToken:  "document token", // FIXME: remove the stub
 	})
 	if err != nil {
 		return nil, fmt.Errorf("service create build: %w", err)
