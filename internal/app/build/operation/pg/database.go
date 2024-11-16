@@ -67,7 +67,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 			document_token,
 			process_log_token, process_used_time, process_used_memory, process_exit_code,
 			output_token, next_document_token, output_expires_at,
-			status
+			status, done
 	`
 	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, build.StatusPending}
 
@@ -94,7 +94,7 @@ func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBu
 			document_token,
 			process_log_token, process_used_time, process_used_memory, process_exit_code,
 			output_token, next_document_token, output_expires_at,
-			status
+			status, done
 		FROM builds
 		WHERE id = $1 AND user_id = $2
 	`
@@ -120,7 +120,7 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 			document_token,
 			process_log_token, process_used_time, process_used_memory, process_exit_code,
 			output_token, next_document_token, output_expires_at,
-			status
+			status, done
 		FROM builds
 		WHERE idempotency_key = $1 AND user_id = $2
 	`
@@ -176,7 +176,7 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 			document_token,
 			process_log_token, process_used_time, process_used_memory, process_exit_code,
 			output_token, next_document_token, output_expires_at,
-			status
+			status, done
 		FROM builds
 		WHERE user_id = $1
 		ORDER BY created_at DESC, id ASC

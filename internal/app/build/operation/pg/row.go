@@ -25,6 +25,7 @@ type row struct {
 	NextDocumentToken *string        `db:"next_document_token"`
 	OutputExpiresAt   *time.Time     `db:"output_expires_at"`
 	Status            string         `db:"status"`
+	Done              bool           `db:"done"`
 }
 
 func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
@@ -77,6 +78,7 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
 		NextDocumentToken: "",
 		OutputExpiresAt:   outputExpiresAt,
 		Status:            status,
+		Done:              collectedRow.Done,
 	}
 	return b, nil
 }
