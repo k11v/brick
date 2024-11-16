@@ -104,7 +104,7 @@ type GetBuildParams struct {
 	UserID uuid.UUID
 }
 
-func (s *Service) GetBuild(ctx context.Context, getBuildParams *GetBuildParams) (*build.Build, error) {
+func (s *Service) GetBuild(ctx context.Context, params *GetBuildParams) (*build.Build, error) {
 	panic("not implemented")
 }
 
@@ -115,7 +115,7 @@ type GetBuildWithTimeout struct {
 	UserID  uuid.UUID
 }
 
-func (s *Service) GetBuildWithTimeout(ctx context.Context, getBuildWithTimeoutParams *GetBuildWithTimeout) (*build.Build, error) {
+func (s *Service) GetBuildWithTimeout(ctx context.Context, params *GetBuildWithTimeout) (*build.Build, error) {
 	panic("not implemented")
 }
 
@@ -132,7 +132,7 @@ type ListBuildsResult struct {
 	TotalSize     int
 }
 
-func (s *Service) ListBuilds(ctx context.Context, listBuildsParams *ListBuildsParams) (*ListBuildsResult, error) {
+func (s *Service) ListBuilds(ctx context.Context, params *ListBuildsParams) (*ListBuildsResult, error) {
 	panic("not implemented")
 }
 
@@ -143,7 +143,7 @@ type CancelBuildParams struct {
 
 // CancelBuild.
 // It is idempotent without idempotency key.
-func (s *Service) CancelBuild(ctx context.Context, cancelBuildParams *CancelBuildParams) error {
+func (s *Service) CancelBuild(ctx context.Context, params *CancelBuildParams) error {
 	panic("not implemented")
 }
 
@@ -157,6 +157,6 @@ type GetLimitsResult struct {
 	ResetsAt      time.Time
 }
 
-func (s *Service) GetLimits(ctx context.Context, getLimitsParams *GetLimitsParams) (*GetLimitsResult, error) {
+func (s *Service) GetLimits(ctx context.Context, params *GetLimitsParams) (*GetLimitsResult, error) {
 	panic("not implemented")
 }
