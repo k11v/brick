@@ -17,14 +17,14 @@ var (
 )
 
 type Service struct {
-	config   *Config  // required
-	database Database // required
-	storage  Storage  // required
-	broker   Broker   // required
+	config  *Config  // required
+	db      Database // required
+	storage Storage  // required
+	broker  Broker   // required
 }
 
 func NewService(config *Config, database Database, storage Storage, broker Broker) Service {
-	return Service{config: config, database: database, storage: storage, broker: broker}
+	return Service{config: config, db: database, storage: storage, broker: broker}
 }
 
 type CreateBuildParams struct {
@@ -46,7 +46,7 @@ type CreateBuildParams struct {
 // doesn't get a build not because the idempotency key is unused
 // but because the user is different.
 func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*build.Build, error) {
-	b, err := s.database.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
+	b, err := s.db.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
 		IdempotencyKey: params.IdempotencyKey,
 		UserID:         params.UserID,
 	})
@@ -56,7 +56,7 @@ func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*
 		return nil, fmt.Errorf("service create build: %w", err)
 	}
 
-	tx, err := s.database.Begin(ctx)
+	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("service create build: %w", err)
 	}
