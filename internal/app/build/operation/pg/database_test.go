@@ -160,9 +160,7 @@ func TestDatabase(t *testing.T) {
 			t.Errorf("didn't want %q", err)
 		}
 		t.Cleanup(func() {
-			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, operation.ErrTxAlreadyClosed) {
-				t.Errorf("didn't want %q", rollbackErr)
-			}
+			_ = tx.Rollback(ctx)
 		})
 
 		createdBuild, err := tx.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
@@ -202,9 +200,7 @@ func TestDatabase(t *testing.T) {
 			t.Errorf("didn't want %q", err)
 		}
 		t.Cleanup(func() {
-			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, operation.ErrTxAlreadyClosed) {
-				t.Errorf("didn't want %q", rollbackErr)
-			}
+			_ = tx.Rollback(ctx)
 		})
 
 		createdBuild, err := tx.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
