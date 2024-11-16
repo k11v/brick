@@ -112,13 +112,13 @@ func (s *Service) GetBuild(ctx context.Context, params *GetBuildParams) (*build.
 }
 
 // TODO: maybe use context.
-type GetBuildWithTimeout struct {
+type WaitForBuildParams struct {
 	ID      uuid.UUID
-	Timeout time.Duration
 	UserID  uuid.UUID
+	Timeout time.Duration
 }
 
-func (s *Service) GetBuildWithTimeout(ctx context.Context, params *GetBuildWithTimeout) (*build.Build, error) {
+func (s *Service) WaitForBuild(ctx context.Context, params *WaitForBuildParams) (*build.Build, error) {
 	panic("not implemented")
 }
 
