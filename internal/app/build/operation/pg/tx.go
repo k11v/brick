@@ -2,7 +2,6 @@ package pg
 
 import (
 	"context"
-	"errors"
 
 	"github.com/jackc/pgx/v5"
 
@@ -26,17 +25,9 @@ func newDatabaseTx(pgxTx pgx.Tx) *DatabaseTx {
 }
 
 func (tx *DatabaseTx) Commit(ctx context.Context) error {
-	err := tx.commitFunc(ctx)
-	if errors.Is(err, pgx.ErrTxClosed) {
-		return operation.ErrTxAlreadyClosed
-	}
-	return err
+	return tx.commitFunc(ctx)
 }
 
 func (tx *DatabaseTx) Rollback(ctx context.Context) error {
-	err := tx.rollbackFunc(ctx)
-	if errors.Is(err, pgx.ErrTxClosed) {
-		return operation.ErrTxAlreadyClosed
-	}
-	return err
+	return tx.rollbackFunc(ctx)
 }
