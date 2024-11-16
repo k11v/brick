@@ -59,8 +59,8 @@ func (d *Database) LockBuilds(ctx context.Context, params *operation.DatabaseLoc
 // CreateBuild implements operation.Database.
 func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCreateBuildParams) (*build.Build, error) {
 	query := `
-		INSERT INTO builds (idempotency_key, user_id, document_token, status)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO builds (idempotency_key, user_id, document_token, status, done)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING
 			id, idempotency_key,
 			user_id, created_at,
@@ -69,7 +69,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 			output_token, next_document_token, output_expires_at,
 			status, done
 	`
-	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, build.StatusPending}
+	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, build.StatusPending, false}
 
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
