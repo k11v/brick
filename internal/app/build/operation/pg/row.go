@@ -82,17 +82,17 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
 }
 
 func rowToInt(collectableRow pgx.CollectableRow) (int, error) {
-	collectedRow, err := pgx.RowToStructByPos[struct{ x int }](collectableRow)
+	collectedRow, err := pgx.RowToStructByPos[struct{ X int }](collectableRow)
 	if err != nil {
-		return 0, fmt.Errorf("row to build: %w", err)
+		return 0, fmt.Errorf("row to int: %w", err)
 	}
-	return collectedRow.x, nil
+	return collectedRow.X, nil
 }
 
 func rowToUUID(collectableRow pgx.CollectableRow) (uuid.UUID, error) {
-	collectedRow, err := pgx.RowToStructByPos[struct{ x uuid.UUID }](collectableRow)
+	collectedRow, err := pgx.RowToStructByPos[struct{ X uuid.UUID }](collectableRow)
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("row to build: %w", err)
+		return uuid.UUID{}, fmt.Errorf("row to uuid: %w", err)
 	}
-	return collectedRow.x, nil
+	return collectedRow.X, nil
 }
