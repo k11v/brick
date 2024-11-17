@@ -13,7 +13,7 @@ import (
 	"github.com/k11v/brick/internal/postgresutil"
 )
 
-func NewTestDatabase(ctx context.Context, t testing.TB) *Database {
+func NewTestDatabase(t testing.TB, ctx context.Context) *Database {
 	t.Helper()
 
 	connectionString, teardown, err := postgrestest.Setup(ctx)
@@ -37,7 +37,7 @@ func NewTestDatabase(ctx context.Context, t testing.TB) *Database {
 func TestDatabase(t *testing.T) {
 	t.Run("creates and gets a build", func(t *testing.T) {
 		ctx := context.Background()
-		database := NewTestDatabase(ctx, t)
+		database := NewTestDatabase(t, ctx)
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 		documentToken := "document token"
@@ -66,7 +66,7 @@ func TestDatabase(t *testing.T) {
 
 	t.Run("doesn't get a build for another user", func(t *testing.T) {
 		ctx := context.Background()
-		database := NewTestDatabase(ctx, t)
+		database := NewTestDatabase(t, ctx)
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		documentToken := "document token"
 
@@ -91,7 +91,7 @@ func TestDatabase(t *testing.T) {
 	// TODO: Consider getting a build instead of relying on CreateBuild's error.
 	t.Run("creates a build for unused idempotency key", func(t *testing.T) {
 		ctx := context.Background()
-		database := NewTestDatabase(ctx, t)
+		database := NewTestDatabase(t, ctx)
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 		documentToken := "document token"
 
@@ -116,7 +116,7 @@ func TestDatabase(t *testing.T) {
 
 	t.Run("doesn't create a build for used idempotency key", func(t *testing.T) {
 		ctx := context.Background()
-		database := NewTestDatabase(ctx, t)
+		database := NewTestDatabase(t, ctx)
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 
@@ -150,7 +150,7 @@ func TestDatabase(t *testing.T) {
 
 	t.Run("gets a build when the build is created in a committed transaction", func(t *testing.T) {
 		ctx := context.Background()
-		database := NewTestDatabase(ctx, t)
+		database := NewTestDatabase(t, ctx)
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 		documentToken := "document token"
@@ -190,7 +190,7 @@ func TestDatabase(t *testing.T) {
 
 	t.Run("doesn't get a build when the build is created in a rolled back transaction", func(t *testing.T) {
 		ctx := context.Background()
-		database := NewTestDatabase(ctx, t)
+		database := NewTestDatabase(t, ctx)
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 		documentToken := "document token"
