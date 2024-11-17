@@ -22,8 +22,8 @@ func TestServer(t *testing.T) {
 		t.Fatalf("didn't want %q", err)
 	}
 	t.Cleanup(func() {
-		if err := teardown(); err != nil {
-			t.Errorf("didn't want %q", err)
+		if teardownErr := teardown(); teardownErr != nil {
+			t.Errorf("didn't want %q", teardownErr)
 		}
 	})
 
