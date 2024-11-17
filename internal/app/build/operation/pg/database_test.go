@@ -13,22 +13,22 @@ import (
 	"github.com/k11v/brick/internal/postgresutil"
 )
 
-func NewTestDatabase(t testing.TB, ctx context.Context) *Database {
-	t.Helper()
+func NewTestDatabase(tb testing.TB, ctx context.Context) *Database {
+	tb.Helper()
 
 	connectionString, teardown, err := postgrestest.Setup(ctx)
 	if err != nil {
-		t.Fatalf("didn't want %q", err)
+		tb.Fatalf("didn't want %q", err)
 	}
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if teardownErr := teardown(); teardownErr != nil {
-			t.Errorf("didn't want %q", teardownErr)
+			tb.Errorf("didn't want %q", teardownErr)
 		}
 	})
 
 	pool, err := postgresutil.NewPool(ctx, connectionString)
 	if err != nil {
-		t.Fatalf("didn't want %q", err)
+		tb.Fatalf("didn't want %q", err)
 	}
 
 	return NewDatabase(pool)
