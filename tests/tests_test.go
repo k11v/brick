@@ -3,10 +3,14 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"reflect"
 	"testing"
+
+	"github.com/testcontainers/testcontainers-go/modules/compose"
 )
 
 func TestServer(t *testing.T) {
@@ -52,7 +56,45 @@ func NewTestServer(tb testing.TB, ctx context.Context) (baseURL string) {
 }
 
 func SetupServer(ctx context.Context) (baseURL string, teardown func() error, err error) {
-	return "http://localhost:8080", func() error { return nil }, nil
+	project, err := compose.NewDockerCompose("../compose.yaml")
+	if err != nil {
+		return "", nil, err
+	}
+	maybeTeardown := func() error {
+		return project.Down(ctx, compose.RemoveImagesLocal, compose.RemoveOrphans(true), compose.RemoveVolumes(true))
+	}
+	defer func() {
+		if maybeTeardown != nil {
+			_ = maybeTeardown()
+		}
+	}()
+
+	if err = project.Up(ctx, compose.Wait(true)); err != nil {
+		return "", nil, err
+	}
+
+	serverContainer, err := project.ServiceContainer(ctx, "server")
+	if err != nil {
+		return "", nil, err
+	}
+
+	host, err := serverContainer.Host(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var port string
+	mappedPort, err := serverContainer.MappedPort(ctx, "8080/tcp")
+	if err != nil {
+		return "", nil, err
+	}
+	port = mappedPort.Port()
+
+	baseURL = fmt.Sprintf("http://%s", net.JoinHostPort(host, port))
+
+	teardown = maybeTeardown
+	maybeTeardown = nil
+	return baseURL, teardown, nil
 }
 
 func EqualJSON(x, y string) bool {
