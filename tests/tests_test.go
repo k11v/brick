@@ -38,6 +38,11 @@ func TestServer(t *testing.T) {
 	})
 }
 
+func NewTestServer(tb testing.TB, ctx context.Context) (baseURL string) {
+	tb.Helper()
+	return "http://127.0.0.1:8080"
+}
+
 func EqualJSON(x, y string) bool {
 	var mx, my any
 	if err := json.Unmarshal([]byte(x), &mx); err != nil {
