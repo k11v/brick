@@ -12,7 +12,7 @@ import (
 func TestServer(t *testing.T) {
 	t.Run(`GET /health returns OK`, func(t *testing.T) {
 		ctx := context.Background()
-		baseURL := NewTestServer(ctx, t)
+		baseURL := NewTestServer(t, ctx)
 
 		resp, err := http.Get(baseURL + "/health")
 		if err != nil {
@@ -38,7 +38,7 @@ func TestServer(t *testing.T) {
 	})
 }
 
-func NewTestServer(ctx context.Context, tb testing.TB) (baseURL string) {
+func NewTestServer(tb testing.TB, ctx context.Context) (baseURL string) {
 	tb.Helper()
 
 	baseURL, teardown, err := SetupServer(ctx)
