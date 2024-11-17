@@ -28,12 +28,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
   postgres:
-    image: postgres:17.0-alpine3.20
+    image: postgres:17.0-alpine
     environment:
-      - POSTGRES_DB=postgres
-      - POSTGRES_PASSWORD=postgres
       - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
     ports:
       - "5432:5432"
     volumes:
@@ -43,10 +44,7 @@ services:
       interval: 3s
       timeout: 30s
       retries: 10
-  
-  # TODO: Run as user instead of root.
-  # Tried `user: "2000:2000"` but server failed on start-up due to "file access denied" inside of /data.
-  # Had `volume: ["minio-data:/data"]`.
+
   minio:
     image: quay.io/minio/minio:latest
     command: server --console-address ":9001" /data
