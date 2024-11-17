@@ -20,6 +20,12 @@ linters-settings:
       shadow:
         # Whether to be strict about shadowing; can be noisy.
         strict: true
+  revive:
+    rules:
+      - name: context-as-argument
+        arguments:
+          - allowTypesBefore: "*testing.T,*testing.B,testing.TB"
+
 linters:
   disable-all: true
   enable:
