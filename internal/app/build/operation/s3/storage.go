@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/url"
 	"path"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -118,24 +120,42 @@ func (s *Storage) DownloadFiles(ctx context.Context, params *operation.StorageDo
 		d.Concurrency = 1
 	})
 
-	{
-		fileName := "foo.md"
+	bucketName := "brick"
+	objectPrefix := params.BuildID.String() + "/"
 
-		p, err := params.MultipartWriter.CreateFormFile("file1", fileName) // TODO: consider sending and receiving files in a tar archive
+	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
+		Bucket: &bucketName,
+		Prefix: &objectPrefix,
+	})
+
+	fileNumber := 0
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return fmt.Errorf("storage download files: %w", err)
 		}
 
-		bucketName := "brick"
-		objectKey := path.Join(params.BuildID.String(), fileName)
+		for _, object := range page.Contents {
+			fileNumber++
 
-		// fakeWriterAt needs manager.Downloader.Concurrency set to 1.
-		_, err = downloader.Download(ctx, fakeWriterAt{p}, &s3.GetObjectInput{
-			Bucket: &bucketName,
-			Key:    &objectKey,
-		})
-		if err != nil {
-			return fmt.Errorf("storage download files: %w", err)
+			fileName, found := strings.CutPrefix(*object.Key, objectPrefix)
+			if !found {
+				panic("want prefix")
+			}
+
+			p, err := params.MultipartWriter.CreateFormFile(strconv.Itoa(fileNumber), fileName) // TODO: consider sending and receiving files in a tar archive
+			if err != nil {
+				return fmt.Errorf("storage download files: %w", err)
+			}
+
+			// fakeWriterAt needs manager.Downloader.Concurrency set to 1.
+			_, err = downloader.Download(ctx, fakeWriterAt{p}, &s3.GetObjectInput{
+				Bucket: &bucketName,
+				Key:    object.Key,
+			})
+			if err != nil {
+				return fmt.Errorf("storage download files: %w", err)
+			}
 		}
 	}
 
