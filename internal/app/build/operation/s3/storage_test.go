@@ -1,19 +1,61 @@
 package s3
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"mime/multipart"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/k11v/brick/internal/app/build/operation"
 )
 
 func TestStorage(t *testing.T) {
 	t.Run("uploads and downloads files", func(t *testing.T) {
 		ctx := context.Background()
 		storage := NewTestStorage(t, ctx)
-		_ = storage
+
+		// Prepare files.
+		body := &bytes.Buffer{}
+		mw := multipart.NewWriter(body)
+		boundary := mw.Boundary()
+
+		p, err := mw.CreateFormFile("1", "apple.md")
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+		_, err = p.Write([]byte("apples"))
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+
+		p, err = mw.CreateFormFile("2", "banana.md")
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+		_, err = p.Write([]byte("bananas"))
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+
+		if err = mw.Close(); err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+
+		// Upload files.
+		mr := multipart.NewReader(body, boundary)
+
+		err = storage.UploadFiles(ctx, &operation.StorageUploadFilesParams{
+			BuildID:         uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+			MultipartReader: mr,
+		})
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
 	})
 }
 
