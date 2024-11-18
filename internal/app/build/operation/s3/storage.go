@@ -5,19 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
-	transport "github.com/aws/smithy-go/endpoints"
 
 	"github.com/k11v/brick/internal/app/build/operation"
+	apps3 "github.com/k11v/brick/internal/app/s3"
 )
 
 var _ operation.Storage = (*Storage)(nil)
@@ -34,28 +32,11 @@ type Storage struct {
 	downloadPartSize int
 }
 
-// NewStorage creates a new Storage instance using the provided connection string.
-// The connection string must be a valid URL in the format: http://key:secret@s3:9000.
-// For MinIO, the key and secret are the username and password respectively.
+// NewStorage creates a new Storage using the provided connection string.
 // It panics if the connection string is not a valid URL.
 func NewStorage(connectionString string) *Storage {
-	u, err := url.Parse(connectionString)
-	if err != nil {
-		panic(err)
-	}
-
-	username := u.User.Username()
-	password, _ := u.User.Password()
-	u.User = nil
-
-	client := s3.New(
-		s3.Options{
-			Credentials:        credentials.NewStaticCredentialsProvider(username, password, ""),
-			EndpointResolverV2: &endpointResolver{BaseURL: u},
-		},
-	)
 	return &Storage{
-		client:           client,
+		client:           apps3.NewClient(connectionString),
 		uploadPartSize:   10 * 1024 * 1024, // 10MB
 		downloadPartSize: 10 * 1024 * 1024, // 10MB
 	}
@@ -160,18 +141,6 @@ func (s *Storage) DownloadFiles(ctx context.Context, params *operation.StorageDo
 	}
 
 	return nil
-}
-
-// endpointResolver implements s3.EndpointResolverV2.
-// It resolves endpoints for S3-compatible object storage like MinIO.
-type endpointResolver struct {
-	BaseURL *url.URL // required
-}
-
-func (r *endpointResolver) ResolveEndpoint(_ context.Context, params s3.EndpointParameters) (transport.Endpoint, error) {
-	u := *r.BaseURL
-	u.Path += "/" + *params.Bucket
-	return transport.Endpoint{URI: u}, nil
 }
 
 // fakeWriterAt wraps an io.Writer to provide a fake WriteAt method.
