@@ -23,9 +23,13 @@ var _ operation.Storage = (*Storage)(nil)
 type Storage struct {
 	client *s3.Client
 
-	// uploadPartSize should be greater than or equal
-	// to github.com/aws/aws-sdk-go-v2/feature/s3/manager.MinUploadPartSize.
+	// uploadPartSize should be greater than or equal 5MB.
+	// See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
 	uploadPartSize int
+
+	// downloadPartSize should be greater than or equal 5MB.
+	// See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
+	downloadPartSize int
 }
 
 // NewStorage creates a new Storage instance using the provided connection string.
@@ -49,8 +53,9 @@ func NewStorage(connectionString string) *Storage {
 		},
 	)
 	return &Storage{
-		client:         client,
-		uploadPartSize: 10 * 1024 * 1024, // 10 MB
+		client:           client,
+		uploadPartSize:   10 * 1024 * 1024, // 10MB
+		downloadPartSize: 10 * 1024 * 1024, // 10MB
 	}
 }
 
@@ -62,11 +67,10 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 
 	for {
 		p, err := params.MultipartReader.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 			// return
-		}
-		if err != nil {
+		} else if err != nil {
 			return fmt.Errorf("storage upload files: %w", err)
 			// log.Fatal(err)
 		}
@@ -109,7 +113,33 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 
 // DownloadFiles implements operation.Storage.
 func (s *Storage) DownloadFiles(ctx context.Context, params *operation.StorageDownloadFilesParams) error {
-	panic("unimplemented")
+	downloader := manager.NewDownloader(s.client, func(d *manager.Downloader) {
+		d.PartSize = int64(s.downloadPartSize)
+		d.Concurrency = 1
+	})
+
+	{
+		fileName := "foo.md"
+
+		p, err := params.MultipartWriter.CreateFormFile("file1", fileName) // TODO: consider sending and receiving files in a tar archive
+		if err != nil {
+			return fmt.Errorf("storage download files: %w", err)
+		}
+
+		bucketName := "brick"
+		objectKey := path.Join(params.BuildID.String(), fileName)
+
+		// fakeWriterAt needs manager.Downloader.Concurrency set to 1.
+		_, err = downloader.Download(ctx, fakeWriterAt{p}, &s3.GetObjectInput{
+			Bucket: &bucketName,
+			Key:    &objectKey,
+		})
+		if err != nil {
+			return fmt.Errorf("storage download files: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // endpointResolver implements s3.EndpointResolverV2.
@@ -122,4 +152,16 @@ func (r *endpointResolver) ResolveEndpoint(_ context.Context, params s3.Endpoint
 	u := *r.BaseURL
 	u.Path += "/" + *params.Bucket
 	return transport.Endpoint{URI: u}, nil
+}
+
+// fakeWriterAt wraps an io.Writer to provide a fake WriteAt method.
+// This method simply calls w.Write ignoring the offset parameter.
+// It can be used with github.com/aws/aws-sdk-go-v2/feature/s3/manager.Downloader.Download
+// if its concurrency is set to 1 because this guarantees the sequential writes.
+type fakeWriterAt struct {
+	w io.Writer // required
+}
+
+func (writerAt fakeWriterAt) WriteAt(p []byte, _ int64) (n int, err error) {
+	return writerAt.w.Write(p)
 }
