@@ -43,6 +43,8 @@ func NewStorage(connectionString string) *Storage {
 }
 
 // UploadFiles implements operation.Storage.
+// FIXME: p.FileName() returns only the last component and is platform-dependent when we want the full path.
+// TODO: consider the error related to manager.MaxUploadParts when handling uploader.Upload.
 func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUploadFilesParams) error {
 	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
 		u.PartSize = int64(s.uploadPartSize)
@@ -52,13 +54,11 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 		p, err := params.MultipartReader.NextPart()
 		if errors.Is(err, io.EOF) {
 			break
-			// return
 		} else if err != nil {
 			return fmt.Errorf("storage upload files: %w", err)
-			// log.Fatal(err)
 		}
 
-		objectKey := path.Join(params.BuildID.String(), p.FileName()) // FIXME: p.FileName() returns only the last component and is platform-dependent.
+		objectKey := path.Join(params.BuildID.String(), p.FileName())
 
 		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 			Bucket: &apps3.BucketName,
@@ -66,16 +66,11 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 			Body:   p,
 		})
 		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" { // FIXME: consider error related to manager.MaxUploadParts.
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
 			return operation.FileTooLarge
 		} else if err != nil {
 			return fmt.Errorf("storage upload files: %w", err)
 		}
-		// slurp, err := io.ReadAll(p)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// fmt.Printf("Part %q: %q\n", p.Header.Get("Foo"), slurp)
 
 		err = s3.NewObjectExistsWaiter(s.client).Wait(
 			ctx,
