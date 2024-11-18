@@ -12,6 +12,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/k11v/brick/internal/app/build/operation"
+	apps3 "github.com/k11v/brick/internal/app/s3"
 )
 
 func TestStorage(t *testing.T) {
@@ -94,6 +95,12 @@ func NewTestStorage(tb testing.TB, ctx context.Context) *Storage {
 		tb.Fatalf("didn't want %q", err)
 	}
 	connectionString := fmt.Sprintf("http://%s:%s@%s:%s", username, password, host, port.Port())
+
+	client := apps3.NewClient(connectionString)
+	err = apps3.Setup(ctx, client)
+	if err != nil {
+		tb.Fatalf("didn't want %q", err)
+	}
 
 	return NewStorage(connectionString)
 }
