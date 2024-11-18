@@ -3,7 +3,9 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"testing"
 
@@ -15,14 +17,16 @@ import (
 	apps3 "github.com/k11v/brick/internal/app/s3"
 )
 
+// TODO: Consider when upload doesn't have any files to upload.
+// TODO: Consider when download doesn't have any files to download.
 func TestStorage(t *testing.T) {
 	t.Run("uploads and downloads files", func(t *testing.T) {
 		ctx := context.Background()
 		storage := NewTestStorage(t, ctx)
 
 		// Prepare files.
-		body := &bytes.Buffer{}
-		mw := multipart.NewWriter(body)
+		input := &bytes.Buffer{}
+		mw := multipart.NewWriter(input)
 		boundary := mw.Boundary()
 
 		p, err := mw.CreateFormFile("1", "apple.md")
@@ -48,13 +52,66 @@ func TestStorage(t *testing.T) {
 		}
 
 		// Upload files.
-		mr := multipart.NewReader(body, boundary)
+		mr := multipart.NewReader(input, boundary)
 
 		err = storage.UploadFiles(ctx, &operation.StorageUploadFilesParams{
 			BuildID:         uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
 			MultipartReader: mr,
 		})
 		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+
+		// Download files.
+		output := &bytes.Buffer{}
+		mw = multipart.NewWriter(output)
+		boundary = mw.Boundary()
+
+		err = storage.DownloadFiles(ctx, &operation.StorageDownloadFilesParams{
+			BuildID:         uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
+			MultipartWriter: mw,
+		})
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+		if err = mw.Close(); err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+
+		// Check files.
+		mr = multipart.NewReader(output, boundary)
+
+		part, err := mr.NextPart()
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+		if part.FormName() != "1" || part.FileName() != "apple.md" {
+			t.Fatalf("didn't want %s %s", part.FormName(), part.FileName())
+		}
+		content := new(bytes.Buffer)
+		if _, err = content.ReadFrom(part); err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+		if content.String() != "apples" {
+			t.Fatalf("didn't want %s", content.String())
+		}
+
+		part, err = mr.NextPart()
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+		if part.FormName() != "2" || part.FileName() != "banana.md" {
+			t.Fatalf("didn't want %s %s", part.FormName(), part.FileName())
+		}
+		content = new(bytes.Buffer)
+		if _, err = content.ReadFrom(part); err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+		if content.String() != "bananas" {
+			t.Fatalf("didn't want %s", content.String())
+		}
+
+		if _, err = mr.NextPart(); !errors.Is(err, io.EOF) {
 			t.Fatalf("didn't want %q", err)
 		}
 	})
