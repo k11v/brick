@@ -58,11 +58,10 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 			// log.Fatal(err)
 		}
 
-		bucketName := "brick"
 		objectKey := path.Join(params.BuildID.String(), p.FileName()) // FIXME: p.FileName() returns only the last component and is platform-dependent.
 
 		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
-			Bucket: &bucketName,
+			Bucket: &apps3.BucketName,
 			Key:    &objectKey,
 			Body:   p,
 		})
@@ -81,7 +80,7 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 		err = s3.NewObjectExistsWaiter(s.client).Wait(
 			ctx,
 			&s3.HeadObjectInput{
-				Bucket: &bucketName,
+				Bucket: &apps3.BucketName,
 				Key:    &objectKey,
 			},
 			time.Minute,
@@ -101,11 +100,10 @@ func (s *Storage) DownloadFiles(ctx context.Context, params *operation.StorageDo
 		d.Concurrency = 1
 	})
 
-	bucketName := "brick"
 	objectPrefix := params.BuildID.String() + "/"
 
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
-		Bucket: &bucketName,
+		Bucket: &apps3.BucketName,
 		Prefix: &objectPrefix,
 	})
 
@@ -131,7 +129,7 @@ func (s *Storage) DownloadFiles(ctx context.Context, params *operation.StorageDo
 
 			// fakeWriterAt needs manager.Downloader.Concurrency set to 1.
 			_, err = downloader.Download(ctx, fakeWriterAt{p}, &s3.GetObjectInput{
-				Bucket: &bucketName,
+				Bucket: &apps3.BucketName,
 				Key:    object.Key,
 			})
 			if err != nil {
