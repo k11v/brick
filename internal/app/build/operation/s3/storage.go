@@ -10,7 +10,7 @@ var _ operation.Storage = (*Storage)(nil)
 
 type Storage struct{}
 
-func NewStorage() *Storage {
+func NewStorage(connectionString string) *Storage {
 	panic("unimplemented")
 }
 
