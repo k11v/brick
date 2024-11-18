@@ -51,7 +51,7 @@ func NewTestStorage(tb testing.TB, ctx context.Context) *Storage {
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}
-	connectionString := fmt.Sprintf("%s:%s", host, port.Port())
+	connectionString := fmt.Sprintf("http://%s:%s@%s:%s", username, password, host, port.Port())
 
 	return NewStorage(connectionString)
 }
