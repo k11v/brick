@@ -2,10 +2,13 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"mime/multipart"
 
 	"github.com/google/uuid"
 )
+
+var FileTooLarge = errors.New("file too large")
 
 type StorageUploadFilesParams struct {
 	BuildID         uuid.UUID
