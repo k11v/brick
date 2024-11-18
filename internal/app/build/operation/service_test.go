@@ -144,7 +144,7 @@ func TestServiceCreateBuild(t *testing.T) {
 				t.SkipNow()
 			}
 
-			service := NewService(config, tt.spyDatabase, 0, 0)
+			service := NewService(config, tt.spyDatabase, StubStorage{}, StubBroker{})
 
 			got, gotErr := service.CreateBuild(ctx, tt.createBuildParams)
 			want, wantErr := tt.want, tt.wantErr
