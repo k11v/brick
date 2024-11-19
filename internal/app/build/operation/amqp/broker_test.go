@@ -3,6 +3,7 @@ package amqp
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -14,12 +15,13 @@ import (
 	"github.com/k11v/brick/internal/app/build"
 )
 
+// TODO: Consider acknowledgement and not receiving a message again.
 func TestBroker(t *testing.T) {
 	t.Run("sends and receives build tasks", func(t *testing.T) {
 		ctx := context.Background()
 		broker := NewTestBroker(t, ctx)
 
-		err := broker.SendBuildTask(ctx, &build.Build{
+		b := &build.Build{
 			ID:             uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
 			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
@@ -31,9 +33,21 @@ func TestBroker(t *testing.T) {
 			},
 			Status: "pending",
 			Done:   false,
-		})
+		}
+
+		err := broker.SendBuildTask(ctx, b)
 		if err != nil {
 			t.Fatalf("didn't want %q", err)
+		}
+
+		got, err := broker.ReceiveBuildTask(ctx)
+		if err != nil {
+			t.Fatalf("didn't want %q", err)
+		}
+
+		if want := b; !reflect.DeepEqual(got, want) {
+			t.Logf("got %v", got)
+			t.Fatalf("want %v", want)
 		}
 	})
 }
