@@ -48,7 +48,7 @@ func (broker Broker) SendBuildTask(ctx context.Context, b *build.Build) error {
 
 	contentType := "application/json"
 	body := &bytes.Buffer{}
-	if err := json.NewEncoder(body).Encode(b); err != nil {
+	if err = json.NewEncoder(body).Encode(b); err != nil {
 		return fmt.Errorf("send build task: %w", err)
 	}
 	msg := amqp091.Publishing{
