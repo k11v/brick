@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,9 +30,12 @@ func NewService(config *Config, database Database, storage Storage, broker Broke
 
 type CreateBuildParams struct {
 	ContextToken   string
-	DocumentFiles  map[string][]byte
 	IdempotencyKey uuid.UUID
 	UserID         uuid.UUID
+
+	DocumentReader *multipart.Reader // temporary
+
+	DocumentFiles map[string][]byte // deprecated
 }
 
 // CreateBuild.
@@ -45,6 +49,11 @@ type CreateBuildParams struct {
 // FIXME: There is a problem when Database.GetBuildByIdempotencyKey
 // doesn't get a build not because the idempotency key is unused
 // but because the user is different.
+//
+// FIXME: When s.broker.SendBuildTask or tx.Commit fails, s.CreateBuild doesn't do any compensation steps.
+// The current behavior is that uploaded files aren't cleaned up and the sent build task won't exist in the database.
+// It was decided to keep build creation available to the users at the cost of processing non-existing build tasks.
+// The correct solution is to embrace eventual consistency but it is not implemented yet.
 func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*build.Build, error) {
 	b, err := s.db.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
 		IdempotencyKey: params.IdempotencyKey,
@@ -88,6 +97,19 @@ func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*
 		UserID:         params.UserID,
 		DocumentToken:  "document token", // FIXME: remove the stub
 	})
+	if err != nil {
+		return nil, fmt.Errorf("service create build: %w", err)
+	}
+
+	err = s.storage.UploadFiles(ctx, &StorageUploadFilesParams{
+		BuildID:         b.ID,
+		MultipartReader: params.DocumentReader,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("service create build: %w", err)
+	}
+
+	err = s.broker.SendBuildTask(ctx, b)
 	if err != nil {
 		return nil, fmt.Errorf("service create build: %w", err)
 	}
