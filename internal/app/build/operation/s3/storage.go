@@ -45,6 +45,7 @@ func NewStorage(connectionString string) *Storage {
 // UploadFiles implements operation.Storage.
 // FIXME: p.FileName() returns only the last component and is platform-dependent when we want the full path.
 // TODO: consider the error related to manager.MaxUploadParts when handling uploader.Upload.
+// FIXME: When UploadFiles fails, it should clean up the files it has possibly already uploaded.
 func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUploadFilesParams) error {
 	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
 		u.PartSize = int64(s.uploadPartSize)
