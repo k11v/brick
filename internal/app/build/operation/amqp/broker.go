@@ -21,7 +21,7 @@ func NewBroker(connectionString string) *Broker {
 	}
 }
 
-func (broker Broker) SendBuildTask(ctx context.Context, b *build.Build) error {
+func (broker *Broker) SendBuildTask(ctx context.Context, b *build.Build) error {
 	conn, err := amqp091.Dial(broker.connectionString)
 	if err != nil {
 		return fmt.Errorf("send build task: %w", err)
@@ -71,7 +71,7 @@ func (broker Broker) SendBuildTask(ctx context.Context, b *build.Build) error {
 }
 
 // TODO: Consider returning a channel.
-func (broker Broker) ReceiveBuildTask(ctx context.Context) (*build.Build, error) {
+func (broker *Broker) ReceiveBuildTask(ctx context.Context) (*build.Build, error) {
 	conn, err := amqp091.Dial(broker.connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("receive build task: %w", err)
