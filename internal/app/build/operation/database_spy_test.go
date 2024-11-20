@@ -14,7 +14,7 @@ const (
 	callGetBuildByIdempotencyKey = "GetBuildByIdempotencyKey"
 	callGetBuildCount            = "GetBuildCount"
 	callListBuilds               = "ListBuilds"
-	callLockBuilds                 = "LockBuilds"
+	callLockBuilds               = "LockBuilds"
 	callRollback                 = "Rollback"
 )
 
