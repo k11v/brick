@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/k11v/brick/internal/operation"
+	"github.com/k11v/brick/internal/buildtask"
 	"github.com/k11v/brick/internal/pgtest"
 	"github.com/k11v/brick/internal/pgutil"
 )
@@ -42,7 +42,7 @@ func TestDatabase(t *testing.T) {
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 		documentToken := "document token"
 
-		b, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		b, err := database.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         userID,
 			DocumentToken:  documentToken,
@@ -51,7 +51,7 @@ func TestDatabase(t *testing.T) {
 			t.Fatalf("didn't want %q", err)
 		}
 
-		got, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
+		got, err := database.GetBuild(ctx, &buildtask.DatabaseGetBuildParams{
 			ID:     b.ID,
 			UserID: userID,
 		})
@@ -70,7 +70,7 @@ func TestDatabase(t *testing.T) {
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		documentToken := "document token"
 
-		b, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		b, err := database.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 			DocumentToken:  documentToken,
@@ -79,11 +79,11 @@ func TestDatabase(t *testing.T) {
 			t.Fatalf("didn't want %q", err)
 		}
 
-		_, err = database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
+		_, err = database.GetBuild(ctx, &buildtask.DatabaseGetBuildParams{
 			ID:     b.ID,
 			UserID: uuid.MustParse("dddddddd-0000-0000-0000-000000000000"),
 		})
-		if got, want := err, operation.ErrNotFound; !errors.Is(got, want) {
+		if got, want := err, buildtask.ErrNotFound; !errors.Is(got, want) {
 			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
@@ -95,7 +95,7 @@ func TestDatabase(t *testing.T) {
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 		documentToken := "document token"
 
-		_, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		_, err := database.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
 			UserID:         userID,
 			DocumentToken:  documentToken,
@@ -104,7 +104,7 @@ func TestDatabase(t *testing.T) {
 			t.Fatalf("didn't want %q", err)
 		}
 
-		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		_, err = database.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 			UserID:         userID,
 			DocumentToken:  documentToken,
@@ -120,7 +120,7 @@ func TestDatabase(t *testing.T) {
 		idempotencyKey := uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000")
 		userID := uuid.MustParse("cccccccc-0000-0000-0000-000000000000")
 
-		_, err := database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		_, err := database.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         userID,
 			DocumentToken:  "document token",
@@ -129,21 +129,21 @@ func TestDatabase(t *testing.T) {
 			t.Fatalf("didn't want %q", err)
 		}
 
-		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		_, err = database.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         userID,
 			DocumentToken:  "document token",
 		})
-		if got, want := err, operation.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
+		if got, want := err, buildtask.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
 			t.Fatalf("got %q, want %q", got, want)
 		}
 
-		_, err = database.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		_, err = database.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         userID,
 			DocumentToken:  "another document token",
 		})
-		if got, want := err, operation.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
+		if got, want := err, buildtask.ErrIdempotencyKeyAlreadyUsed; !errors.Is(got, want) {
 			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
@@ -163,7 +163,7 @@ func TestDatabase(t *testing.T) {
 			_ = tx.Rollback(ctx)
 		})
 
-		createdBuild, err := tx.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		createdBuild, err := tx.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         userID,
 			DocumentToken:  documentToken,
@@ -176,7 +176,7 @@ func TestDatabase(t *testing.T) {
 			t.Fatalf("didn't want %q", err)
 		}
 
-		gotBuild, err := database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
+		gotBuild, err := database.GetBuild(ctx, &buildtask.DatabaseGetBuildParams{
 			ID:     createdBuild.ID,
 			UserID: userID,
 		})
@@ -203,7 +203,7 @@ func TestDatabase(t *testing.T) {
 			_ = tx.Rollback(ctx)
 		})
 
-		createdBuild, err := tx.CreateBuild(ctx, &operation.DatabaseCreateBuildParams{
+		createdBuild, err := tx.CreateBuild(ctx, &buildtask.DatabaseCreateBuildParams{
 			IdempotencyKey: idempotencyKey,
 			UserID:         userID,
 			DocumentToken:  documentToken,
@@ -216,11 +216,11 @@ func TestDatabase(t *testing.T) {
 			t.Fatalf("didn't want %q", err)
 		}
 
-		_, err = database.GetBuild(ctx, &operation.DatabaseGetBuildParams{
+		_, err = database.GetBuild(ctx, &buildtask.DatabaseGetBuildParams{
 			ID:     createdBuild.ID,
 			UserID: userID,
 		})
-		if got, want := err, operation.ErrNotFound; !errors.Is(got, want) {
+		if got, want := err, buildtask.ErrNotFound; !errors.Is(got, want) {
 			t.Fatalf("got %q, want %q", got, want)
 		}
 	})

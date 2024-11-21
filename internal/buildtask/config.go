@@ -1,4 +1,4 @@
-package operation
+package buildtask
 
 type Config struct {
 	BuildsAllowed int

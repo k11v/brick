@@ -5,10 +5,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/k11v/brick/internal/operation"
+	"github.com/k11v/brick/internal/buildtask"
 )
 
-var _ operation.DatabaseTx = (*DatabaseTx)(nil)
+var _ buildtask.DatabaseTx = (*DatabaseTx)(nil)
 
 type DatabaseTx struct {
 	*Database                                    // required
