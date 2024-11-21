@@ -1,4 +1,4 @@
-package postgresutil
+package pgutil
 
 import (
 	"context"
