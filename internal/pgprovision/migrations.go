@@ -1,4 +1,4 @@
-package postgresprovision
+package pgprovision
 
 import (
 	"embed"

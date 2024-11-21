@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/k11v/brick/internal/postgresprovision"
+	"github.com/k11v/brick/internal/pgprovision"
 )
 
 func Setup(ctx context.Context) (connectionString string, teardown func() error, err error) {
@@ -64,7 +64,7 @@ func Setup(ctx context.Context) (connectionString string, teardown func() error,
 		db,
 	)
 
-	if err = postgresprovision.Setup(connectionString); err != nil {
+	if err = pgprovision.Setup(connectionString); err != nil {
 		return "", nil, err
 	}
 
