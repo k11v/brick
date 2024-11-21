@@ -5,7 +5,8 @@ import (
 	"os"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/k11v/brick/internal/postgresprovision"
+
+	"github.com/k11v/brick/internal/pgprovision"
 )
 
 func main() {
@@ -22,5 +23,5 @@ func run(environ []string) error {
 		return err
 	}
 
-	return postgresprovision.Setup(cfg.Postgres.DSN)
+	return pgprovision.Setup(cfg.Postgres.DSN)
 }
