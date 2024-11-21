@@ -2,12 +2,13 @@ package main
 
 import (
 	"github.com/caarlos0/env/v11"
-	"github.com/k11v/brick/internal/postgresutil"
+
+	"github.com/k11v/brick/internal/pgutil"
 )
 
 // config holds the application configuration.
 type config struct {
-	Postgres postgresutil.Config `envPrefix:"BRICK_POSTGRES_"`
+	Postgres pgutil.Config `envPrefix:"BRICK_POSTGRES_"`
 }
 
 // parseConfig parses the application configuration from the environment variables.

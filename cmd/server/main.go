@@ -9,7 +9,7 @@ import (
 	"os"
 
 	_ "github.com/k11v/brick/cmd/server/docs"
-	"github.com/k11v/brick/internal/postgresutil"
+	"github.com/k11v/brick/internal/pgutil"
 	"github.com/k11v/brick/internal/server"
 )
 
@@ -50,7 +50,7 @@ func run(stdout io.Writer, environ []string) error {
 
 	ctx := context.Background()
 
-	postgresPool, err := postgresutil.NewPool(ctx, cfg.Postgres.DSN)
+	postgresPool, err := pgutil.NewPool(ctx, cfg.Postgres.DSN)
 	if err != nil {
 		return err
 	}

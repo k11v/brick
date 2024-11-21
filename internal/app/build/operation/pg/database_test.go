@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/k11v/brick/internal/app/build/operation"
+	"github.com/k11v/brick/internal/pgutil"
 	"github.com/k11v/brick/internal/postgrestest"
-	"github.com/k11v/brick/internal/postgresutil"
 )
 
 func NewTestDatabase(tb testing.TB, ctx context.Context) *Database {
@@ -26,7 +26,7 @@ func NewTestDatabase(tb testing.TB, ctx context.Context) *Database {
 		}
 	})
 
-	pool, err := postgresutil.NewPool(ctx, connectionString)
+	pool, err := pgutil.NewPool(ctx, connectionString)
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}

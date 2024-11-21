@@ -1,4 +1,4 @@
-package postgresutil
+package pgutil
 
 // Config holds Postgres configuration.
 type Config struct {
