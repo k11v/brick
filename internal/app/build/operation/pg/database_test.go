@@ -9,14 +9,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/k11v/brick/internal/app/build/operation"
+	"github.com/k11v/brick/internal/pgtest"
 	"github.com/k11v/brick/internal/pgutil"
-	"github.com/k11v/brick/internal/postgrestest"
 )
 
 func NewTestDatabase(tb testing.TB, ctx context.Context) *Database {
 	tb.Helper()
 
-	connectionString, teardown, err := postgrestest.Setup(ctx)
+	connectionString, teardown, err := pgtest.Setup(ctx)
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}
