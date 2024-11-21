@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/k11v/brick/internal/build"
-	"github.com/k11v/brick/internal/operation"
+	"github.com/k11v/brick/internal/buildtask"
 )
 
-var _ operation.Database = (*Database)(nil)
+var _ buildtask.Database = (*Database)(nil)
 
 type Database struct {
 	db Querier // required
@@ -23,8 +23,8 @@ func NewDatabase(db Querier) *Database {
 	return &Database{db: db}
 }
 
-// Begin implements operation.Database.
-func (d *Database) Begin(ctx context.Context) (operation.DatabaseTx, error) {
+// Begin implements buildtask.Database.
+func (d *Database) Begin(ctx context.Context) (buildtask.DatabaseTx, error) {
 	pgxTx, err := d.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin: %w", err)
@@ -32,13 +32,13 @@ func (d *Database) Begin(ctx context.Context) (operation.DatabaseTx, error) {
 	return newDatabaseTx(pgxTx), nil
 }
 
-// LockBuilds implements operation.Database.
+// LockBuilds implements buildtask.Database.
 //
 // INSERT with ON CONFLICT DO UPDATE should acquire the FOR UPDATE row-level lock
 // when the user_id row exists and acquire a lock when it doesn't exist.
 //
 // TODO: check the INSERT with ON CONFLICT DO UPDATE command.
-func (d *Database) LockBuilds(ctx context.Context, params *operation.DatabaseLockBuildsParams) error {
+func (d *Database) LockBuilds(ctx context.Context, params *buildtask.DatabaseLockBuildsParams) error {
 	query := `
 		INSERT INTO user_locks (user_id)
 		VALUES ($1)
@@ -56,8 +56,8 @@ func (d *Database) LockBuilds(ctx context.Context, params *operation.DatabaseLoc
 	return nil
 }
 
-// CreateBuild implements operation.Database.
-func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCreateBuildParams) (*build.Build, error) {
+// CreateBuild implements buildtask.Database.
+func (d *Database) CreateBuild(ctx context.Context, params *buildtask.DatabaseCreateBuildParams) (*build.Build, error) {
 	query := `
 		INSERT INTO builds (idempotency_key, user_id, document_token, status, done)
 		VALUES ($1, $2, $3, $4, $5)
@@ -74,7 +74,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) {
-		return nil, operation.ErrIdempotencyKeyAlreadyUsed
+		return nil, buildtask.ErrIdempotencyKeyAlreadyUsed
 	} else if err != nil {
 		return nil, fmt.Errorf("create build: %w", err)
 	}
@@ -82,11 +82,11 @@ func (d *Database) CreateBuild(ctx context.Context, params *operation.DatabaseCr
 	return b, nil
 }
 
-// GetBuild implements operation.Database.
+// GetBuild implements buildtask.Database.
 //
 // TODO: Consider silent unmarshalling errors of pgx.CollectExactlyOneRow(rows, rowToBuild)
 // here and in other Database methods.
-func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBuildParams) (*build.Build, error) {
+func (d *Database) GetBuild(ctx context.Context, params *buildtask.DatabaseGetBuildParams) (*build.Build, error) {
 	query := `
 		SELECT
 			id, idempotency_key,
@@ -103,7 +103,7 @@ func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBu
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, operation.ErrNotFound
+		return nil, buildtask.ErrNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("get build: %w", err)
 	}
@@ -111,8 +111,8 @@ func (d *Database) GetBuild(ctx context.Context, params *operation.DatabaseGetBu
 	return b, nil
 }
 
-// GetBuildByIdempotencyKey implements operation.Database.
-func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operation.DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
+// GetBuildByIdempotencyKey implements buildtask.Database.
+func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *buildtask.DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
 	query := `
 		SELECT
 			id, idempotency_key,
@@ -129,7 +129,7 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, operation.ErrNotFound
+		return nil, buildtask.ErrNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("get build by idempotency key: %w", err)
 	}
@@ -137,14 +137,14 @@ func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *operati
 	return b, nil
 }
 
-// GetBuildCount implements operation.Database.
+// GetBuildCount implements buildtask.Database.
 //
 // TODO: params.StartTime and params.EndTime could be invalid.
 // What should we do about this? Options:
 // a) leave it as it is, then the select query will always return zero;
 // b) return a validation error;
 // c) panic (we consider calling GetBuildCount like that a programming error).
-func (d *Database) GetBuildCount(ctx context.Context, params *operation.DatabaseGetBuildCountParams) (int, error) {
+func (d *Database) GetBuildCount(ctx context.Context, params *buildtask.DatabaseGetBuildCountParams) (int, error) {
 	query := `
 		SELECT count(*)
 		FROM builds
@@ -161,14 +161,14 @@ func (d *Database) GetBuildCount(ctx context.Context, params *operation.Database
 	return count, nil
 }
 
-// ListBuilds implements operation.Database.
+// ListBuilds implements buildtask.Database.
 //
 // TODO: params.PageLimit and params.PageOffset could be invalid.
 // What should we do about that? Options:
 // a) leave it as it is, then the select query will always return zero;
 // b) return a validation error;
 // c) panic.
-func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseListBuildsParams) (*operation.DatabaseListBuildsResult, error) {
+func (d *Database) ListBuilds(ctx context.Context, params *buildtask.DatabaseListBuildsParams) (*buildtask.DatabaseListBuildsResult, error) {
 	query := `
 		SELECT
 			id, idempotency_key,
@@ -210,7 +210,7 @@ func (d *Database) ListBuilds(ctx context.Context, params *operation.DatabaseLis
 		nextPageOffset = nil
 	}
 
-	result := &operation.DatabaseListBuildsResult{
+	result := &buildtask.DatabaseListBuildsResult{
 		Builds:         builds,
 		NextPageOffset: nextPageOffset,
 		TotalSize:      totalSize,

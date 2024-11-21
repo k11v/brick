@@ -14,7 +14,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	apps3 "github.com/k11v/brick/internal/app/s3"
-	"github.com/k11v/brick/internal/operation"
+	"github.com/k11v/brick/internal/buildtask"
 )
 
 // TODO: Consider when upload doesn't have any files to upload.
@@ -54,7 +54,7 @@ func TestStorage(t *testing.T) {
 		// Upload files.
 		mr := multipart.NewReader(input, boundary)
 
-		err = storage.UploadFiles(ctx, &operation.StorageUploadFilesParams{
+		err = storage.UploadFiles(ctx, &buildtask.StorageUploadFilesParams{
 			BuildID:         uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
 			MultipartReader: mr,
 		})
@@ -67,7 +67,7 @@ func TestStorage(t *testing.T) {
 		mw = multipart.NewWriter(output)
 		boundary = mw.Boundary()
 
-		err = storage.DownloadFiles(ctx, &operation.StorageDownloadFilesParams{
+		err = storage.DownloadFiles(ctx, &buildtask.StorageDownloadFilesParams{
 			BuildID:         uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
 			MultipartWriter: mw,
 		})

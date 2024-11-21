@@ -15,10 +15,10 @@ import (
 	"github.com/aws/smithy-go"
 
 	apps3 "github.com/k11v/brick/internal/app/s3"
-	"github.com/k11v/brick/internal/operation"
+	"github.com/k11v/brick/internal/buildtask"
 )
 
-var _ operation.Storage = (*Storage)(nil)
+var _ buildtask.Storage = (*Storage)(nil)
 
 type Storage struct {
 	client *s3.Client
@@ -42,11 +42,11 @@ func NewStorage(connectionString string) *Storage {
 	}
 }
 
-// UploadFiles implements operation.Storage.
+// UploadFiles implements buildtask.Storage.
 // FIXME: p.FileName() returns only the last component and is platform-dependent when we want the full path.
 // TODO: consider the error related to manager.MaxUploadParts when handling uploader.Upload.
 // FIXME: When UploadFiles fails, it should clean up the files it has possibly already uploaded.
-func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUploadFilesParams) error {
+func (s *Storage) UploadFiles(ctx context.Context, params *buildtask.StorageUploadFilesParams) error {
 	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
 		u.PartSize = int64(s.uploadPartSize)
 	})
@@ -68,7 +68,7 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 		})
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
-			return operation.FileTooLarge
+			return buildtask.FileTooLarge
 		} else if err != nil {
 			return fmt.Errorf("storage upload files: %w", err)
 		}
@@ -89,8 +89,8 @@ func (s *Storage) UploadFiles(ctx context.Context, params *operation.StorageUplo
 	return nil
 }
 
-// DownloadFiles implements operation.Storage.
-func (s *Storage) DownloadFiles(ctx context.Context, params *operation.StorageDownloadFilesParams) error {
+// DownloadFiles implements buildtask.Storage.
+func (s *Storage) DownloadFiles(ctx context.Context, params *buildtask.StorageDownloadFilesParams) error {
 	downloader := manager.NewDownloader(s.client, func(d *manager.Downloader) {
 		d.PartSize = int64(s.downloadPartSize)
 		d.Concurrency = 1
