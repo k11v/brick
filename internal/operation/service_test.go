@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/k11v/brick/internal/app/build"
+	"github.com/k11v/brick/internal/build"
 )
 
 // TODO: Add t.Parallel().

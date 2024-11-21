@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/k11v/brick/internal/app/build"
-	"github.com/k11v/brick/internal/app/build/operation"
+	"github.com/k11v/brick/internal/build"
+	"github.com/k11v/brick/internal/operation"
 )
 
 var _ operation.Database = (*Database)(nil)

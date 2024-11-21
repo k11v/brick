@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/k11v/brick/internal/app/build/operation"
+	"github.com/k11v/brick/internal/operation"
 )
 
 var _ operation.DatabaseTx = (*DatabaseTx)(nil)

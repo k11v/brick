@@ -13,8 +13,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/k11v/brick/internal/app/build/operation"
 	apps3 "github.com/k11v/brick/internal/app/s3"
+	"github.com/k11v/brick/internal/operation"
 )
 
 // TODO: Consider when upload doesn't have any files to upload.

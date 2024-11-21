@@ -3,7 +3,7 @@ package operation
 import (
 	"context"
 
-	"github.com/k11v/brick/internal/app/build"
+	"github.com/k11v/brick/internal/build"
 )
 
 type Broker interface {

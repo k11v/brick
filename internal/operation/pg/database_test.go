@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/k11v/brick/internal/app/build/operation"
+	"github.com/k11v/brick/internal/operation"
 	"github.com/k11v/brick/internal/pgtest"
 	"github.com/k11v/brick/internal/pgutil"
 )
