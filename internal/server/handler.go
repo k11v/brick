@@ -37,7 +37,7 @@ func newHandler() *handler {
 	// TODO: Don't register in production.
 	mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
-	mux.HandleFunc("GET /health", h.GetHealth)
+	// mux.HandleFunc("GET /health", h.GetHealth)
 
 	mux.HandleFunc("POST /builds", h.CreateBuild)
 	mux.HandleFunc("GET /builds/{id}", h.GetBuild)
@@ -52,21 +52,6 @@ func newHandler() *handler {
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
-}
-
-func (h *handler) GetHealth(w http.ResponseWriter, r *http.Request) {
-	type response struct {
-		Status string `json:"status"`
-	}
-
-	resp := response{Status: "ok"}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
 }
 
 func (h *handler) CreateBuild(w http.ResponseWriter, r *http.Request) {
@@ -352,7 +337,7 @@ func (h *handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = userID
 
-	resp := response{BuildsUsed: 7, BuildsAllowed: 10, ResetsAt: time.Now().UTC().Add(time.Duration(24)*time.Hour)}
+	resp := response{BuildsUsed: 7, BuildsAllowed: 10, ResetsAt: time.Now().UTC().Add(time.Duration(24) * time.Hour)}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
