@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/k11v/brick/internal/app/build"
+	"github.com/k11v/brick/internal/build"
 )
 
 type row struct {

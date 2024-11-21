@@ -8,7 +8,7 @@ import (
 
 	"github.com/rabbitmq/amqp091-go"
 
-	"github.com/k11v/brick/internal/app/build"
+	"github.com/k11v/brick/internal/build"
 )
 
 type Broker struct {

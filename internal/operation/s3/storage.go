@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 
-	"github.com/k11v/brick/internal/app/build/operation"
 	apps3 "github.com/k11v/brick/internal/app/s3"
+	"github.com/k11v/brick/internal/operation"
 )
 
 var _ operation.Storage = (*Storage)(nil)

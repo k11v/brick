@@ -12,7 +12,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/k11v/brick/internal/app/build"
+	"github.com/k11v/brick/internal/build"
 )
 
 // TODO: Consider acknowledgement and not receiving a message again.
