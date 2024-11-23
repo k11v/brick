@@ -32,8 +32,8 @@ func (cfg *Config) port() int {
 	return p
 }
 
-func NewServer(cfg *Config) *http.Server {
-	addr := net.JoinHostPort(cfg.host(), strconv.Itoa(cfg.port()))
+func NewServer(conf *Config) *http.Server {
+	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
 	subLogger := slog.Default().With("component", "server")
 	subLogLogger := slog.NewLogLogger(subLogger.Handler(), slog.LevelError)
@@ -53,6 +53,6 @@ func NewServer(cfg *Config) *http.Server {
 		Addr:              addr,
 		ErrorLog:          subLogLogger,
 		Handler:           mux,
-		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadHeaderTimeout: conf.ReadHeaderTimeout,
 	}
 }
