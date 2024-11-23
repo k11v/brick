@@ -153,8 +153,7 @@ func NewTestStorage(tb testing.TB, ctx context.Context) *Storage {
 	}
 	connectionString := fmt.Sprintf("http://%s:%s@%s:%s", username, password, host, port.Port())
 
-	client := runs3.NewClient(connectionString)
-	err = runs3.Setup(ctx, client)
+	err = runs3.Setup(ctx, connectionString)
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}
