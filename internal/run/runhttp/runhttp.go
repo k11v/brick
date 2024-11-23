@@ -1,4 +1,4 @@
-package http
+package runhttp
 
 import (
 	"log/slog"

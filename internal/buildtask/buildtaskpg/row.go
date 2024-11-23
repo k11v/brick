@@ -1,4 +1,4 @@
-package pg
+package buildtaskpg
 
 import (
 	"fmt"

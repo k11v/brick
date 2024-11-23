@@ -1,4 +1,4 @@
-package s3
+package buildtasks3
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 
-	apps3 "github.com/k11v/brick/internal/app/s3"
+	"github.com/k11v/brick/internal/app/apps3"
 	"github.com/k11v/brick/internal/buildtask"
 )
 

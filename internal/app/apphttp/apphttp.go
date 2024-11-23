@@ -1,4 +1,4 @@
-package http
+package apphttp
 
 import (
 	"encoding/json"
