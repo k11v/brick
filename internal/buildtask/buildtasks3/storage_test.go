@@ -1,4 +1,4 @@
-package s3
+package buildtasks3
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	apps3 "github.com/k11v/brick/internal/app/s3"
+	"github.com/k11v/brick/internal/app/apps3"
 	"github.com/k11v/brick/internal/buildtask"
 )
 

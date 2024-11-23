@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	runhttp "github.com/k11v/brick/internal/run/http"
+	"github.com/k11v/brick/internal/run/runhttp"
 )
 
 func main() {
