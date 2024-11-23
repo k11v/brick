@@ -13,8 +13,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/k11v/brick/internal/app/apps3"
 	"github.com/k11v/brick/internal/buildtask"
+	"github.com/k11v/brick/internal/run/runs3"
 )
 
 // TODO: Consider when upload doesn't have any files to upload.
@@ -153,8 +153,8 @@ func NewTestStorage(tb testing.TB, ctx context.Context) *Storage {
 	}
 	connectionString := fmt.Sprintf("http://%s:%s@%s:%s", username, password, host, port.Port())
 
-	client := apps3.NewClient(connectionString)
-	err = apps3.Setup(ctx, client)
+	client := runs3.NewClient(connectionString)
+	err = runs3.Setup(ctx, client)
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}

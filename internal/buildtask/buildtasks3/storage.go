@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 
-	"github.com/k11v/brick/internal/app/apps3"
 	"github.com/k11v/brick/internal/buildtask"
+	"github.com/k11v/brick/internal/run/runs3"
 )
 
 var _ buildtask.Storage = (*Storage)(nil)
@@ -36,7 +36,7 @@ type Storage struct {
 // It panics if the connection string is not a valid URL.
 func NewStorage(connectionString string) *Storage {
 	return &Storage{
-		client:           apps3.NewClient(connectionString),
+		client:           runs3.NewClient(connectionString),
 		uploadPartSize:   10 * 1024 * 1024, // 10MB
 		downloadPartSize: 10 * 1024 * 1024, // 10MB
 	}
@@ -62,7 +62,7 @@ func (s *Storage) UploadFiles(ctx context.Context, params *buildtask.StorageUplo
 		objectKey := path.Join(params.BuildID.String(), p.FileName())
 
 		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
-			Bucket: &apps3.BucketName,
+			Bucket: &runs3.BucketName,
 			Key:    &objectKey,
 			Body:   p,
 		})
@@ -76,7 +76,7 @@ func (s *Storage) UploadFiles(ctx context.Context, params *buildtask.StorageUplo
 		err = s3.NewObjectExistsWaiter(s.client).Wait(
 			ctx,
 			&s3.HeadObjectInput{
-				Bucket: &apps3.BucketName,
+				Bucket: &runs3.BucketName,
 				Key:    &objectKey,
 			},
 			time.Minute,
@@ -99,7 +99,7 @@ func (s *Storage) DownloadFiles(ctx context.Context, params *buildtask.StorageDo
 	objectPrefix := params.BuildID.String() + "/"
 
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
-		Bucket: &apps3.BucketName,
+		Bucket: &runs3.BucketName,
 		Prefix: &objectPrefix,
 	})
 
@@ -125,7 +125,7 @@ func (s *Storage) DownloadFiles(ctx context.Context, params *buildtask.StorageDo
 
 			// fakeWriterAt needs manager.Downloader.Concurrency set to 1.
 			_, err = downloader.Download(ctx, fakeWriterAt{p}, &s3.GetObjectInput{
-				Bucket: &apps3.BucketName,
+				Bucket: &runs3.BucketName,
 				Key:    object.Key,
 			})
 			if err != nil {
