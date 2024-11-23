@@ -1,8 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
+
+	runhttp "github.com/k11v/brick/internal/run/http"
 )
 
 func main() {
@@ -14,5 +18,11 @@ func main() {
 }
 
 func run() error {
+	server := runhttp.NewServer(&runhttp.Config{})
+
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
 	return nil
 }

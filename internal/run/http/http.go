@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 type Config struct {
@@ -37,6 +39,15 @@ func NewServer(cfg *Config) *http.Server {
 	subLogLogger := slog.NewLogLogger(subLogger.Handler(), slog.LevelError)
 
 	mux := &http.ServeMux{}
+	stubHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))) // TODO: don't register in production
+	mux.Handle("POST /builds", stubHandler)
+	mux.Handle("POST /builds/{id}/cancel", stubHandler)
+	mux.Handle("GET /builds", stubHandler)
+	mux.Handle("GET /builds/{id}", stubHandler)
+	mux.Handle("GET /builds/{id}/wait", stubHandler)
+	mux.Handle("GET /builds/limits", stubHandler)
+	mux.Handle("GET /health", stubHandler)
 
 	return &http.Server{
 		Addr:              addr,
