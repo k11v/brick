@@ -26,9 +26,7 @@ func NewTestDatabase(tb testing.TB, ctx context.Context) *Database {
 		}
 	})
 
-	pool, err := runpg.NewPool(ctx, &runpg.Config{
-		ConnectionString: connectionString,
-	})
+	pool, err := runpg.NewPool(ctx, connectionString)
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}
