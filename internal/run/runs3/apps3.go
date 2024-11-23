@@ -58,7 +58,10 @@ func NewClient(connectionString string) *s3.Client {
 }
 
 // Setup shouldn't be used with AWS as is because it doesn't specify the region.
-func Setup(ctx context.Context, client *s3.Client) error {
+// See NewClient for connection string format and panic conditions.
+func Setup(ctx context.Context, connectionString string) error {
+	client := NewClient(connectionString)
+
 	_, err := client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: &BucketName,
 	})
