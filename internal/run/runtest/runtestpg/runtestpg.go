@@ -1,4 +1,4 @@
-package pgtest
+package runtestpg
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/k11v/brick/internal/pgprovision"
+	"github.com/k11v/brick/internal/run/runpg"
 )
 
 func Setup(ctx context.Context) (connectionString string, teardown func() error, err error) {
@@ -50,21 +50,19 @@ func Setup(ctx context.Context) (connectionString string, teardown func() error,
 	if err != nil {
 		return "", nil, err
 	}
-	var port string
-	if mappedPort, err := postgresContainer.MappedPort(ctx, "5432/tcp"); err == nil {
-		port = mappedPort.Port()
-	} else {
+	port, err := postgresContainer.MappedPort(ctx, "5432/tcp")
+	if err != nil {
 		return "", nil, err
 	}
 	connectionString = fmt.Sprintf(
 		"postgres://%s:%s@%s/%s?sslmode=disable",
 		user,
 		password,
-		net.JoinHostPort(host, port),
+		net.JoinHostPort(host, port.Port()),
 		db,
 	)
 
-	if err = pgprovision.Setup(connectionString); err != nil {
+	if err = runpg.Setup(connectionString); err != nil {
 		return "", nil, err
 	}
 

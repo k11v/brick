@@ -10,7 +10,7 @@ type Config struct {
 	ConnectionString string // required
 }
 
-func NewPool(ctx context.Context, conf Config) (*pgxpool.Pool, error) {
+func NewPool(ctx context.Context, conf *Config) (*pgxpool.Pool, error) {
 	pgxConf, err := pgxpool.ParseConfig(conf.ConnectionString)
 	if err != nil {
 		return nil, err

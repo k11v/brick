@@ -9,14 +9,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/k11v/brick/internal/buildtask"
-	"github.com/k11v/brick/internal/pgtest"
-	"github.com/k11v/brick/internal/pgutil"
+	"github.com/k11v/brick/internal/run/runpg"
+	"github.com/k11v/brick/internal/run/runtest/runtestpg"
 )
 
 func NewTestDatabase(tb testing.TB, ctx context.Context) *Database {
 	tb.Helper()
 
-	connectionString, teardown, err := pgtest.Setup(ctx)
+	connectionString, teardown, err := runtestpg.Setup(ctx)
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}
@@ -26,7 +26,9 @@ func NewTestDatabase(tb testing.TB, ctx context.Context) *Database {
 		}
 	})
 
-	pool, err := pgutil.NewPool(ctx, connectionString)
+	pool, err := runpg.NewPool(ctx, &runpg.Config{
+		ConnectionString: connectionString,
+	})
 	if err != nil {
 		tb.Fatalf("didn't want %q", err)
 	}
