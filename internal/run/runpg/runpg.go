@@ -6,12 +6,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Config struct {
-	ConnectionString string // required
-}
-
-func NewPool(ctx context.Context, conf *Config) (*pgxpool.Pool, error) {
-	pgxConf, err := pgxpool.ParseConfig(conf.ConnectionString)
+func NewPool(ctx context.Context, connectionString string) (*pgxpool.Pool, error) {
+	pgxConf, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {
 		return nil, err
 	}
