@@ -1,14 +1,15 @@
-package pgprovision
+package runpg
 
 import (
 	"database/sql"
+	"embed"
 	"errors"
-	"io"
-	"log/slog"
+	"io/fs"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -17,9 +18,20 @@ func Setup(connectionString string) error {
 	if err != nil {
 		return err
 	}
-	defer closeWithLog(db)
+	defer db.Close()
 
 	return migrateDB(db)
+}
+
+//go:embed migrations/*.sql
+var migrations embed.FS
+
+func migrationsFS() fs.FS {
+	sub, err := fs.Sub(migrations, "migrations")
+	if err != nil {
+		panic(err)
+	}
+	return sub
 }
 
 func migrateDB(db *sql.DB) error {
@@ -43,10 +55,4 @@ func migrateDB(db *sql.DB) error {
 	}
 
 	return nil
-}
-
-func closeWithLog(c io.Closer) {
-	if err := c.Close(); err != nil {
-		slog.Default().Error("failed to close", "error", err)
-	}
 }
