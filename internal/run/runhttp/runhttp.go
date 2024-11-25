@@ -8,6 +8,8 @@ import (
 	"time"
 
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+
+	"github.com/k11v/brick/internal/app/apphttp"
 )
 
 type Config struct {
@@ -38,6 +40,8 @@ func NewServer(conf *Config) *http.Server {
 	subLogger := slog.Default().With("component", "server")
 	subLogLogger := slog.NewLogLogger(subLogger.Handler(), slog.LevelError)
 
+	appHandler := &apphttp.Handler{}
+
 	mux := &http.ServeMux{}
 	stubHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 	mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))) // TODO: don't register in production
@@ -47,7 +51,7 @@ func NewServer(conf *Config) *http.Server {
 	mux.Handle("GET /builds/{id}", stubHandler)
 	mux.Handle("GET /builds/{id}/wait", stubHandler)
 	mux.Handle("GET /builds/limits", stubHandler)
-	mux.Handle("GET /health", stubHandler)
+	mux.HandleFunc("GET /health", appHandler.GetHealth)
 
 	return &http.Server{
 		Addr:              addr,
