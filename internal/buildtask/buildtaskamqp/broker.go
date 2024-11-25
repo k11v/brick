@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/rabbitmq/amqp091-go"
 
@@ -70,17 +71,18 @@ func (broker *Broker) SendBuildTask(ctx context.Context, b *build.Build) error {
 	return nil
 }
 
-// TODO: Consider returning a channel.
-func (broker *Broker) ReceiveBuildTask(ctx context.Context) (*build.Build, error) {
+// FIXME: The builds channel handling is nonideal.
+// We don't have a way to acknowledge, check the error, or close the msgs channel.
+func (broker *Broker) ReceiveBuildTasks(ctx context.Context) (<-chan *build.Build, error) {
 	conn, err := amqp091.Dial(broker.connectionString)
 	if err != nil {
-		return nil, fmt.Errorf("receive build task: %w", err)
+		return nil, fmt.Errorf("receive build tasks: %w", err)
 	}
 	defer conn.Close()
 
 	ch, err := conn.Channel()
 	if err != nil {
-		return nil, fmt.Errorf("receive build task: %w", err)
+		return nil, fmt.Errorf("receive build tasks: %w", err)
 	}
 	defer ch.Close()
 
@@ -93,7 +95,7 @@ func (broker *Broker) ReceiveBuildTask(ctx context.Context) (*build.Build, error
 		nil,     // arguments
 	)
 	if err != nil {
-		return nil, fmt.Errorf("receive build task: %w", err)
+		return nil, fmt.Errorf("receive build tasks: %w", err)
 	}
 
 	msgs, err := ch.Consume(
@@ -106,25 +108,43 @@ func (broker *Broker) ReceiveBuildTask(ctx context.Context) (*build.Build, error
 		nil,    // args
 	)
 	if err != nil {
-		return nil, fmt.Errorf("receive build task: %w", err)
+		return nil, fmt.Errorf("receive build tasks: %w", err)
 	}
 
-	var msg amqp091.Delivery
+	var builds chan *build.Build
+	go func() {
+		for msg := range msgs {
+			var b *build.Build
+			dec := json.NewDecoder(bytes.NewReader(msg.Body))
+			dec.DisallowUnknownFields()
+			if err = dec.Decode(&b); err != nil {
+				slog.Default().Error("receive build tasks failed", "err", err)
+				close(builds)
+				// return nil, fmt.Errorf("receive build tasks: %w", err)
+			}
+			if dec.More() {
+				slog.Default().Error("receive build tasks: multiple top-level values", "err", err)
+				close(builds)
+				// return nil, fmt.Errorf("receive build tasks: multiple top-level values")
+			}
+			builds <- b
+		}
+	}()
+
+	return builds, nil
+}
+
+// Deprecated: Use ReceiveBuildTasks instead.
+func (broker *Broker) ReceiveBuildTask(ctx context.Context) (*build.Build, error) {
+	tasks, err := broker.ReceiveBuildTasks(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	select {
-	case msg = <-msgs:
+	case t := <-tasks:
+		return t, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-
-	var b build.Build
-	dec := json.NewDecoder(bytes.NewReader(msg.Body))
-	dec.DisallowUnknownFields()
-	if err = dec.Decode(&b); err != nil {
-		return nil, fmt.Errorf("receive build task: %w", err)
-	}
-	if dec.More() {
-		return nil, fmt.Errorf("receive build task: multiple top-level values")
-	}
-
-	return &b, nil
 }
