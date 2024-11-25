@@ -20,13 +20,9 @@ const (
 
 type Handler struct{}
 
-func (*Handler) RunBuildTask(ch *amqp091.Channel, m *amqp091.Delivery) {
+func (*Handler) RunBuildTask(m *amqp091.Delivery) {
 	type message struct {
-		ID             uuid.UUID
-		IdempotencyKey uuid.UUID
-
-		UserID    uuid.UUID
-		CreatedAt time.Time
+		ID *uuid.UUID `json:"id"`
 
 		DocumentToken string // instead of DocumentCacheFiles map[string][]byte
 		DocumentFiles map[string][]byte
