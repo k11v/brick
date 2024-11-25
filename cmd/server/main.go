@@ -18,7 +18,7 @@ func main() {
 }
 
 func run() error {
-	server := runhttp.NewServer(&runhttp.Config{})
+	server := runhttp.NewServer(&runhttp.Config{}, true)
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err

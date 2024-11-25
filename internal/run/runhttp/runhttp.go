@@ -10,6 +10,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	"github.com/k11v/brick/internal/app/apphttp"
+	"github.com/k11v/brick/internal/buildtask/buildtaskhttp"
 )
 
 type Config struct {
@@ -34,24 +35,26 @@ func (cfg *Config) port() int {
 	return p
 }
 
-func NewServer(conf *Config) *http.Server {
+func NewServer(conf *Config, development bool) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
 	subLogger := slog.Default().With("component", "server")
 	subLogLogger := slog.NewLogLogger(subLogger.Handler(), slog.LevelError)
 
 	appHandler := &apphttp.Handler{}
+	buildtaskHandler := &buildtaskhttp.Handler{}
 
 	mux := &http.ServeMux{}
-	stubHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
-	mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))) // TODO: don't register in production
-	mux.Handle("POST /builds", stubHandler)
-	mux.Handle("POST /builds/{id}/cancel", stubHandler)
-	mux.Handle("GET /builds", stubHandler)
-	mux.Handle("GET /builds/{id}", stubHandler)
-	mux.Handle("GET /builds/{id}/wait", stubHandler)
-	mux.Handle("GET /builds/limits", stubHandler)
+	mux.HandleFunc("POST /builds", buildtaskHandler.CreateBuild)
+	mux.HandleFunc("POST /builds/{id}/cancel", buildtaskHandler.CancelBuild)
+	mux.HandleFunc("GET /builds", buildtaskHandler.ListBuilds)
+	mux.HandleFunc("GET /builds/{id}", buildtaskHandler.GetBuild)
+	mux.HandleFunc("GET /builds/{id}/wait", buildtaskHandler.WaitForBuild)
+	mux.HandleFunc("GET /builds/limits", buildtaskHandler.GetLimits)
 	mux.HandleFunc("GET /health", appHandler.GetHealth)
+	if development {
+		mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
+	}
 
 	return &http.Server{
 		Addr:              addr,
