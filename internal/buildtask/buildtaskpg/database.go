@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/k11v/brick/internal/build"
 	"github.com/k11v/brick/internal/buildtask"
 )
 
@@ -57,7 +56,7 @@ func (d *Database) LockBuilds(ctx context.Context, params *buildtask.DatabaseLoc
 }
 
 // CreateBuild implements buildtask.Database.
-func (d *Database) CreateBuild(ctx context.Context, params *buildtask.DatabaseCreateBuildParams) (*build.Build, error) {
+func (d *Database) CreateBuild(ctx context.Context, params *buildtask.DatabaseCreateBuildParams) (*buildtask.Build, error) {
 	query := `
 		INSERT INTO builds (idempotency_key, user_id, document_token, status, done)
 		VALUES ($1, $2, $3, $4, $5)
@@ -69,7 +68,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *buildtask.DatabaseCr
 			output_token, next_document_token, output_expires_at,
 			status, done
 	`
-	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, build.StatusPending, false}
+	args := []any{params.IdempotencyKey, params.UserID, params.DocumentToken, buildtask.StatusPending, false}
 
 	rows, _ := d.db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
@@ -86,7 +85,7 @@ func (d *Database) CreateBuild(ctx context.Context, params *buildtask.DatabaseCr
 //
 // TODO: Consider silent unmarshalling errors of pgx.CollectExactlyOneRow(rows, rowToBuild)
 // here and in other Database methods.
-func (d *Database) GetBuild(ctx context.Context, params *buildtask.DatabaseGetBuildParams) (*build.Build, error) {
+func (d *Database) GetBuild(ctx context.Context, params *buildtask.DatabaseGetBuildParams) (*buildtask.Build, error) {
 	query := `
 		SELECT
 			id, idempotency_key,
@@ -112,7 +111,7 @@ func (d *Database) GetBuild(ctx context.Context, params *buildtask.DatabaseGetBu
 }
 
 // GetBuildByIdempotencyKey implements buildtask.Database.
-func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *buildtask.DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
+func (d *Database) GetBuildByIdempotencyKey(ctx context.Context, params *buildtask.DatabaseGetBuildByIdempotencyKeyParams) (*buildtask.Build, error) {
 	query := `
 		SELECT
 			id, idempotency_key,

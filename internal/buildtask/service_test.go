@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	"github.com/k11v/brick/internal/build"
 )
 
 // TODO: Add t.Parallel().
@@ -21,15 +19,15 @@ func TestServiceCreateBuild(t *testing.T) {
 		BuildsAllowed: 10,
 	}
 
-	defaultCreateBuildResult := &build.Build{
+	defaultCreateBuildResult := &Build{
 		// Done:             false,
 		// Error:            nil,
 		ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
 		// NextContextToken: "",
 		OutputFile: nil,
 	}
-	defaultGetBuildByIdempotencyKeyFunc := func() (*build.Build, error) {
-		return &build.Build{
+	defaultGetBuildByIdempotencyKeyFunc := func() (*Build, error) {
+		return &Build{
 			// Done:             false,
 			// Error:            nil,
 			ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
@@ -43,7 +41,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
 		UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),
 	}
-	defaultWant := &build.Build{
+	defaultWant := &Build{
 		// Done:             false,
 		// Error:            nil,
 		ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
@@ -55,7 +53,7 @@ func TestServiceCreateBuild(t *testing.T) {
 		name               string
 		spyDatabase        *SpyDatabase
 		createBuildParams  *CreateBuildParams
-		want               *build.Build
+		want               *Build
 		wantErr            error
 		wantCallsPredicate func(calls []string) bool
 		skip               bool

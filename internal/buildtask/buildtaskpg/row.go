@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/k11v/brick/internal/build"
+	"github.com/k11v/brick/internal/buildtask"
 )
 
 type row struct {
@@ -28,13 +28,13 @@ type row struct {
 	Done              bool           `db:"done"`
 }
 
-func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
+func rowToBuild(collectableRow pgx.CollectableRow) (*buildtask.Build, error) {
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
 		return nil, fmt.Errorf("row to build: %w", err)
 	}
 
-	status, known := build.StatusFromString(collectedRow.Status)
+	status, known := buildtask.StatusFromString(collectedRow.Status)
 	if !known {
 		slog.Default().Warn(
 			"unknown status encountered while creating build",
@@ -63,7 +63,7 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*build.Build, error) {
 		outputExpiresAt = *collectedRow.OutputExpiresAt
 	}
 
-	b := &build.Build{
+	b := &buildtask.Build{
 		ID:                collectedRow.ID,
 		IdempotencyKey:    collectedRow.IdempotencyKey,
 		UserID:            collectedRow.UserID,

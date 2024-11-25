@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/k11v/brick/internal/build"
 )
 
 var (
@@ -19,9 +17,9 @@ type Database interface {
 	Begin(ctx context.Context) (DatabaseTx, error)
 	LockBuilds(ctx context.Context, params *DatabaseLockBuildsParams) error
 	GetBuildCount(ctx context.Context, params *DatabaseGetBuildCountParams) (int, error)
-	CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*build.Build, error)
-	GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*build.Build, error)
-	GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error)
+	CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*Build, error)
+	GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*Build, error)
+	GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*Build, error)
 	ListBuilds(ctx context.Context, params *DatabaseListBuildsParams) (*DatabaseListBuildsResult, error)
 }
 
@@ -79,7 +77,7 @@ type DatabaseListBuildsParams struct {
 }
 
 type DatabaseListBuildsResult struct {
-	Builds         []*build.Build
+	Builds         []*Build
 	NextPageOffset *int // zero value (nil) means no more pages
 	TotalSize      int
 }

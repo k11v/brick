@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/k11v/brick/internal/build"
 )
 
 var (
@@ -54,7 +52,7 @@ type CreateBuildParams struct {
 // The current behavior is that uploaded files aren't cleaned up and the sent build task won't exist in the database.
 // It was decided to keep build creation available to the users at the cost of processing non-existing build tasks.
 // The correct solution is to embrace eventual consistency but it is not implemented yet.
-func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*build.Build, error) {
+func (s *Service) CreateBuild(ctx context.Context, params *CreateBuildParams) (*Build, error) {
 	b, err := s.db.GetBuildByIdempotencyKey(ctx, &DatabaseGetBuildByIdempotencyKeyParams{
 		IdempotencyKey: params.IdempotencyKey,
 		UserID:         params.UserID,
@@ -126,7 +124,7 @@ type GetBuildParams struct {
 	UserID uuid.UUID
 }
 
-func (s *Service) GetBuild(ctx context.Context, params *GetBuildParams) (*build.Build, error) {
+func (s *Service) GetBuild(ctx context.Context, params *GetBuildParams) (*Build, error) {
 	return s.db.GetBuild(ctx, &DatabaseGetBuildParams{
 		ID:     params.ID,
 		UserID: params.UserID,
@@ -139,7 +137,7 @@ type WaitForBuildParams struct {
 	Timeout time.Duration
 }
 
-func (s *Service) WaitForBuild(ctx context.Context, params *WaitForBuildParams) (*build.Build, error) {
+func (s *Service) WaitForBuild(ctx context.Context, params *WaitForBuildParams) (*Build, error) {
 	tickCh := time.Tick(1 * time.Second)
 	afterCh := time.After(params.Timeout)
 
@@ -174,7 +172,7 @@ type ListBuildsParams struct {
 }
 
 type ListBuildsResult struct {
-	Builds        []*build.Build
+	Builds        []*Build
 	NextPageToken string // zero value ("") means no more pages
 	TotalSize     int
 }

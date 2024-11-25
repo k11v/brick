@@ -2,8 +2,6 @@ package buildtask
 
 import (
 	"context"
-
-	"github.com/k11v/brick/internal/build"
 )
 
 const (
@@ -20,9 +18,9 @@ const (
 
 type SpyDatabase struct {
 	GetBuildCountResult          int
-	CreateBuildResult            *build.Build
-	GetBuildFunc                 func() (*build.Build, error)
-	GetBuildByIdempotencyKeyFunc func() (*build.Build, error)
+	CreateBuildResult            *Build
+	GetBuildFunc                 func() (*Build, error)
+	GetBuildByIdempotencyKeyFunc func() (*Build, error)
 	ListBuildsResult             *DatabaseListBuildsResult
 
 	Calls *[]string // doesn't contain rolled back calls
@@ -75,20 +73,20 @@ func (d *SpyDatabase) appendCalls(c ...string) {
 	*d.Calls = append(*d.Calls, c...)
 }
 
-func (d *SpyDatabase) CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*build.Build, error) {
+func (d *SpyDatabase) CreateBuild(ctx context.Context, params *DatabaseCreateBuildParams) (*Build, error) {
 	d.appendCalls(callCreateBuild)
 	return d.CreateBuildResult, nil
 }
 
-func (d *SpyDatabase) GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*build.Build, error) {
+func (d *SpyDatabase) GetBuild(ctx context.Context, params *DatabaseGetBuildParams) (*Build, error) {
 	d.appendCalls(callGetBuild)
 	if d.GetBuildFunc == nil {
-		return &build.Build{}, nil
+		return &Build{}, nil
 	}
 	return d.GetBuildFunc()
 }
 
-func (d *SpyDatabase) GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*build.Build, error) {
+func (d *SpyDatabase) GetBuildByIdempotencyKey(ctx context.Context, params *DatabaseGetBuildByIdempotencyKeyParams) (*Build, error) {
 	d.appendCalls(callGetBuildByIdempotencyKey)
 	if d.GetBuildByIdempotencyKeyFunc == nil {
 		return nil, ErrDatabaseNotFound

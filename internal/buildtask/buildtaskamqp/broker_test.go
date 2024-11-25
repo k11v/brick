@@ -9,10 +9,9 @@ import (
 
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
+	"github.com/k11v/brick/internal/buildtask"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-
-	"github.com/k11v/brick/internal/build"
 )
 
 // TODO: Consider acknowledgement and not receiving a message again.
@@ -21,7 +20,7 @@ func TestBroker(t *testing.T) {
 		ctx := context.Background()
 		broker := NewTestBroker(t, ctx)
 
-		b := &build.Build{
+		b := &buildtask.Build{
 			ID:             uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000000"),
 			IdempotencyKey: uuid.MustParse("bbbbbbbb-0000-0000-0000-000000000000"),
 			UserID:         uuid.MustParse("cccccccc-0000-0000-0000-000000000000"),

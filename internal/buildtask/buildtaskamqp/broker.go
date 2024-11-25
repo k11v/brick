@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/k11v/brick/internal/buildtask"
 	"github.com/rabbitmq/amqp091-go"
-
-	"github.com/k11v/brick/internal/build"
 )
 
 type Broker struct {
@@ -22,7 +21,7 @@ func NewBroker(connectionString string) *Broker {
 	}
 }
 
-func (broker *Broker) SendBuildTask(ctx context.Context, b *build.Build) error {
+func (broker *Broker) SendBuildTask(ctx context.Context, b *buildtask.Build) error {
 	conn, err := amqp091.Dial(broker.connectionString)
 	if err != nil {
 		return fmt.Errorf("send build task: %w", err)
@@ -73,7 +72,7 @@ func (broker *Broker) SendBuildTask(ctx context.Context, b *build.Build) error {
 
 // FIXME: The builds channel handling is nonideal.
 // We don't have a way to acknowledge, check the error, or close the msgs channel.
-func (broker *Broker) ReceiveBuildTasks(ctx context.Context) (<-chan *build.Build, error) {
+func (broker *Broker) ReceiveBuildTasks(ctx context.Context) (<-chan *buildtask.Build, error) {
 	conn, err := amqp091.Dial(broker.connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("receive build tasks: %w", err)
@@ -111,10 +110,10 @@ func (broker *Broker) ReceiveBuildTasks(ctx context.Context) (<-chan *build.Buil
 		return nil, fmt.Errorf("receive build tasks: %w", err)
 	}
 
-	var builds chan *build.Build
+	var builds chan *buildtask.Build
 	go func() {
 		for msg := range msgs {
-			var b *build.Build
+			var b *buildtask.Build
 			dec := json.NewDecoder(bytes.NewReader(msg.Body))
 			dec.DisallowUnknownFields()
 			if err = dec.Decode(&b); err != nil {
@@ -135,7 +134,7 @@ func (broker *Broker) ReceiveBuildTasks(ctx context.Context) (<-chan *build.Buil
 }
 
 // Deprecated: Use ReceiveBuildTasks instead.
-func (broker *Broker) ReceiveBuildTask(ctx context.Context) (*build.Build, error) {
+func (broker *Broker) ReceiveBuildTask(ctx context.Context) (*buildtask.Build, error) {
 	tasks, err := broker.ReceiveBuildTasks(ctx)
 	if err != nil {
 		return nil, err
