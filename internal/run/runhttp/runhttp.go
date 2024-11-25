@@ -17,6 +17,7 @@ type Config struct {
 	Host              string // default: "127.0.0.1"
 	Port              int    // default: 8080
 	ReadHeaderTimeout time.Duration
+	Development       bool
 }
 
 func (cfg *Config) host() string {
@@ -35,7 +36,7 @@ func (cfg *Config) port() int {
 	return p
 }
 
-func NewServer(conf *Config, development bool) *http.Server {
+func NewServer(conf *Config) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
 	subLogger := slog.Default().With("component", "server")
@@ -52,7 +53,7 @@ func NewServer(conf *Config, development bool) *http.Server {
 	mux.HandleFunc("GET /builds/{id}/wait", buildtaskHandler.WaitForBuild)
 	mux.HandleFunc("GET /builds/limits", buildtaskHandler.GetLimits)
 	mux.HandleFunc("GET /health", appHandler.GetHealth)
-	if development {
+	if conf.Development {
 		mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 	}
 
