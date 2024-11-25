@@ -1,4 +1,4 @@
-package build
+package buildtask
 
 import (
 	"time"

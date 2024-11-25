@@ -1,4 +1,4 @@
-package build
+package buildtask
 
 // Status represents the build status as a string.
 type Status string
