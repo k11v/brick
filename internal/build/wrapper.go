@@ -22,14 +22,16 @@ type RunWrapperResult struct{}
 func RunWrapper(in io.Reader, out io.Writer) error {
 	pr := textproto.NewReader(bufio.NewReader(in))
 	header, err := pr.ReadMIMEHeader()
-	if err != nil {
-		return fmt.Errorf("run: %w", err)
+	if errors.Is(err, io.EOF) {
+		// continue
+	} else if err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
 	}
 
 	contentType := header.Get("Content-Type")
 	_, mediaTypeParams, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return fmt.Errorf("run: %w", err)
+		return fmt.Errorf("run wrapper: %w", err)
 	}
 	boundary := mediaTypeParams["boundary"]
 
@@ -41,18 +43,18 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			return fmt.Errorf("run: %w", err)
+			return fmt.Errorf("run wrapper: %w", err)
 		}
 
-		if partIndex == 1 {
+		if partIndex == 0 {
 			var params RunWrapperParams
 			dec := json.NewDecoder(p)
 			dec.DisallowUnknownFields()
 			if err = dec.Decode(&params); err != nil {
-				return fmt.Errorf("invalid request body: %w", err)
+				return fmt.Errorf("run wrapper: %w", err)
 			}
 			if dec.More() {
-				return fmt.Errorf("invalid request body: multiple top-level values")
+				return fmt.Errorf("run wrapper: multiple top-level values")
 			}
 
 			fmt.Printf("First part: %v\n", params)
@@ -60,7 +62,7 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 			var slurp []byte
 			slurp, err = io.ReadAll(p)
 			if err != nil {
-				return fmt.Errorf("run: %w", err)
+				return fmt.Errorf("run wrapper: %w", err)
 			}
 
 			fmt.Printf("Subsequent part %d: %s\n", partIndex, slurp)
