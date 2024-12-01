@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"time"
 )
 
@@ -26,6 +27,6 @@ type BuildResult struct {
 	ProcessExitCode   int
 }
 
-func (*Builder) Build(params *BuildParams) (*BuildResult, error) {
+func (*Builder) Build(ctx context.Context, params *BuildParams) (*BuildResult, error) {
 	panic("unimplemented")
 }
