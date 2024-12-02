@@ -69,13 +69,17 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 			// Handle subsequent parts.
 			// Name could be absolute, but we are fine with that here.
 			// TODO: Could third-parties interfer with X-Name?
+			// TODO: Consider X-Force that truncates a file if it exists instead of erroring out.
+			// I don't see much use in that for now.
+			// TODO: Should I trust umask to change standard 0666 to 0644 or 0600, or should I just create it this way?
+			// TODO: Test a case where file that wrapper tries to create exists.
 			err = func() error {
 				name := p.Header.Get("X-Name")
 				if name == "" {
 					return fmt.Errorf("empty X-Name")
 				}
 
-				f, openErr := os.Open(name)
+				f, openErr := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 				if openErr != nil {
 					return openErr
 				}
