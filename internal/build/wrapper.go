@@ -21,6 +21,10 @@ type RunWrapperResult struct {
 }
 
 // TODO: Consider accepting *bufio.Reader and *bufio.Writer.
+//
+// TODO: Maybe switch textproto to net/http.ReadRequest for simpler code,
+// easier composability and testability (e.g. with CLI tools like HTTPie
+// and packages like net/http/httptest).
 func RunWrapper(in io.Reader, out io.Writer) error {
 	pr := textproto.NewReader(bufio.NewReader(in))
 	header, err := pr.ReadMIMEHeader()
