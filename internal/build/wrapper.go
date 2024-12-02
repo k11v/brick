@@ -118,6 +118,25 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 	// Question: Can I rely on the first part to always be
 	// the main JSON payload when using chosen content type?
 
+	cmd := exec.Command("ls", "/usr/local/bin")
+	pipeR, pipeW, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	cmd.Stdout = pipeW
+	cmd.Stderr = pipeW
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	_ = pipeW.Close()
+	err = cmd.Wait()
+	if err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	// TODO: Read pipeR output here.
+	_ = pipeR.Close()
+
 	result := RunWrapperResult{
 		OutputFiles: map[string][]byte{},
 		LogFile:     []byte{},
