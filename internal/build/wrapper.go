@@ -165,7 +165,20 @@ monofontfallback:
 	if _, err = logFile.Write([]byte("$ pandoc\n")); err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-	pandoc := exec.Command("pandoc")
+	pandoc := exec.Command(
+		"pandoc",
+		"--verbose",
+		"--from",
+		"gfm",
+		"--to",
+		"latex",
+		"--output",
+		".brick/pandoc-output/main.tex",
+		"--standalone",
+		"--metadata-file",
+		".brick/pandoc-input/metadata.yaml",
+		"main.md",
+	)
 	pandoc.Stdout = logFile
 	pandoc.Stderr = logFile
 	if err = pandoc.Run(); err != nil {
@@ -181,7 +194,16 @@ monofontfallback:
 	if _, err = logFile.Write([]byte("$ latexmk\n")); err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-	latexmk := exec.Command("latexmk")
+	latexmk := exec.Command(
+		"latexmk",
+		"-lualatex",
+		"-interaction=nonstopmode",
+		"-halt-on-error",
+		"-file-line-error",
+		"-shell-escape", // has security implications
+		"-output-directory=.brick/latexmk-output",
+		".brick/pandoc-output/main.tex",
+	)
 	latexmk.Stdout = logFile
 	latexmk.Stderr = logFile
 	if err = latexmk.Run(); err != nil {
@@ -189,6 +211,9 @@ monofontfallback:
 	}
 
 	_ = logFile.Close() // TODO: defer
+
+	pdfPath := ".brick/latexmk-output/main.pdf"
+	_ = pdfPath
 
 	result := RunWrapperResult{
 		OutputFiles: map[string][]byte{},
