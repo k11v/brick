@@ -73,6 +73,20 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 		partIndex++
 	}
 
+	// Flow:
+	// 1. Write input files
+	// 2. Run program
+	// 3. Read output files
+	//
+	// Question: How to pass filepaths?
+	//
+	// Question: Is it correct to use form-data?
+	// Does it has any implications?
+	// It feels like I'd prefer mixed.
+	//
+	// Question: Can I rely on the first part to always be
+	// the main JSON payload when using chosen content type?
+
 	result := RunWrapperResult{
 		Baz: "string",
 	}
