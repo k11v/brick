@@ -9,15 +9,16 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/textproto"
+	"os"
 )
 
 type RunWrapperParams struct {
-	Foo *string
-	Bar *int
+	InputFiles  map[string][]byte
+	OutputFiles map[string]struct{}
 }
 
 type RunWrapperResult struct {
-	Baz string
+	OutputFiles map[string][]byte
 }
 
 // TODO: Consider accepting *bufio.Reader and *bufio.Writer.
@@ -65,13 +66,29 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 
 			fmt.Printf("First part: %v\n", params)
 		} else {
-			var slurp []byte
-			slurp, err = io.ReadAll(p)
+			// Handle subsequent parts.
+			// Name could be absolute, but we are fine with that here.
+			// TODO: Could third-parties interfer with X-Name?
+			err = func() error {
+				name := p.Header.Get("X-Name")
+				if name == "" {
+					return fmt.Errorf("empty X-Name")
+				}
+
+				f, openErr := os.Open(name)
+				if openErr != nil {
+					return openErr
+				}
+				defer f.Close()
+
+				if _, copyErr := io.Copy(f, p); copyErr != nil {
+					return copyErr
+				}
+				return nil
+			}()
 			if err != nil {
 				return fmt.Errorf("run wrapper: %w", err)
 			}
-
-			fmt.Printf("Subsequent part %d: %s\n", partIndex, slurp)
 		}
 
 		partIndex++
