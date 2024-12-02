@@ -118,24 +118,77 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 	// Question: Can I rely on the first part to always be
 	// the main JSON payload when using chosen content type?
 
-	cmd := exec.Command("ls", "/usr/local/bin")
-	pipeR, pipeW, err := os.Pipe()
+	// Create log file for Pandoc and Latexmk.
+	if err = os.MkdirAll(".brick", 0o777); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	logFile, err := os.Create(".brick/log")
 	if err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-	cmd.Stdout = pipeW
-	cmd.Stderr = pipeW
-	err = cmd.Start()
+
+	// Create metadata file for Pandoc.
+	if err = os.MkdirAll(".brick/pandoc-input", 0o777); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	metadataFile, err := os.Create(".brick/pandoc-input/metadata.yaml")
 	if err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-	_ = pipeW.Close()
-	err = cmd.Wait()
+	_, err = metadataFile.WriteString(`mainfont: "CMU Serif"
+mainfontfallback:
+  - "Latin Modern Roman:"
+  - "FreeSerif:"
+  - "NotoColorEmoji:mode=harf"
+sansfont: "CMU Sans Serif"
+sansfontfallback:
+  - "Latin Modern Sans:"
+  - "FreeSans:"
+  - "NotoColorEmoji:mode=harf"
+monofont: "CMU Typewriter Text"
+monofontfallback:
+  - "Latin Modern Mono:"
+  - "FreeMono:"
+  - "NotoColorEmoji:mode=harf"
+`)
 	if err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-	// TODO: Read pipeR output here.
-	_ = pipeR.Close()
+	_ = metadataFile.Close() // TODO: defer
+
+	// Create output directory for Pandoc.
+	if err = os.MkdirAll(".brick/pandoc-output", 0o777); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+
+	// Run Pandoc.
+	if _, err = logFile.Write([]byte("$ pandoc\n")); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	pandoc := exec.Command("pandoc")
+	pandoc.Stdout = logFile
+	pandoc.Stderr = logFile
+	if err = pandoc.Run(); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+
+	// Create output directory for Latexmk.
+	if err = os.MkdirAll(".brick/latexmk-output", 0o777); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+
+	// Run Latexmk.
+	if _, err = logFile.Write([]byte("$ latexmk\n")); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	latexmk := exec.Command("latexmk")
+	latexmk.Stdout = logFile
+	latexmk.Stderr = logFile
+	if err = latexmk.Run(); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+
+	_ = logFile.Close() // TODO: defer
 
 	result := RunWrapperResult{
 		OutputFiles: map[string][]byte{},
