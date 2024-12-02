@@ -42,6 +42,7 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 	}
 	boundary := mediaTypeParams["boundary"]
 
+	var params RunWrapperParams
 	mr := multipart.NewReader(pr.R, boundary)
 	partIndex := 0
 	for {
@@ -54,7 +55,6 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 		}
 
 		if partIndex == 0 {
-			var params RunWrapperParams
 			dec := json.NewDecoder(p)
 			dec.DisallowUnknownFields()
 			if err = dec.Decode(&params); err != nil {
@@ -134,14 +134,36 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
 
-	for i := 0; i < 3; i++ {
+	for fileName := range params.OutputFiles {
 		partHeader = make(textproto.MIMEHeader)
 		partHeader.Set("Content-Type", "application/octet-stream")
+		partHeader.Set("X-Name", fileName) // FIXME: X-Name header _value_ should be escaped or encoded.
 		partBody, err = mw.CreatePart(partHeader)
 		if err != nil {
 			return fmt.Errorf("run wrapper: %w", err)
 		}
-		_, err = partBody.Write([]byte("file content"))
+
+		// Errors like "Is a directory", "Permission denied", "File doesn't exist"
+		// should probably be reported. For now we fail the whole process.
+		//
+		// Also output files should really be output paths and support directories.
+		// E.g. I probably want to write and read the entire cache directory
+		// because I don't know exact file names that will be generated.
+		err = func() error {
+			f, err := os.Open(fileName)
+			if err != nil {
+				// no file is still a result, i think
+				return fmt.Errorf("run wrapper: %w", err)
+			}
+			defer f.Close()
+
+			// TODO: How can reading/writing from/to an already open file fail?
+			_, err = io.Copy(partBody, f)
+			if err != nil {
+				return fmt.Errorf("run wrapper: %w", err)
+			}
+			return nil
+		}()
 		if err != nil {
 			return fmt.Errorf("run wrapper: %w", err)
 		}
