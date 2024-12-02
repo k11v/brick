@@ -16,7 +16,9 @@ type RunWrapperParams struct {
 	Bar *int
 }
 
-type RunWrapperResult struct{}
+type RunWrapperResult struct {
+	Baz string
+}
 
 // TODO: Consider accepting *bufio.Reader and *bufio.Writer.
 func RunWrapper(in io.Reader, out io.Writer) error {
@@ -69,6 +71,49 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 		}
 
 		partIndex++
+	}
+
+	result := RunWrapperResult{
+		Baz: "string",
+	}
+
+	pw := textproto.NewWriter(bufio.NewWriter(out))
+	mw := multipart.NewWriter(pw.W)
+
+	_, err = pw.W.Write([]byte("Content-Type: " + mw.FormDataContentType() + "\r\n\r\n"))
+	if err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+
+	partHeader := make(textproto.MIMEHeader)
+	partHeader.Set("Content-Type", "applcation/json")
+	partBody, err := mw.CreatePart(partHeader)
+	if err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+	if err = json.NewEncoder(partBody).Encode(result); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		partHeader = make(textproto.MIMEHeader)
+		partHeader.Set("Content-Type", "application/octet-stream")
+		partBody, err = mw.CreatePart(partHeader)
+		if err != nil {
+			return fmt.Errorf("run wrapper: %w", err)
+		}
+		_, err = partBody.Write([]byte("file content"))
+		if err != nil {
+			return fmt.Errorf("run wrapper: %w", err)
+		}
+	}
+
+	if err = mw.Close(); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
+	}
+
+	if err = pw.W.Flush(); err != nil {
+		return fmt.Errorf("run wrapper: %w", err)
 	}
 
 	return nil
