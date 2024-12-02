@@ -10,6 +10,8 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"os"
+	"os/exec"
+	"time"
 )
 
 type RunWrapperParams struct {
@@ -19,6 +21,10 @@ type RunWrapperParams struct {
 
 type RunWrapperResult struct {
 	OutputFiles map[string][]byte
+	LogFile     []byte
+	UsedTime    time.Duration
+	UsedMemory  int
+	ExitCode    int
 }
 
 // TODO: Consider accepting *bufio.Reader and *bufio.Writer.
@@ -113,7 +119,11 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 	// the main JSON payload when using chosen content type?
 
 	result := RunWrapperResult{
-		Baz: "string",
+		OutputFiles: map[string][]byte{},
+		LogFile:     []byte{},
+		UsedTime:    0,
+		UsedMemory:  0,
+		ExitCode:    0,
 	}
 
 	pw := textproto.NewWriter(bufio.NewWriter(out))
