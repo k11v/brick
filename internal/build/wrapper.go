@@ -119,15 +119,11 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 	// Question: Can I rely on the first part to always be
 	// the main JSON payload when using chosen content type?
 
-	// TODO: Should this directory be created here or in the [Run] function?
-	internalOutputPath := ".brick"
-
-	if err = Run(internalOutputPath); err != nil {
+	runResult, err := Run(&RunParams{InternalOutputDir: ".brick"})
+	if err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-
-	pdfFile := filepath.Join(internalOutputPath, "latexmk-output", "main.pdf")
-	_ = pdfFile
+	_ = runResult
 
 	result := RunWrapperResult{
 		OutputFiles: map[string][]byte{},
