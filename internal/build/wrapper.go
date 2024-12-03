@@ -10,20 +10,14 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"os"
-	"time"
 )
 
-type RunWrapperParams struct {
-	InputFiles  map[string][]byte
+type HandleRunParams struct {
 	OutputFiles map[string]struct{}
 }
 
-type RunWrapperResult struct {
-	OutputFiles map[string][]byte
-	LogFile     []byte
-	UsedTime    time.Duration
-	UsedMemory  int
-	ExitCode    int
+type HandleRunResult struct {
+	ExitCode int
 }
 
 // TODO: Consider accepting *bufio.Reader and *bufio.Writer.
@@ -48,7 +42,7 @@ func HandleRun(stdin io.Reader, stdout io.Writer) error {
 	}
 	boundary := mediaTypeParams["boundary"]
 
-	var params RunWrapperParams
+	var params HandleRunParams
 	mr := multipart.NewReader(pr.R, boundary)
 	partIndex := 0
 	for {
@@ -104,11 +98,18 @@ func HandleRun(stdin io.Reader, stdout io.Writer) error {
 		partIndex++
 	}
 
-	result, err := Run(&RunParams{OutputDir: ".brick"})
+	// TODO: Run should return CacheDir alongside PDFFile.
+	// Probably these file paths should be sent to stdout
+	// instead of the file paths requested in stdin.
+	// TODO: Send to stdout LogFile and PDFFile.
+	runResult, err := Run(&RunParams{OutputDir: ".brick"})
 	if err != nil {
 		return fmt.Errorf("handle run: %w", err)
 	}
-	_ = result
+
+	result := HandleRunResult{
+		ExitCode: runResult.ExitCode,
+	}
 
 	pw := textproto.NewWriter(bufio.NewWriter(stdout))
 	mw := multipart.NewWriter(pw.W)
