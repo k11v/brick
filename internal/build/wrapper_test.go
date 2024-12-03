@@ -7,7 +7,7 @@ import (
 
 func TestHandleRun(t *testing.T) {
 	t.Run("runs", func(t *testing.T) {
-		t.Skip()
+		t.Skip() // skipping for now because HandleRun creates files in the current working directory
 
 		stdin := bytes.NewReader([]byte("Content-Type: multipart/form-data; boundary=foo\r\n" +
 			"\r\n" +
