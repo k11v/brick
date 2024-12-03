@@ -106,7 +106,7 @@ func HandleRun(stdin io.Reader, stdout io.Writer) error {
 		partIndex++
 	}
 
-	result, err := Run(&RunParams{InternalOutputDir: ".brick"})
+	result, err := Run(&RunParams{OutputDir: ".brick"})
 	if err != nil {
 		return fmt.Errorf("handle run: %w", err)
 	}
@@ -177,7 +177,7 @@ func HandleRun(stdin io.Reader, stdout io.Writer) error {
 }
 
 type RunParams struct {
-	InternalOutputDir string
+	OutputDir string
 }
 
 type RunResult struct {
@@ -190,8 +190,8 @@ func Run(params *RunParams) (*RunResult, error) {
 	result := RunResult{ExitCode: -1}
 
 	// Create log file for Pandoc and Latexmk.
-	logFile := filepath.Join(params.InternalOutputDir, "log")
-	if err := os.MkdirAll(params.InternalOutputDir, 0o777); err != nil {
+	logFile := filepath.Join(params.OutputDir, "log")
+	if err := os.MkdirAll(params.OutputDir, 0o777); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
 	openLogFile, err := os.Create(logFile)
@@ -202,7 +202,7 @@ func Run(params *RunParams) (*RunResult, error) {
 	result.LogFile = logFile
 
 	// Create metadata file for Pandoc.
-	metadataFile := filepath.Join(params.InternalOutputDir, "pandoc-input", "metadata.yaml")
+	metadataFile := filepath.Join(params.OutputDir, "pandoc-input", "metadata.yaml")
 	if err = os.MkdirAll(filepath.Dir(metadataFile), 0o777); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
@@ -231,7 +231,7 @@ monofontfallback:
 	}
 
 	// Run Pandoc.
-	texFile := filepath.Join(params.InternalOutputDir, "pandoc-output", "main.tex")
+	texFile := filepath.Join(params.OutputDir, "pandoc-output", "main.tex")
 	if err = os.MkdirAll(filepath.Dir(texFile), 0o777); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
@@ -263,7 +263,7 @@ monofontfallback:
 	}
 
 	// Run Latexmk.
-	pdfFile := filepath.Join(params.InternalOutputDir, "latexmk-output", "main.pdf")
+	pdfFile := filepath.Join(params.OutputDir, "latexmk-output", "main.pdf")
 	if err = os.MkdirAll(filepath.Dir(pdfFile), 0o777); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
