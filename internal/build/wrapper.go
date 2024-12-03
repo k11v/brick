@@ -29,23 +29,24 @@ type RunWrapperResult struct {
 }
 
 // TODO: Consider accepting *bufio.Reader and *bufio.Writer.
-//
 // TODO: Maybe switch textproto to net/http.ReadRequest for simpler code,
 // easier composability and testability (e.g. with CLI tools like HTTPie
 // and packages like net/http/httptest).
-func RunWrapper(in io.Reader, out io.Writer) error {
-	pr := textproto.NewReader(bufio.NewReader(in))
+// TODO: Check if multipart/form-data is acceptable here.
+// TODO: Check if relying on the first part to be the main part is OK.
+func HandleRun(stdin io.Reader, stdout io.Writer) error {
+	pr := textproto.NewReader(bufio.NewReader(stdin))
 	header, err := pr.ReadMIMEHeader()
 	if errors.Is(err, io.EOF) {
 		// continue
 	} else if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
 
 	contentType := header.Get("Content-Type")
 	_, mediaTypeParams, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
 	boundary := mediaTypeParams["boundary"]
 
@@ -58,17 +59,17 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			return fmt.Errorf("run wrapper: %w", err)
+			return fmt.Errorf("handle run: %w", err)
 		}
 
 		if partIndex == 0 {
 			dec := json.NewDecoder(p)
 			dec.DisallowUnknownFields()
 			if err = dec.Decode(&params); err != nil {
-				return fmt.Errorf("run wrapper: %w", err)
+				return fmt.Errorf("handle run: %w", err)
 			}
 			if dec.More() {
-				return fmt.Errorf("run wrapper: multiple top-level values")
+				return fmt.Errorf("handle run: multiple top-level values")
 			}
 
 			fmt.Printf("First part: %v\n", params)
@@ -98,57 +99,35 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 				return nil
 			}()
 			if err != nil {
-				return fmt.Errorf("run wrapper: %w", err)
+				return fmt.Errorf("handle run: %w", err)
 			}
 		}
 
 		partIndex++
 	}
 
-	// Flow:
-	// 1. Write input files
-	// 2. Run program
-	// 3. Read output files
-	//
-	// Question: How to pass filepaths?
-	//
-	// Question: Is it correct to use form-data?
-	// Does it has any implications?
-	// It feels like I'd prefer mixed.
-	//
-	// Question: Can I rely on the first part to always be
-	// the main JSON payload when using chosen content type?
-
-	runResult, err := Run(&RunParams{InternalOutputDir: ".brick"})
+	result, err := Run(&RunParams{InternalOutputDir: ".brick"})
 	if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
-	_ = runResult
+	_ = result
 
-	result := RunWrapperResult{
-		OutputFiles: map[string][]byte{},
-		LogFile:     []byte{},
-		UsedTime:    0,
-		UsedMemory:  0,
-		ExitCode:    0,
-	}
-
-	pw := textproto.NewWriter(bufio.NewWriter(out))
+	pw := textproto.NewWriter(bufio.NewWriter(stdout))
 	mw := multipart.NewWriter(pw.W)
 
 	_, err = pw.W.Write([]byte("Content-Type: " + mw.FormDataContentType() + "\r\n\r\n"))
 	if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
 
 	partHeader := make(textproto.MIMEHeader)
 	partHeader.Set("Content-Type", "applcation/json")
 	partBody, err := mw.CreatePart(partHeader)
 	if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
 	if err = json.NewEncoder(partBody).Encode(result); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
 
 	for fileName := range params.OutputFiles {
@@ -157,7 +136,7 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 		partHeader.Set("X-Name", fileName) // FIXME: X-Name header _value_ should be escaped or encoded.
 		partBody, err = mw.CreatePart(partHeader)
 		if err != nil {
-			return fmt.Errorf("run wrapper: %w", err)
+			return fmt.Errorf("handle run: %w", err)
 		}
 
 		// Errors like "Is a directory", "Permission denied", "File doesn't exist"
@@ -170,28 +149,28 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 			f, err := os.Open(fileName)
 			if err != nil {
 				// no file is still a result, i think
-				return fmt.Errorf("run wrapper: %w", err)
+				return fmt.Errorf("handle run: %w", err)
 			}
 			defer f.Close()
 
 			// TODO: How can reading/writing from/to an already open file fail?
 			_, err = io.Copy(partBody, f)
 			if err != nil {
-				return fmt.Errorf("run wrapper: %w", err)
+				return fmt.Errorf("handle run: %w", err)
 			}
 			return nil
 		}()
 		if err != nil {
-			return fmt.Errorf("run wrapper: %w", err)
+			return fmt.Errorf("handle run: %w", err)
 		}
 	}
 
 	if err = mw.Close(); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
 
 	if err = pw.W.Flush(); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return fmt.Errorf("handle run: %w", err)
 	}
 
 	return nil
