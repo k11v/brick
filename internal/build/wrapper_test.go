@@ -78,7 +78,7 @@ Text with $E = mc^2$.
 
 Text with "'quotes' inside quotes".
 
-Text with 📈.
+Text with 🤔.
 
 Text with кириллица.
 `),
