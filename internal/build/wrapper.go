@@ -213,35 +213,35 @@ func Run(internalOutputPath string) error {
 	if err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
+	defer logFile.Close()
 
 	// Create metadata file for Pandoc.
 	if err = os.MkdirAll(filepath.Join(internalOutputPath, "pandoc-input"), 0o777); err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-	metadataFile, err := os.Create(filepath.Join(internalOutputPath, "pandoc-input", "metadata.yaml"))
-	if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
-	}
-	_, err = metadataFile.WriteString(`mainfont: "CMU Serif"
+	err = os.WriteFile(
+		filepath.Join(internalOutputPath, "pandoc-input", "metadata.yaml"),
+		[]byte(`mainfont: "CMU Serif"
 mainfontfallback:
-  - "Latin Modern Roman:"
-  - "FreeSerif:"
-  - "NotoColorEmoji:mode=harf"
+    - "Latin Modern Roman:"
+    - "FreeSerif:"
+    - "NotoColorEmoji:mode=harf"
 sansfont: "CMU Sans Serif"
 sansfontfallback:
-  - "Latin Modern Sans:"
-  - "FreeSans:"
-  - "NotoColorEmoji:mode=harf"
+    - "Latin Modern Sans:"
+    - "FreeSans:"
+    - "NotoColorEmoji:mode=harf"
 monofont: "CMU Typewriter Text"
 monofontfallback:
-  - "Latin Modern Mono:"
-  - "FreeMono:"
-  - "NotoColorEmoji:mode=harf"
-`)
+    - "Latin Modern Mono:"
+    - "FreeMono:"
+    - "NotoColorEmoji:mode=harf"
+`),
+		0o666,
+	)
 	if err != nil {
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-	_ = metadataFile.Close() // TODO: defer
 
 	// Create output directory for Pandoc.
 	if err = os.MkdirAll(filepath.Join(internalOutputPath, "pandoc-output"), 0o777); err != nil {
@@ -304,8 +304,6 @@ monofontfallback:
 		}
 		return fmt.Errorf("run wrapper: %w", err)
 	}
-
-	_ = logFile.Close() // TODO: defer
 
 	pdfPath := filepath.Join(internalOutputPath, "latexmk-output", "main.pdf")
 	_ = pdfPath
