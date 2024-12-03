@@ -201,26 +201,38 @@ func RunWrapper(in io.Reader, out io.Writer) error {
 	return nil
 }
 
-// TODO: Should internalOutputPath be created in this function or by the caller?
-func Run(internalOutputPath string) error {
-	var err error
+type RunParams struct {
+	InternalOutputDir string
+}
+
+type RunResult struct {
+	PDFFile  string
+	LogFile  string
+	ExitCode int
+}
+
+func Run(params *RunParams) (*RunResult, error) {
+	result := RunResult{ExitCode: -1}
 
 	// Create log file for Pandoc and Latexmk.
-	if err = os.MkdirAll(internalOutputPath, 0o777); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+	logFile := filepath.Join(params.InternalOutputDir, "log")
+	if err := os.MkdirAll(params.InternalOutputDir, 0o777); err != nil {
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
-	logFile, err := os.Create(filepath.Join(internalOutputPath, "log"))
+	openLogFile, err := os.Create(logFile)
 	if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
-	defer logFile.Close()
+	defer openLogFile.Close()
+	result.LogFile = logFile
 
 	// Create metadata file for Pandoc.
-	if err = os.MkdirAll(filepath.Join(internalOutputPath, "pandoc-input"), 0o777); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+	metadataFile := filepath.Join(params.InternalOutputDir, "pandoc-input", "metadata.yaml")
+	if err = os.MkdirAll(filepath.Dir(metadataFile), 0o777); err != nil {
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
 	err = os.WriteFile(
-		filepath.Join(internalOutputPath, "pandoc-input", "metadata.yaml"),
+		metadataFile,
 		[]byte(`mainfont: "CMU Serif"
 mainfontfallback:
     - "Latin Modern Roman:"
@@ -240,17 +252,16 @@ monofontfallback:
 		0o666,
 	)
 	if err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
-	}
-
-	// Create output directory for Pandoc.
-	if err = os.MkdirAll(filepath.Join(internalOutputPath, "pandoc-output"), 0o777); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
 
 	// Run Pandoc.
-	if _, err = logFile.Write([]byte("$ pandoc\n")); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+	texFile := filepath.Join(params.InternalOutputDir, "pandoc-output", "main.tex")
+	if err = os.MkdirAll(filepath.Dir(texFile), 0o777); err != nil {
+		return nil, fmt.Errorf("run wrapper: %w", err)
+	}
+	if _, err = openLogFile.Write([]byte("$ pandoc\n")); err != nil {
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
 	pandoc := exec.Command(
 		"pandoc",
@@ -260,30 +271,29 @@ monofontfallback:
 		"--to",
 		"latex",
 		"--output",
-		filepath.Join(internalOutputPath, "pandoc-output", "main.tex"),
+		texFile,
 		"--standalone",
 		"--metadata-file",
-		filepath.Join(internalOutputPath, "pandoc-input", "metadata.yaml"),
+		metadataFile,
 		"main.md",
 	)
-	pandoc.Stdout = logFile
-	pandoc.Stderr = logFile
+	pandoc.Stdout = openLogFile
+	pandoc.Stderr = openLogFile
 	if err = pandoc.Run(); err != nil {
 		if exitErr := (*exec.ExitError)(nil); errors.As(err, &exitErr) {
-			// TODO: Prepare [RunWrapperResult].
-			// TODO: Return [RunWrapperResult].
+			result.ExitCode = exitErr.ExitCode()
+			return &result, nil
 		}
-		return fmt.Errorf("run wrapper: %w", err)
-	}
-
-	// Create output directory for Latexmk.
-	if err = os.MkdirAll(filepath.Join(internalOutputPath, "latexmk-output"), 0o777); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
 
 	// Run Latexmk.
-	if _, err = logFile.Write([]byte("$ latexmk\n")); err != nil {
-		return fmt.Errorf("run wrapper: %w", err)
+	pdfFile := filepath.Join(params.InternalOutputDir, "latexmk-output", "main.pdf")
+	if err = os.MkdirAll(filepath.Dir(pdfFile), 0o777); err != nil {
+		return nil, fmt.Errorf("run wrapper: %w", err)
+	}
+	if _, err = openLogFile.Write([]byte("$ latexmk\n")); err != nil {
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
 	latexmk := exec.Command(
 		"latexmk",
@@ -292,21 +302,20 @@ monofontfallback:
 		"-halt-on-error",
 		"-file-line-error",
 		"-shell-escape", // has security implications
-		"-output-directory="+filepath.Join(internalOutputPath, "latexmk-output"),
-		filepath.Join(internalOutputPath, "pandoc-output", "main.tex"),
+		"-output-directory="+filepath.Dir(pdfFile),
+		texFile,
 	)
-	latexmk.Stdout = logFile
-	latexmk.Stderr = logFile
+	latexmk.Stdout = openLogFile
+	latexmk.Stderr = openLogFile
 	if err = latexmk.Run(); err != nil {
 		if exitErr := (*exec.ExitError)(nil); errors.As(err, &exitErr) {
-			// TODO: Prepare [RunWrapperResult].
-			// TODO: Return [RunWrapperResult].
+			result.ExitCode = exitErr.ExitCode()
+			return &result, nil
 		}
-		return fmt.Errorf("run wrapper: %w", err)
+		return nil, fmt.Errorf("run wrapper: %w", err)
 	}
+	result.PDFFile = pdfFile
+	result.ExitCode = 0
 
-	pdfPath := filepath.Join(internalOutputPath, "latexmk-output", "main.pdf")
-	_ = pdfPath
-
-	return nil
+	return &result, nil
 }
