@@ -35,7 +35,45 @@ func main() {
 }
 
 func run() error {
-	return nil
+	for {
+		funcErr := func() error {
+			conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
+
+			ch, err := conn.Channel()
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			q, err := ch.QueueDeclare("example", false, false, false, false, nil)
+			if err != nil {
+				return err
+			}
+
+			if err = ch.Qos(1, 0, false); err != nil {
+				return err
+			}
+
+			msgs, err := ch.Consume(q.Name, "", false, false, false, false, nil)
+			if err != nil {
+				return err
+			}
+
+			for msg := range msgs {
+				slog.Default().Info("received", "msg", string(msg.Body))
+				if err = msg.Ack(false); err != nil {
+					slog.Default().Error("didn't acknowledge", "err", err)
+				}
+			}
+
+			return errors.New("delivery channel is closed")
+		}()
+		slog.Default().Info("retrying", "err", funcErr)
+	}
 }
 
 // TODO: Remove.
