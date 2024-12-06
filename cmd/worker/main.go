@@ -101,7 +101,7 @@ func run() error {
 		}()
 		slog.Default().Error("didn't consume", "err", consumeErr)
 
-		if retries > maxRetries {
+		if retries >= maxRetries {
 			return errors.New("max retries is exceeded")
 		}
 		retries++
