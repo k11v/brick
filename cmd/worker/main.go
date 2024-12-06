@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"time"
 
@@ -106,13 +107,38 @@ func run() error {
 		retries++
 
 		select {
-		case <-time.After(time.Second):
+		case <-time.After(retryWaitDuration(retries - 1)):
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 
 		slog.Default().Info("retrying")
 	}
+}
+
+// retryWaitDuration calculates the wait duration for a retry.
+// It is calculated using exponential backoff with jitter.
+// It grows with each retry and stops growing after tenth retry
+// where it is chosen from the the interval (9.6s, 28.9s).
+// The first retry number is 0, the tenth is 9.
+func retryWaitDuration(retry int) time.Duration {
+	n := min(retry, 9)
+	second := int(time.Second)
+
+	// start with 0.5s
+	duration := second / 2
+
+	// multiply by 1.5 to the power of n
+	for i := 0; i < n; i++ {
+		duration /= 2
+		duration *= 3
+	}
+
+	// add or subtract up to 50%
+	jitter := rand.IntN(duration) - duration/2
+	duration += jitter
+
+	return time.Duration(duration)
 }
 
 // TODO: Remove.
