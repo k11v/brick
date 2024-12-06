@@ -39,7 +39,6 @@ func main() {
 func run() error {
 	ctx := context.Background()
 
-	maxRetries := 15
 	retries := 0
 
 	for {
@@ -101,28 +100,23 @@ func run() error {
 		}()
 		slog.Default().Error("didn't consume", "err", consumeErr)
 
-		if retries >= maxRetries {
-			return errors.New("max retries is exceeded")
-		}
 		retries++
-
 		select {
 		case <-time.After(retryWaitDuration(retries - 1)):
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-
-		slog.Default().Info("retrying")
+		slog.Default().Info("retrying", "retries", retries)
 	}
 }
 
 // retryWaitDuration calculates the wait duration for a retry.
 // It is calculated using exponential backoff with jitter.
-// It grows with each retry and stops growing after tenth retry
-// where it is chosen from the the interval (9.6s, 28.9s).
-// The first retry number is 0, the tenth is 9.
+// It grows with each retry and stops growing after thirteenth retry
+// where it is chosen from the the interval (32.4s, 97.4s).
+// The first retry number is 0, the thirteenth is 12.
 func retryWaitDuration(retry int) time.Duration {
-	n := min(retry, 9)
+	n := min(retry, 12)
 	second := int(time.Second)
 
 	// start with 0.5s
