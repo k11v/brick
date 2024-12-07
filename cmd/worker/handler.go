@@ -33,7 +33,7 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 	}
 
 	if err := m.Headers.Validate(); err != nil {
-		err = fmt.Errorf("invalid message header: %w", err)
+		err = fmt.Errorf("invalid header: %w", err)
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
@@ -42,14 +42,14 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 	// Header Authorization.
 	authorizationHeader, ok := m.Headers[HeaderAuthorization]
 	if !ok {
-		err := fmt.Errorf("missing %s message header", HeaderAuthorization)
+		err := fmt.Errorf("missing %s header", HeaderAuthorization)
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
 	}
 	token, err := tokenFromAuthorizationHeader(authorizationHeader)
 	if err != nil {
-		err = fmt.Errorf("invalid %s message header: %w", HeaderAuthorization, err)
+		err = fmt.Errorf("invalid %s header: %w", HeaderAuthorization, err)
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
@@ -59,14 +59,14 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 	// Header X-Idempotency-Key.
 	idempotencyKeyHeader, ok := m.Headers[HeaderXIdempotencyKey]
 	if !ok {
-		err = fmt.Errorf("missing %s message header", HeaderXIdempotencyKey)
+		err = fmt.Errorf("missing %s header", HeaderXIdempotencyKey)
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
 	}
 	idempotencyKey, err := keyFromIdempotencyKeyHeader(idempotencyKeyHeader)
 	if err != nil {
-		err = fmt.Errorf("invalid %s message header: %w", HeaderXIdempotencyKey, err)
+		err = fmt.Errorf("invalid %s header: %w", HeaderXIdempotencyKey, err)
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
@@ -76,14 +76,14 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 	var msg message
 	dec := json.NewDecoder(bytes.NewReader(m.Body))
 	if err = dec.Decode(&msg); err != nil {
-		err = fmt.Errorf("invalid message body: %w", err)
+		err = fmt.Errorf("invalid body: %w", err)
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
 	}
 	if dec.More() {
 		err = errors.New("multiple top-level values")
-		err = fmt.Errorf("invalid message body: %w", err)
+		err = fmt.Errorf("invalid body: %w", err)
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
@@ -91,7 +91,7 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 
 	// Body field id.
 	if msg.ID == nil {
-		err = fmt.Errorf("missing %s message body field", "id")
+		err = fmt.Errorf("missing %s body field", "id")
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
@@ -99,7 +99,7 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 
 	// Body field input_prefix.
 	if msg.InputPrefix == nil {
-		err = fmt.Errorf("missing %s message body field", "input_prefix")
+		err = fmt.Errorf("missing %s body field", "input_prefix")
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
