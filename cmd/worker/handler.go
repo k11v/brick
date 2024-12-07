@@ -28,8 +28,8 @@ type Handler struct{}
 
 func (*Handler) RunBuild(m amqp091.Delivery) {
 	type message struct {
-		Foo string `json:"foo"`
-		Bar int    `json:"bar"`
+		ID          *uuid.UUID `json:"id"`
+		InputPrefix *string    `json:"input_prefix"`
 	}
 
 	if err := m.Headers.Validate(); err != nil {
@@ -84,6 +84,22 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 	if dec.More() {
 		err = errors.New("multiple top-level values")
 		err = fmt.Errorf("invalid message body: %w", err)
+		slog.Default().Error("got invalid message", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	// Body field id.
+	if msg.ID == nil {
+		err = fmt.Errorf("missing %s message body field", "id")
+		slog.Default().Error("got invalid message", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	// Body field input_prefix.
+	if msg.InputPrefix == nil {
+		err = fmt.Errorf("missing %s message body field", "input_prefix")
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
