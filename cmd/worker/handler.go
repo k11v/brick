@@ -6,10 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rabbitmq/amqp091-go"
+
+	"github.com/k11v/brick/internal/build"
 )
 
 const (
@@ -104,6 +108,92 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 		_ = m.Nack(false, false)
 		return
 	}
+
+	tempDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		slog.Default().Error("failed to run", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+	defer func(tempDir string) {
+		if err = os.RemoveAll(tempDir); err != nil {
+			slog.Default().Error("failed to remove temp dir", "err", err, "temp_dir", tempDir)
+		}
+	}(tempDir)
+
+	inputDir := filepath.Join(tempDir, "input")
+	if err = os.MkdirAll(inputDir, 0o777); err != nil {
+		slog.Default().Error("failed to run", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	// TODO: get InputDirPrefix from Postgres, download from S3
+	err = os.WriteFile(
+		filepath.Join(inputDir, "main.md"),
+		[]byte(`# The Hobbit, or There and Back Again
+
+## Text
+
+Once upon a time, in the depths of the quiet ocean, there lived a small fish named Flora. Flora was special - she had bright colors and long fins that allowed her to swim quickly. She was curious and always eager to explore new places in the ocean.
+
+One day, during her adventures, Flora noticed a large school of her fellow fish migrating north. She decided to join them and explore new places. During the journey, Flora met many different species of fish. She learned that many fish cooperate with each other to find food and protect themselves from predators.
+
+Soon, Flora discovered a huge coral reef community where hundreds of colorful fish lived. They lived in harmony and cared for each other. Flora stayed there and learned a lot from her new friends. She realized that unity and cooperation were key to survival in the ocean.
+
+Over the years, Flora grew older and wiser. She became one of the elders of the coral reef and helped young fish in their journey through the ocean. Her story became a legend among the fish and an inspiration to many. In her old age, Flora felt proud of all she had achieved and thanked the ocean for the amazing adventures and friendships she found along the way.
+
+### Formatting
+
+Text with *italics*.
+
+Text with **bold**.
+
+Text with ***bold italics***.
+
+Text with `+"`code`"+`.
+
+Text with $E = mc^2$.
+
+Text with "'quotes' inside quotes".
+
+Text with 🤔.
+
+Text with кириллица.
+`),
+		0o666,
+	)
+	if err != nil {
+		slog.Default().Error("failed to run", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	outputDir := filepath.Join(tempDir, "output")
+	if err = os.MkdirAll(inputDir, 0o777); err != nil {
+		slog.Default().Error("failed to run", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	result, err := build.Run(&build.RunParams{InputDir: inputDir, OutputDir: outputDir})
+	if err != nil {
+		slog.Default().Error("failed to run", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	_ = result.PDFFile  // TODO: get PDFFileKey from Postgres, upload to S3
+	_ = result.LogFile  // TODO: get LogFileKey from Postgres, upload to S3
+	_ = result.ExitCode // TODO: set ExitCode in Postgres
+
+	// First, I wanted InputDirPrefix to be chosen by the server
+	// and PDFFileKey and LogFileKey to be chosen by the worker.
+	// But I also wanted these objects to be under the same prefix.
+	// Syncing server and worker on this seems complicated,
+	// so I decided to make someone responsible for all
+	// of these keys and prefixes.
+	// Server seems like the logical choice.
 }
 
 func tokenFromAuthorizationHeader(h interface{}) (uuid.UUID, error) {
