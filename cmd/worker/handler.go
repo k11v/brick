@@ -25,6 +25,7 @@ const (
 
 type Handler struct {
 	database buildtask.Database
+	storage  buildtask.Storage
 }
 
 // When using `_ = m.Ack(false, false)`, we assume that when an error occurs,
@@ -36,6 +37,7 @@ type Handler struct {
 
 func (h *Handler) RunBuild(m amqp091.Delivery) {
 	ctx := context.Background()
+	_ = ctx
 
 	type message struct {
 		ID               *uuid.UUID `json:"id"`
