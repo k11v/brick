@@ -1,8 +1,8 @@
 package build
 
 import (
-	"log"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -12,26 +12,15 @@ func TestRun(t *testing.T) {
 			t.Skip("skipping in short mode")
 		}
 
-		tempWorkingDir := t.TempDir()
-		oldWorkingDir, err := os.Getwd()
-		if err != nil {
-			t.Fatalf("got %q err", err)
-		}
-		if err = os.Chdir(tempWorkingDir); err != nil {
-			t.Fatalf("got %q err", err)
-		}
-		t.Cleanup(func() {
-			if chdirErr := os.Chdir(oldWorkingDir); chdirErr != nil {
-				// os.Chdir LIKELY affects all tests therefore a failure to
-				// restore the old working directory can impact everything.
-				// log.Fatal is used to LIKELY crash all tests, not just
-				// this particular test.
-				log.Fatal("failed to change to old working dir")
-			}
-		})
+		tempDir := t.TempDir()
 
-		err = os.WriteFile(
-			"main.md",
+		inputDir := filepath.Join(tempDir, "input")
+		if err := os.MkdirAll(inputDir, 0o777); err != nil {
+			t.Fatalf("got %q err", err)
+		}
+		mdFile := filepath.Join(inputDir, "main.md")
+		err := os.WriteFile(
+			mdFile,
 			[]byte(`# The Hobbit, or There and Back Again
 
 ## Text
@@ -68,7 +57,8 @@ Text with кириллица.
 			t.Fatalf("got %q err", err)
 		}
 
-		result, err := Run(&RunParams{OutputDir: "output"})
+		outputDir := filepath.Join(tempDir, "output")
+		result, err := Run(&RunParams{InputDir: inputDir, OutputDir: outputDir})
 		if err != nil {
 			t.Fatalf("got %q err", err)
 		}
@@ -81,5 +71,6 @@ Text with кириллица.
 		if got := result.LogFile; got == "" {
 			t.Error("got empty LogFile")
 		}
+		t.Log("breakpoint")
 	})
 }
