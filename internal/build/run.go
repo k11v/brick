@@ -9,6 +9,7 @@ import (
 )
 
 type RunParams struct {
+	InputDir  string
 	OutputDir string
 }
 
@@ -36,6 +37,10 @@ func Run(params *RunParams) (*RunResult, error) {
 	// Create metadata file for Pandoc.
 	metadataFile := filepath.Join(params.OutputDir, "pandoc-input", "metadata.yaml")
 	if err = os.MkdirAll(filepath.Dir(metadataFile), 0o777); err != nil {
+		return nil, fmt.Errorf("run: %w", err)
+	}
+	absMetadataFile, err := filepath.Abs(metadataFile)
+	if err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
 	err = os.WriteFile(
@@ -67,6 +72,10 @@ monofontfallback:
 	if err = os.MkdirAll(filepath.Dir(texFile), 0o777); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
+	absTexFile, err := filepath.Abs(texFile)
+	if err != nil {
+		return nil, fmt.Errorf("run: %w", err)
+	}
 	if _, err = openLogFile.Write([]byte("$ pandoc\n")); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
@@ -78,12 +87,13 @@ monofontfallback:
 		"--to",
 		"latex",
 		"--output",
-		texFile,
+		absTexFile,
 		"--standalone",
 		"--metadata-file",
-		metadataFile,
+		absMetadataFile,
 		"main.md",
 	)
+	pandoc.Dir = params.InputDir
 	pandoc.Stdout = openLogFile
 	pandoc.Stderr = openLogFile
 	if err = pandoc.Run(); err != nil {
@@ -99,6 +109,10 @@ monofontfallback:
 	if err = os.MkdirAll(filepath.Dir(pdfFile), 0o777); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
+	absPDFFile, err := filepath.Abs(pdfFile)
+	if err != nil {
+		return nil, fmt.Errorf("run: %w", err)
+	}
 	if _, err = openLogFile.Write([]byte("$ latexmk\n")); err != nil {
 		return nil, fmt.Errorf("run: %w", err)
 	}
@@ -109,9 +123,10 @@ monofontfallback:
 		"-halt-on-error",
 		"-file-line-error",
 		"-shell-escape", // has security implications
-		"-output-directory="+filepath.Dir(pdfFile),
-		texFile,
+		"-output-directory="+filepath.Dir(absPDFFile),
+		absTexFile,
 	)
+	latexmk.Dir = params.InputDir
 	latexmk.Stdout = openLogFile
 	latexmk.Stderr = openLogFile
 	if err = latexmk.Run(); err != nil {
