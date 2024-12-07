@@ -15,7 +15,8 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 
 	"github.com/k11v/brick/internal/build"
-	"github.com/k11v/brick/internal/buildtask"
+	"github.com/k11v/brick/internal/buildtask/buildtaskpg"
+	"github.com/k11v/brick/internal/buildtask/buildtasks3"
 )
 
 const (
@@ -24,8 +25,8 @@ const (
 )
 
 type Handler struct {
-	database buildtask.Database
-	storage  buildtask.Storage
+	database *buildtaskpg.Database
+	storage  *buildtasks3.Storage
 }
 
 // When using `_ = m.Ack(false, false)`, we assume that when an error occurs,
