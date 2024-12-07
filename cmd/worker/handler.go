@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 
 	"github.com/k11v/brick/internal/build"
+	"github.com/k11v/brick/internal/buildtask"
 )
 
 const (
@@ -21,7 +23,9 @@ const (
 	HeaderXIdempotencyKey = "X-Idempotency-Key"
 )
 
-type Handler struct{}
+type Handler struct {
+	database buildtask.Database
+}
 
 // When using `_ = m.Ack(false, false)`, we assume that when an error occurs,
 // the channel becomes invalid and the code that calls the handler picks up on
@@ -30,10 +34,14 @@ type Handler struct{}
 // message wasn't acknowledged and that it will be delivered again, e.g.
 // rollback a database transaction.
 
-func (*Handler) RunBuild(m amqp091.Delivery) {
+func (h *Handler) RunBuild(m amqp091.Delivery) {
+	ctx := context.Background()
+
 	type message struct {
-		ID          *uuid.UUID `json:"id"`
-		InputPrefix *string    `json:"input_prefix"`
+		ID               *uuid.UUID `json:"id"`
+		InputDirPrefix   *string    `json:"input_dir_prefix"`
+		OutputPDFFileKey *string    `json:"output_pdf_file_key"`
+		OutputLogFileKey *string    `json:"output_log_file_key"`
 	}
 
 	if err := m.Headers.Validate(); err != nil {
@@ -101,9 +109,25 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 		return
 	}
 
-	// Body field input_prefix.
-	if msg.InputPrefix == nil {
-		err = fmt.Errorf("missing %s body field", "input_prefix")
+	// Body field input_dir_prefix.
+	if msg.InputDirPrefix == nil {
+		err = fmt.Errorf("missing %s body field", "input_dir_prefix")
+		slog.Default().Error("got invalid message", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	// Body field output_pdf_file_key.
+	if msg.OutputPDFFileKey == nil {
+		err = fmt.Errorf("missing %s body field", "output_pdf_file_key")
+		slog.Default().Error("got invalid message", "err", err)
+		_ = m.Nack(false, false)
+		return
+	}
+
+	// Body field output_log_file_key.
+	if msg.OutputLogFileKey == nil {
+		err = fmt.Errorf("missing %s body field", "output_log_file_key")
 		slog.Default().Error("got invalid message", "err", err)
 		_ = m.Nack(false, false)
 		return
@@ -128,7 +152,7 @@ func (*Handler) RunBuild(m amqp091.Delivery) {
 		return
 	}
 
-	// TODO: get InputDirPrefix from Postgres, download from S3
+	// TODO: download from S3
 	err = os.WriteFile(
 		filepath.Join(inputDir, "main.md"),
 		[]byte(`# The Hobbit, or There and Back Again
@@ -183,8 +207,8 @@ Text with кириллица.
 		return
 	}
 
-	_ = result.PDFFile  // TODO: get PDFFileKey from Postgres, upload to S3
-	_ = result.LogFile  // TODO: get LogFileKey from Postgres, upload to S3
+	_ = result.PDFFile  // TODO: upload to S3
+	_ = result.LogFile  // TODO: upload to S3
 	_ = result.ExitCode // TODO: set ExitCode in Postgres
 
 	// First, I wanted InputDirPrefix to be chosen by the server
