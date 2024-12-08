@@ -216,3 +216,29 @@ func (d *Database) ListBuilds(ctx context.Context, params *buildtask.DatabaseLis
 	}
 	return result, nil
 }
+
+func (d *Database) UpdateBuild(ctx context.Context, params *buildtask.DatabaseUpdateBuildParams) (*buildtask.Build, error) {
+	query := `
+		UPDATE builds
+		SET ...
+		WHERE id = $3 AND user_id = $4
+		RETURNING
+			id, idempotency_key,
+			user_id, created_at,
+			document_token,
+			process_log_token, process_used_time, process_used_memory, process_exit_code,
+			output_token, next_document_token, output_expires_at,
+			status, done
+	`
+	args := []any{params.ExitCode, params.Status, params.ID, params.UserID}
+
+	rows, _ := d.db.Query(ctx, query, args...)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, buildtask.ErrNotFound
+	} else if err != nil {
+		return nil, fmt.Errorf("update build: %w", err)
+	}
+
+	return b, nil
+}

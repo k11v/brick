@@ -2,6 +2,8 @@ package buildtasks3
 
 import (
 	"context"
+	"io"
+	"mime/multipart"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
@@ -33,12 +35,8 @@ func NewStorage(connectionString string) *Storage {
 	}
 }
 
-type StorageUploadFileV2Params struct{}
-
-type StorageUploadFileV2Result struct{}
-
-func (s *Storage) UploadFileV2(ctx context.Context, params *StorageUploadFileV2Params) (*StorageUploadFileV2Result, error) {
-	return nil, nil
+func (s *Storage) UploadFileV2(ctx context.Context, key string, r io.Reader) error {
+	return nil
 }
 
 type StorageDownloadFileV2Params struct{}
@@ -57,10 +55,6 @@ func (s *Storage) UploadDirV2(ctx context.Context, params *StorageUploadDirV2Par
 	return nil, nil
 }
 
-type StorageDownloadDirV2Params struct{}
-
-type StorageDownloadDirV2Result struct{}
-
-func (s *Storage) DownloadDirV2(ctx context.Context, params *StorageDownloadDirV2Params) (*StorageDownloadDirV2Result, error) {
+func (s *Storage) DownloadDirV2(ctx context.Context, prefix string) (*multipart.Reader, error) {
 	return nil, nil
 }

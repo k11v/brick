@@ -81,3 +81,11 @@ type DatabaseListBuildsResult struct {
 	NextPageOffset *int // zero value (nil) means no more pages
 	TotalSize      int
 }
+
+type DatabaseUpdateBuildParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+
+	ExitCode *int
+	Status   *Status
+}
