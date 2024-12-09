@@ -2,5 +2,5 @@ package static
 
 import "embed"
 
-//go:embed favicon.ico index.tmpl
+//go:embed error.tmpl favicon.ico main.tmpl
 var FS embed.FS
