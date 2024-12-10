@@ -6,15 +6,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
-
-	"github.com/k11v/brick/cmd/html-server/static"
 )
 
-var (
-	funcs = template.FuncMap{}
-	fs    = static.FS
-)
+var templateFuncs = make(template.FuncMap)
 
 func newServer(conf *config) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
@@ -25,18 +21,25 @@ func newServer(conf *config) *http.Server {
 	mux := &http.ServeMux{}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		err := writePage(w, nil, "main.tmpl")
+		err := writeTemplate(w, nil, "main.tmpl")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_ = writeErrorPage(w, http.StatusInternalServerError)
+			err = writeErrorPage(w, http.StatusInternalServerError)
+			if err != nil {
+				slog.Error("failed to write error page", "err", err)
+			}
 		}
 	})
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(dataFS)))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		err := writeErrorPage(w, http.StatusNotFound)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_ = writeErrorPage(w, http.StatusInternalServerError)
+			err = writeErrorPage(w, http.StatusInternalServerError)
+			if err != nil {
+				slog.Error("failed to write error page", "err", err)
+			}
 		}
 	})
 
@@ -48,10 +51,12 @@ func newServer(conf *config) *http.Server {
 	}
 }
 
-// writePage.
+// writeTemplate.
 // The first template name is the one being executed.
-func writePage(w io.Writer, data any, templateNames ...string) error {
-	tmpl := template.Must(template.New(templateNames[0]).Funcs(funcs).ParseFS(fs, templateNames...))
+func writeTemplate(w io.Writer, data any, templateNames ...string) error {
+	tmpl := template.Must(
+		template.New(filepath.Base(templateNames[0])).Funcs(templateFuncs).ParseFS(dataFS, templateNames...),
+	)
 	if err := tmpl.Execute(w, data); err != nil {
 		return err
 	}
@@ -59,5 +64,5 @@ func writePage(w io.Writer, data any, templateNames ...string) error {
 }
 
 func writeErrorPage(w io.Writer, statusCode int) error {
-	return writePage(w, statusCode, "error.tmpl")
+	return writeTemplate(w, statusCode, "error.tmpl")
 }
