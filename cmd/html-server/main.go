@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 )
@@ -18,7 +19,7 @@ func main() {
 func run() error {
 	server := newServer(&config{})
 
-	logger.Info("starting server", "addr", server.Addr)
+	slog.Info("starting server", "addr", server.Addr)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
