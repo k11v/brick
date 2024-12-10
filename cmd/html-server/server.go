@@ -15,7 +15,7 @@ var templateFuncs = make(template.FuncMap)
 func newServer(conf *config) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
-	subLogger := logger.With("component", "server")
+	subLogger := slog.Default().With("component", "server")
 	subLogLogger := slog.NewLogLogger(subLogger.Handler(), slog.LevelError)
 
 	mux := &http.ServeMux{}
