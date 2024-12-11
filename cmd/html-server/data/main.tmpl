@@ -1,3 +1,58 @@
+{{define "buttonRebuild"}}
+<button class="block" type="button">Re-build</button>
+{{end}}
+
+{{define "buildQueued"}}
+<div>
+  <h2>Queued</h2>
+  <div>
+    <div>2:30 PM</div>
+    <div>7 files</div>
+  </div>
+  <p>The build is queued.</p>
+  <button class="block" type="button">Cancel</button>
+</div>
+{{end}}
+
+{{define "buildCompleted"}}
+<button class="block" type="button">Re-build</button>
+<div>
+  <h2>Completed</h2>
+  <div>
+    <div>2:30 PM</div>
+    <div>7 files</div>
+  </div>
+  <p>The PDF file is ready.</p>
+  <button class="block" type="button">Download</button>
+</div>
+{{end}}
+
+{{define "buildFailed"}}
+<button class="block" type="button">Re-build</button>
+<div>
+  <h2>Failed</h2>
+  <div>
+    <div>2:30 PM</div>
+    <div>7 files</div>
+  </div>
+  <p>The build has failed.</p>
+  <button class="block" type="button" disabled>Download</button>
+</div>
+{{end}}
+
+{{define "buildCanceled"}}
+<button class="block" type="button">Re-build</button>
+<div>
+  <h2>Canceled</h2>
+  <div>
+    <div>2:30 PM</div>
+    <div>7 files</div>
+  </div>
+  <p>The build is canceled.</p>
+  <button class="block" type="button" disabled>Download</button>
+</div>
+{{end}}
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -26,53 +81,7 @@
           <textarea class="block w-full" rows="3"></textarea>
         </label>
       </div>
-      {{if eq . "queued"}}
-      <button class="block" type="button">Re-build</button>
-      <div>
-        <h2>Queued</h2>
-        <div>
-          <div>2:30 PM</div>
-          <div>7 files</div>
-        </div>
-        <p>The build is queued.</p>
-        <button class="block" type="button">Cancel</button>
-      </div>
-      {{else if eq . "completed"}}
-      <button class="block" type="button">Re-build</button>
-      <div>
-        <h2>Completed</h2>
-        <div>
-          <div>2:30 PM</div>
-          <div>7 files</div>
-        </div>
-        <p>The PDF file is ready.</p>
-        <button class="block" type="button">Download</button>
-      </div>
-      {{else if eq . "failed"}}
-      <button class="block" type="button">Re-build</button>
-      <div>
-        <h2>Failed</h2>
-        <div>
-          <div>2:30 PM</div>
-          <div>7 files</div>
-        </div>
-        <p>The build has failed.</p>
-        <button class="block" type="button" disabled>Download</button>
-      </div>
-      {{else if eq . "canceled"}}
-      <button class="block" type="button">Re-build</button>
-      <div>
-        <h2>Canceled</h2>
-        <div>
-          <div>2:30 PM</div>
-          <div>7 files</div>
-        </div>
-        <p>The build is canceled.</p>
-        <button class="block" type="button" disabled>Download</button>
-      </div>
-      {{else}}
       <button class="block" type="button">Build</button>
-      {{end}}
     </main>
     <footer>
       <p><a href="https://k11v.cc/" target="_blank">k11v</a> built this service — brick by brick.</p>
