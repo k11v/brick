@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 )
@@ -20,8 +22,19 @@ func newServer(conf *config) *http.Server {
 
 	mux := &http.ServeMux{}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		queryValues, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+			err = fmt.Errorf("invalid query string: %w", err)
+			slog.Error("invalid request", "err", err)
+		}
+
+		// TODO: Remove.
+		// Query value dev-status.
+		const queryValueDevStatus = "dev-status"
+		devStatus := queryValues.Get(queryValueDevStatus)
+
 		w.WriteHeader(http.StatusOK)
-		err := writeTemplate(w, nil, "main.tmpl")
+		err = writeTemplate(w, devStatus, "main.tmpl")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			err = writeErrorPage(w, http.StatusInternalServerError)

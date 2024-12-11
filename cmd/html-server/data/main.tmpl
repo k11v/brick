@@ -1,19 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Brick is a service that builds PDF files from Markdown files.">
     <link rel="shortcut icon" href="/static/favicon.ico">
+    <meta charset="utf-8">
+    <meta name="description" content="Brick is a service that builds PDF files from Markdown files.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
     <title>Brick</title>
   </head>
   <body>
-    {{block "header" .}}{{end}}
-    {{block "main" .}}
+    <header>
+      <nav>
+        <button class="block" type="button">Brick</button>
+        <div>
+          <button class="block" type="button">Examples</button>
+          <button class="block" type="button"><img class="size-8 rounded-full" src="https://emojicdn.elk.sh/%F0%9F%91%A4" alt="" /></button>
+        </div>
+      </nav>
+    </header>
     <main>
-      <h1>Main</h1>
+      <p>Brick is a service that builds PDF files from Markdown files.</p>
+      <div>
+        <h2>main.md</h2>
+        <label class="block">
+          <textarea class="block w-full" rows="3"></textarea>
+        </label>
+      </div>
+      {{if eq . "queued"}}
+      <button class="block" type="button">Re-build</button>
+      <div>
+        <h2>Queued</h2>
+        <div>
+          <div>2:30 PM</div>
+          <div>7 files</div>
+        </div>
+        <p>The build is queued.</p>
+        <button class="block" type="button">Cancel</button>
+      </div>
+      {{else if eq . "completed"}}
+      <button class="block" type="button">Re-build</button>
+      <div>
+        <h2>Completed</h2>
+        <div>
+          <div>2:30 PM</div>
+          <div>7 files</div>
+        </div>
+        <p>The PDF file is ready.</p>
+        <button class="block" type="button">Download</button>
+      </div>
+      {{else if eq . "failed"}}
+      <button class="block" type="button">Re-build</button>
+      <div>
+        <h2>Failed</h2>
+        <div>
+          <div>2:30 PM</div>
+          <div>7 files</div>
+        </div>
+        <p>The build has failed.</p>
+        <button class="block" type="button" disabled>Download</button>
+      </div>
+      {{else if eq . "canceled"}}
+      <button class="block" type="button">Re-build</button>
+      <div>
+        <h2>Canceled</h2>
+        <div>
+          <div>2:30 PM</div>
+          <div>7 files</div>
+        </div>
+        <p>The build is canceled.</p>
+        <button class="block" type="button" disabled>Download</button>
+      </div>
+      {{else}}
+      <button class="block" type="button">Build</button>
+      {{end}}
     </main>
-    {{end}}
-    {{block "footer" .}}{{end}}
+    <footer>
+      <p><a href="https://k11v.cc/" target="_blank">k11v</a> built this service — brick by brick.</p>
+      <p>Source code is available on <a href="https://github.com/k11v/brick" target="_blank">GitHub</a>.</p>
+    <footer>
   </body>
 </html>
