@@ -45,7 +45,7 @@ func newServer(conf *config) *http.Server {
 	})
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(dataFS)))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNotFound)
 		err := writeErrorPage(w, http.StatusNotFound)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
