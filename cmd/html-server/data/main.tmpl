@@ -1,5 +1,13 @@
-{{define "buttonRebuild"}}
-<button class="block" type="button">Re-build</button>
+{{define "build"}}
+<div>
+  <h2>Queued</h2>
+  <div>
+    <div>2:30 PM</div>
+    <div>7 files</div>
+  </div>
+  <p>The build is queued.</p>
+  <button class="block" type="button">Cancel</button>
+</div>
 {{end}}
 
 {{define "buildQueued"}}
@@ -61,6 +69,7 @@
     <meta name="description" content="Brick is a service that builds PDF files from Markdown files.">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.3" integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq" crossorigin="anonymous"></script>
     <title>Brick</title>
   </head>
   <body>
@@ -75,13 +84,14 @@
     </header>
     <main>
       <p>Brick is a service that builds PDF files from Markdown files.</p>
-      <div>
-        <h2>main.md</h2>
-        <label class="block">
-          <textarea class="block w-full" rows="3"></textarea>
-        </label>
-      </div>
-      <button class="block" type="button">Build</button>
+      <form hx-post="/build-create-form" hx-target="#result" hx-encoding="multipart/form-data">
+        <section>
+          <h2 id="file-1">main.md</h2>
+          <textarea name="file-1" aria-labelledby="file-1" class="block"></textarea>
+        </section>
+        <button type="submit" class="block">Build</button>
+      </form>
+      <div id="result"></div>
     </main>
     <footer>
       <p><a href="https://k11v.cc/" target="_blank">k11v</a> built this service — brick by brick.</p>
