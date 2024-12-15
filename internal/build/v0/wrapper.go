@@ -10,6 +10,8 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"os"
+
+	"github.com/k11v/brick/internal/build"
 )
 
 type HandleRunParams struct {
@@ -102,7 +104,7 @@ func HandleRun(stdin io.Reader, stdout io.Writer) error {
 	// Probably these file paths should be sent to stdout
 	// instead of the file paths requested in stdin.
 	// TODO: Send to stdout LogFile and PDFFile.
-	runResult, err := Run(&RunParams{OutputDir: ".brick"})
+	runResult, err := build.Run(&build.RunParams{OutputDir: ".brick"})
 	if err != nil {
 		return fmt.Errorf("handle run: %w", err)
 	}
