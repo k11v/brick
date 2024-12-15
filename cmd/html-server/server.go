@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -14,7 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/k11v/brick/internal/multifile"
+	"github.com/k11v/brick/internal/build"
 )
 
 var templateFuncs = make(template.FuncMap)
@@ -54,52 +55,44 @@ func newServer(conf *config) *http.Server {
 			return
 		}
 
-		partReader := multipart.NewReader(r.Body, boundary)
-		fileIndex := -1
-		fileReader := multifile.NewReader(func() (name string, content io.Reader, err error) {
-			fileIndex++
-
-			namePart, err := partReader.NextPart()
-			if err != nil {
-				return "", nil, err
-			}
-			if namePart.FormName() != fmt.Sprintf("files/%d/name", fileIndex) {
-				return "", nil, fmt.Errorf("unexpected %d file index", fileIndex)
-			}
-			nameBytes, err := io.ReadAll(namePart)
-			if err != nil {
-				return "", nil, err
-			}
-
-			contentPart, err := partReader.NextPart()
-			if err != nil {
-				return "", nil, err
-			}
-			if contentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
-				return "", nil, fmt.Errorf("unexpected %d file index", fileIndex)
-			}
-
-			return string(nameBytes), contentPart, nil
-		})
-
-		type File struct {
-			Name    string
-			Content io.Reader
-		}
-
-		var files iter.Seq2[*File, error] = func(yield func(*File, error) bool) {
-			for fileReader.Read() {
-				file := &File{
-					Name:    fileReader.Name(),
-					Content: fileReader.Content(),
+		mr := multipart.NewReader(r.Body, boundary)
+		var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
+			fileIndex := 0
+			for {
+				namePart, err := mr.NextPart()
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						return
+					}
+					_ = yield(nil, err)
+					return
 				}
+				if namePart.FormName() != fmt.Sprintf("files/%d/name", fileIndex) {
+					_ = yield(nil, fmt.Errorf("unexpected %d file index", fileIndex))
+					return
+				}
+				nameBytes, err := io.ReadAll(namePart)
+				if err != nil {
+					_ = yield(nil, err)
+					return
+				}
+
+				contentPart, err := mr.NextPart()
+				if err != nil {
+					_ = yield(nil, err)
+					return
+				}
+				if contentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
+					_ = yield(nil, fmt.Errorf("unexpected %d file index", fileIndex))
+					return
+				}
+
+				file := &build.File{Name: string(nameBytes), Content: contentPart}
 				if !yield(file, nil) {
 					return
 				}
-			}
-			if fileReader.Err() != nil {
-				_ = yield(nil, fileReader.Err())
-				return
+
+				fileIndex++
 			}
 		}
 
