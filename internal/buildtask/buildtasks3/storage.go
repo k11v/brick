@@ -18,6 +18,20 @@ import (
 	"github.com/k11v/brick/internal/run/runs3"
 )
 
+var _ buildtask.Storage = (*Storage)(nil)
+
+type Storage struct {
+	client *s3.Client
+
+	// uploadPartSize should be greater than or equal 5MB.
+	// See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
+	uploadPartSize int
+
+	// downloadPartSize should be greater than or equal 5MB.
+	// See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
+	downloadPartSize int
+}
+
 // UploadFiles implements buildtask.Storage.
 // FIXME: p.FileName() returns only the last component and is platform-dependent when we want the full path.
 // TODO: consider the error related to manager.MaxUploadParts when handling uploader.Upload.
