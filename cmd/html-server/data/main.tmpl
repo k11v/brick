@@ -33,8 +33,9 @@
       <p>Brick is a service that builds PDF files from Markdown files.</p>
       <form hx-post="/build-create-form" hx-target="#result" hx-encoding="multipart/form-data">
         <section>
-          <h2 id="file-1">main.md</h2>
-          <textarea name="file-1" aria-labelledby="file-1" class="block"></textarea>
+          <h2>main.md</h2>
+          <input type="hidden" name="files/0/name" value="main.md" class="hidden" />
+          <textarea name="files/0/content" aria-label="main.md" class="block"></textarea>
         </section>
         <button type="submit" class="block">Build</button>
       </form>
