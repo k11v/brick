@@ -19,20 +19,6 @@ import (
 	"github.com/k11v/brick/internal/run/runs3"
 )
 
-var _ buildtask.Storage = (*Storage)(nil)
-
-type Storage struct {
-	client *s3.Client
-
-	// uploadPartSize should be greater than or equal 5MB.
-	// See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
-	uploadPartSize int
-
-	// downloadPartSize should be greater than or equal 5MB.
-	// See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
-	downloadPartSize int
-}
-
 // NewStorage creates a new Storage using the provided connection string.
 // It panics if the connection string is not a valid URL.
 func NewStorage(connectionString string) *Storage {
