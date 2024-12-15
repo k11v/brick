@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"iter"
 	"log/slog"
 	"mime"
 	"mime/multipart"
@@ -81,21 +82,42 @@ func newServer(conf *config) *http.Server {
 			return string(nameBytes), contentPart, nil
 		})
 
-		for fileReader.Read() {
-			contentBuf := new(bytes.Buffer)
-			_, err = io.Copy(contentBuf, io.LimitReader(fileReader.Content(), 20))
+		type File struct {
+			Name    string
+			Content io.Reader
+		}
+
+		var files iter.Seq2[*File, error] = func(yield func(*File, error) bool) {
+			for fileReader.Read() {
+				file := &File{
+					Name:    fileReader.Name(),
+					Content: fileReader.Content(),
+				}
+				if !yield(file, nil) {
+					return
+				}
+			}
+			if fileReader.Err() != nil {
+				_ = yield(nil, fileReader.Err())
+				return
+			}
+		}
+
+		for file, err := range files {
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				return
+			}
+
+			contentBuf := new(bytes.Buffer)
+			_, err = io.Copy(contentBuf, file.Content)
+			if err != nil {
+				w.WriteHeader(http.StatusUnprocessableEntity)
 				return
 			}
 
 			head := contentBuf.Bytes()[:min(contentBuf.Len(), 100)]
-			slog.Info("received file", "name", fileReader.Name(), "content", string(head))
-		}
-		if fileReader.Err() != nil {
-			slog.Error("failed", "err", fileReader.Err())
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			return
+			slog.Info("received file", "name", file.Name, "content", string(head))
 		}
 
 		w.WriteHeader(http.StatusOK)
