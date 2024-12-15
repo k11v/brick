@@ -62,7 +62,7 @@ func (s *Storage) UploadDirV2(ctx context.Context, prefix string, files iter.Seq
 
 	for file, err := range files {
 		if err != nil {
-			return fmt.Errorf("Storage: %w", err)
+			return fmt.Errorf("buildtasks3.Storage: %w", err)
 		}
 
 		key := path.Join(prefix, file.Name)
@@ -73,9 +73,9 @@ func (s *Storage) UploadDirV2(ctx context.Context, prefix string, files iter.Seq
 		})
 		if err != nil {
 			if apiErr := smithy.APIError(nil); errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
-				err = buildtask.FileTooLarge
+				err = errors.Join(buildtask.FileTooLarge, err)
 			}
-			return fmt.Errorf("Storage: %w", err)
+			return fmt.Errorf("buildtasks3.Storage: %w", err)
 		}
 
 		err = s3.NewObjectExistsWaiter(s.client).Wait(ctx, &s3.HeadObjectInput{
@@ -83,7 +83,7 @@ func (s *Storage) UploadDirV2(ctx context.Context, prefix string, files iter.Seq
 			Key:    &key,
 		}, time.Minute)
 		if err != nil {
-			return fmt.Errorf("Storage: %w", err)
+			return fmt.Errorf("buildtasks3.Storage: %w", err)
 		}
 	}
 
