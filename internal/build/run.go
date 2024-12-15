@@ -25,11 +25,11 @@ func Run(params *RunParams) (*RunResult, error) {
 	// Create log file for Pandoc and Latexmk.
 	logFile := filepath.Join(params.OutputDir, "log")
 	if err := os.MkdirAll(params.OutputDir, 0o777); err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	openLogFile, err := os.Create(logFile)
 	if err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	defer openLogFile.Close()
 	result.LogFile = logFile
@@ -37,11 +37,11 @@ func Run(params *RunParams) (*RunResult, error) {
 	// Create metadata file for Pandoc.
 	metadataFile := filepath.Join(params.OutputDir, "pandoc-input", "metadata.yaml")
 	if err = os.MkdirAll(filepath.Dir(metadataFile), 0o777); err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	absMetadataFile, err := filepath.Abs(metadataFile)
 	if err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	err = os.WriteFile(
 		metadataFile,
@@ -64,20 +64,20 @@ monofontfallback:
 		0o666,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 
 	// Run Pandoc.
 	texFile := filepath.Join(params.OutputDir, "pandoc-output", "main.tex")
 	if err = os.MkdirAll(filepath.Dir(texFile), 0o777); err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	absTexFile, err := filepath.Abs(texFile)
 	if err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	if _, err = openLogFile.Write([]byte("$ pandoc\n")); err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	pandoc := exec.Command(
 		"pandoc",
@@ -101,20 +101,20 @@ monofontfallback:
 			result.ExitCode = exitErr.ExitCode()
 			return &result, nil
 		}
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 
 	// Run Latexmk.
 	pdfFile := filepath.Join(params.OutputDir, "latexmk-output", "main.pdf")
 	if err = os.MkdirAll(filepath.Dir(pdfFile), 0o777); err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	absPDFFile, err := filepath.Abs(pdfFile)
 	if err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	if _, err = openLogFile.Write([]byte("$ latexmk\n")); err != nil {
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	latexmk := exec.Command(
 		"latexmk",
@@ -134,7 +134,7 @@ monofontfallback:
 			result.ExitCode = exitErr.ExitCode()
 			return &result, nil
 		}
-		return nil, fmt.Errorf("run: %w", err)
+		return nil, fmt.Errorf("build.Run: %w", err)
 	}
 	result.PDFFile = pdfFile
 	result.ExitCode = 0
