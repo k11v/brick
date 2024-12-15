@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"html/template"
 	"io"
 	"log/slog"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -32,8 +37,71 @@ func newServer(conf *config) *http.Server {
 		}
 	})
 	mux.HandleFunc("POST /build-create-form", func(w http.ResponseWriter, r *http.Request) {
+		mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		if mediaType != "multipart/form-data" {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		boundary := params["boundary"]
+		if boundary == "" {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+
+		mr := multipart.NewReader(r.Body, boundary)
+		fileIndex := 0
+		for {
+			namePart, err := mr.NextPart()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if namePart.FormName() != fmt.Sprintf("files/%d/name", fileIndex) {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				return
+			}
+			nameBytes, err := io.ReadAll(namePart)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			name := string(nameBytes)
+
+			contentPart, err := mr.NextPart()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					return
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if contentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				return
+			}
+			content := new(bytes.Buffer)
+			_, err = io.Copy(content, contentPart)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			head := content.Bytes()[:min(content.Len(), 100)]
+			slog.Info("received file", "name", name, "content", string(head))
+
+			fileIndex++
+		}
+
 		w.WriteHeader(http.StatusOK)
-		err := writeTemplate(w, "build", nil, "main.tmpl")
+		err = writeTemplate(w, "build", nil, "main.tmpl")
 		if err != nil {
 			slog.Error("failed", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
