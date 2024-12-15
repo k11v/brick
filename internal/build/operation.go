@@ -26,11 +26,11 @@ type OperationService struct {
 	s3 *s3.Client
 }
 
-type CreateBuildParams struct {
+type OperationServiceCreateParams struct {
 	UserID uuid.UUID
 	Files  iter.Seq2[File, error]
 }
 
-func (s *OperationService) CreateBuild(params *CreateBuildParams) (*Operation, error) {
+func (s *OperationService) Create(params *OperationServiceCreateParams) (*Operation, error) {
 	return &Operation{}, nil
 }
