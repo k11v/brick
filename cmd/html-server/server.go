@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -13,6 +12,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+
+	"github.com/k11v/brick/internal/multifile"
 )
 
 var templateFuncs = make(template.FuncMap)
@@ -52,52 +53,49 @@ func newServer(conf *config) *http.Server {
 			return
 		}
 
-		mr := multipart.NewReader(r.Body, boundary)
-		fileIndex := 0
-		for {
-			namePart, err := mr.NextPart()
+		partReader := multipart.NewReader(r.Body, boundary)
+		fileIndex := -1
+		fileReader := multifile.NewReader(func() (name string, content io.Reader, err error) {
+			fileIndex++
+
+			namePart, err := partReader.NextPart()
 			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+				return "", nil, err
 			}
 			if namePart.FormName() != fmt.Sprintf("files/%d/name", fileIndex) {
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				return
+				return "", nil, fmt.Errorf("unexpected %d file index", fileIndex)
 			}
 			nameBytes, err := io.ReadAll(namePart)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+				return "", nil, err
 			}
-			name := string(nameBytes)
 
-			contentPart, err := mr.NextPart()
+			contentPart, err := partReader.NextPart()
 			if err != nil {
-				if errors.Is(err, io.EOF) {
-					w.WriteHeader(http.StatusUnprocessableEntity)
-					return
-				}
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+				return "", nil, err
 			}
 			if contentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				return
+				return "", nil, fmt.Errorf("unexpected %d file index", fileIndex)
 			}
-			content := new(bytes.Buffer)
-			_, err = io.Copy(content, contentPart)
+
+			return string(nameBytes), contentPart, nil
+		})
+
+		for fileReader.Read() {
+			contentBuf := new(bytes.Buffer)
+			_, err = io.Copy(contentBuf, io.LimitReader(fileReader.Content(), 20))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
-			head := content.Bytes()[:min(content.Len(), 100)]
-			slog.Info("received file", "name", name, "content", string(head))
-
-			fileIndex++
+			head := contentBuf.Bytes()[:min(contentBuf.Len(), 100)]
+			slog.Info("received file", "name", fileReader.Name(), "content", string(head))
+		}
+		if fileReader.Err() != nil {
+			slog.Error("failed", "err", fileReader.Err())
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
 		}
 
 		w.WriteHeader(http.StatusOK)
