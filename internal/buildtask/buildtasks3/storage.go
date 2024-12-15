@@ -2,11 +2,19 @@ package buildtasks3
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"iter"
 	"mime/multipart"
+	"path"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 
+	"github.com/k11v/brick/internal/build"
 	"github.com/k11v/brick/internal/buildtask"
 	"github.com/k11v/brick/internal/run/runs3"
 )
@@ -47,12 +55,39 @@ func (s *Storage) DownloadFileV2(ctx context.Context, params *StorageDownloadFil
 	return nil, nil
 }
 
-type StorageUploadDirV2Params struct{}
+func (s *Storage) UploadDirV2(ctx context.Context, prefix string, files iter.Seq2[*build.File, error]) error {
+	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
+		u.PartSize = int64(s.uploadPartSize)
+	})
 
-type StorageUploadDirV2Result struct{}
+	for file, err := range files {
+		if err != nil {
+			return fmt.Errorf("Storage: %w", err)
+		}
 
-func (s *Storage) UploadDirV2(ctx context.Context, params *StorageUploadDirV2Params) (*StorageUploadDirV2Result, error) {
-	return nil, nil
+		key := path.Join(prefix, file.Name)
+		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
+			Bucket: &runs3.BucketName,
+			Key:    &key,
+			Body:   file.Content,
+		})
+		if err != nil {
+			if apiErr := smithy.APIError(nil); errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
+				err = buildtask.FileTooLarge
+			}
+			return fmt.Errorf("Storage: %w", err)
+		}
+
+		err = s3.NewObjectExistsWaiter(s.client).Wait(ctx, &s3.HeadObjectInput{
+			Bucket: &runs3.BucketName,
+			Key:    &key,
+		}, time.Minute)
+		if err != nil {
+			return fmt.Errorf("Storage: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *Storage) DownloadDirV2(ctx context.Context, prefix string) (*multipart.Reader, error) {
