@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 	"path"
 	"time"
 
@@ -47,8 +48,30 @@ type Operation struct {
 type OperationFile struct {
 	ID          uuid.UUID
 	OperationID uuid.UUID
+	Type        OperationFileType
 	Name        string
 	ContentKey  string
+}
+
+type OperationFileType string
+
+const (
+	OperationFileTypeInput  OperationFileType = "input"
+	OperationFileTypeOutput OperationFileType = "output"
+	OperationFileTypeOther  OperationFileType = "other"
+)
+
+// operationFileTypeFromString converts a string to a OperationFileType and checks if it is a known type.
+// It returns the OperationFileType and a boolean indicating whether the type is known.
+func operationFileTypeFromString(s string) (typ OperationFileType, known bool) {
+	typ = OperationFileType(s)
+	switch typ {
+	case OperationFileTypeInput, OperationFileTypeOutput, OperationFileTypeOther:
+		known = true
+	default:
+		known = false
+	}
+	return typ, known
 }
 
 type OperationService struct {
@@ -100,7 +123,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 
 	// Create output and process files.
 	operationDirKey := fmt.Sprintf("operations/%s", operation.ID)
-	outputPDFFile, err := createOperationFile(ctx, tx, operation.ID, "output.pdf")
+	outputPDFFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeOutput, "output.pdf")
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
@@ -109,7 +132,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
-	processLogFile, err := createOperationFile(ctx, tx, operation.ID, "process.log")
+	processLogFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeOther, "process.log")
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
@@ -129,7 +152,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		if err != nil {
 			panic("unimplemented")
 		}
-		operationFile, err := createOperationFile(ctx, tx, operation.ID, file.Name)
+		operationFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeInput, file.Name)
 		if err != nil {
 			panic("unimplemented")
 		}
@@ -242,13 +265,13 @@ func updateOperationFileIDs(ctx context.Context, db executor, id uuid.UUID, outp
 	return o, nil
 }
 
-func createOperationFile(ctx context.Context, db executor, operationID uuid.UUID, name string) (*OperationFile, error) {
+func createOperationFile(ctx context.Context, db executor, operationID uuid.UUID, typ OperationFileType, name string) (*OperationFile, error) {
 	query := `
-		INSERT INTO operation_files (operation_id, name)
-		VALUES ($1, $2)
-		RETURNING id, operation_id, name, content_key
+		INSERT INTO operation_files (operation_id, type, name)
+		VALUES ($1, $2, $3)
+		RETURNING id, operation_id, type, name, content_key
 	`
-	args := []any{operationID, name}
+	args := []any{operationID, string(typ), name}
 
 	rows, _ := db.Query(ctx, query, args...)
 	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationFile)
@@ -264,7 +287,7 @@ func updateOperationFileContentKey(ctx context.Context, db executor, id uuid.UUI
 		UPDATE operation_files
 		SET content_key = $1
 		WHERE id = $2
-		RETURNING id, operation_id, name, content_key
+		RETURNING id, operation_id, type, name, content_key
 	`
 	args := []any{contentKey, id}
 
@@ -387,6 +410,7 @@ func rowToOperationFile(collectableRow pgx.CollectableRow) (*OperationFile, erro
 	type row struct {
 		ID          uuid.UUID `db:"id"`
 		OperationID uuid.UUID `db:"operation_id"`
+		Type        string    `db:"type"`
 		Name        string    `db:"name"`
 		ContentKey  string    `db:"content_key"`
 	}
@@ -395,9 +419,19 @@ func rowToOperationFile(collectableRow pgx.CollectableRow) (*OperationFile, erro
 		return nil, err
 	}
 
+	typ, known := operationFileTypeFromString(collectedRow.Type)
+	if !known {
+		slog.Warn(
+			"got unknown OperationFileType from the database",
+			"operation_file_id", collectedRow.ID,
+			"type", collectedRow.Type,
+		)
+	}
+
 	f := &OperationFile{
 		ID:          collectedRow.ID,
 		OperationID: collectedRow.OperationID,
+		Type:        typ,
 		Name:        collectedRow.Name,
 		ContentKey:  collectedRow.ContentKey,
 	}
