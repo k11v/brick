@@ -58,7 +58,7 @@ type OperationFileType string
 const (
 	OperationFileTypeInput  OperationFileType = "input"
 	OperationFileTypeOutput OperationFileType = "output"
-	OperationFileTypeOther  OperationFileType = "other"
+	OperationFileTypeRun    OperationFileType = "run"
 )
 
 // operationFileTypeFromString converts a string to a OperationFileType and checks if it is a known type.
@@ -66,7 +66,7 @@ const (
 func operationFileTypeFromString(s string) (typ OperationFileType, known bool) {
 	typ = OperationFileType(s)
 	switch typ {
-	case OperationFileTypeInput, OperationFileTypeOutput, OperationFileTypeOther:
+	case OperationFileTypeInput, OperationFileTypeOutput, OperationFileTypeRun:
 		known = true
 	default:
 		known = false
@@ -132,7 +132,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
-	processLogFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeOther, "process.log")
+	processLogFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeRun, "process.log")
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
