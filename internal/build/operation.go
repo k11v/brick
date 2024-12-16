@@ -82,6 +82,10 @@ type OperationService struct {
 	s3 *s3.Client
 }
 
+func NewOperationService(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client) *OperationService {
+	return &OperationService{db: db, mq: mq, s3: s3Client}
+}
+
 type OperationServiceCreateParams struct {
 	UserID         uuid.UUID
 	Files          iter.Seq2[*File, error]
