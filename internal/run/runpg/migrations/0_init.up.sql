@@ -2,35 +2,30 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE IF NOT EXISTS builds (
+CREATE TABLE IF NOT EXISTS operations (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     idempotency_key uuid NOT NULL,
-
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-
-    -- document_token text, -- instead of document_cache_files jsonb
-    -- document_files jsonb,
-    document_token text,
-
-    -- process_log_file text,
-    process_log_token text,
-    process_used_time interval,
-    process_used_memory integer,
+    output_pdf_file_id uuid NOT NULL, -- TODO: NULL?
+    process_log_file_id uuid NOT NULL, -- TODO: NULL?
     process_exit_code integer,
-
-    -- output_file text,
-    output_token text,
-    next_document_token text, -- instead of output_cache_files jsonb
-    output_expires_at timestamp with time zone,
-
-    status text NOT NULL,
-    done boolean NOT NULL,
-
     PRIMARY KEY (id),
-    CHECK (NOT done AND status IN ('pending', 'running') OR done AND status IN ('completed', 'canceled'))
+    FOREIGN KEY (output_pdf_file_id) REFERENCES operation_files (id),
+    FOREIGN KEY (process_log_file_id) REFERENCES operation_files (id)
 );
-CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);
+CREATE UNIQUE INDEX operations_idempotency_key_idx ON operations (idempotency_key);
+
+CREATE TABLE IF NOT EXISTS operation_files (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    operation_id uuid NOT NULL,
+    type text NOT NULL,
+    name text NOT NULL,
+    content_key text NOT NULL, -- TODO: NULL?
+    PRIMARY KEY (id),
+    FOREIGN KEY (operation_id) REFERENCES operations (id),
+    CHECK (type IN ('input', 'output', 'run'))
+);
 
 CREATE TABLE IF NOT EXISTS user_locks (
     user_id uuid NOT NULL,
