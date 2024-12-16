@@ -72,7 +72,7 @@ func newServer(conf *config) *http.Server {
 					return
 				}
 				if namePart.FormName() != fmt.Sprintf("files/%d/name", fileIndex) {
-					_ = yield(nil, fmt.Errorf("unexpected %d file index", fileIndex))
+					_ = yield(nil, fmt.Errorf("want %d file index", fileIndex))
 					return
 				}
 				nameBytes, err := io.ReadAll(namePart)
@@ -87,7 +87,7 @@ func newServer(conf *config) *http.Server {
 					return
 				}
 				if contentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
-					_ = yield(nil, fmt.Errorf("unexpected %d file index", fileIndex))
+					_ = yield(nil, fmt.Errorf("want %d file index", fileIndex))
 					return
 				}
 
