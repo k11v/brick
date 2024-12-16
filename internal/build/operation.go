@@ -1,7 +1,9 @@
 package build
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -289,6 +291,49 @@ func uploadFileContent(ctx context.Context, s3Client *s3.Client, key string, con
 }
 
 func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation *Operation) error {
+	type message struct {
+		ID               uuid.UUID `json:"id"`
+		IdempotencyKey   uuid.UUID `json:"idempotency_key"`
+		CreatedAt        time.Time `json:"created_at"`
+		UserID           uuid.UUID `json:"user_id"`
+		OutputPDFFileID  uuid.UUID `json:"output_pdf_file_id"`
+		ProcessLogFileID uuid.UUID `json:"process_log_file_id"`
+		ProcessExitCode  *int      `json:"process_exit_code"`
+	}
+	msg := message{
+		ID:               operation.ID,
+		IdempotencyKey:   operation.IdempotencyKey,
+		CreatedAt:        operation.CreatedAt,
+		UserID:           operation.UserID,
+		OutputPDFFileID:  operation.OutputPDFFileID,
+		ProcessLogFileID: operation.ProcessLogFileID,
+		ProcessExitCode:  operation.ProcessExitCode,
+	}
+	msgBuf := new(bytes.Buffer)
+	if err := json.NewEncoder(msgBuf).Encode(msg); err != nil {
+		return err
+	}
+
+	ch, err := mq.Channel()
+	if err != nil {
+		return err
+	}
+	defer ch.Close()
+
+	q, err := ch.QueueDeclare("operation.created", false, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+
+	m := amqp091.Publishing{
+		ContentType: "application/json",
+		Body:        msgBuf.Bytes(),
+	}
+	err = ch.PublishWithContext(ctx, "", q.Name, false, false, m)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
