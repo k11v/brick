@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"log/slog"
 	"path"
 	"time"
 
@@ -32,46 +31,20 @@ var (
 )
 
 type Operation struct {
-	ID               uuid.UUID
-	IdempotencyKey   uuid.UUID
-	CreatedAt        time.Time
-	UserID           uuid.UUID
-	OutputPDFFileID  uuid.UUID
-	ProcessLogFileID uuid.UUID
-	ProcessExitCode  *int
-
-	InputFiles     []*OperationFile
-	OutputPDFFile  *OperationFile
-	ProcessLogFile *OperationFile
+	ID             uuid.UUID
+	IdempotencyKey uuid.UUID
+	CreatedAt      time.Time
+	UserID         uuid.UUID
+	OutputFileKey  uuid.UUID
+	LogFileKey     uuid.UUID
+	ExitCode       *int
 }
 
-type OperationFile struct {
+type OperationInputFile struct {
 	ID          uuid.UUID
 	OperationID uuid.UUID
-	Type        OperationFileType
 	Name        string
 	ContentKey  string
-}
-
-type OperationFileType string
-
-const (
-	OperationFileTypeInput  OperationFileType = "input"
-	OperationFileTypeOutput OperationFileType = "output"
-	OperationFileTypeRun    OperationFileType = "run"
-)
-
-// operationFileTypeFromString converts a string to a OperationFileType and checks if it is a known type.
-// It returns the OperationFileType and a boolean indicating whether the type is known.
-func operationFileTypeFromString(s string) (typ OperationFileType, known bool) {
-	typ = OperationFileType(s)
-	switch typ {
-	case OperationFileTypeInput, OperationFileTypeOutput, OperationFileTypeRun:
-		known = true
-	default:
-		known = false
-	}
-	return typ, known
 }
 
 type OperationService struct {
@@ -125,27 +98,11 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
 
-	// Create output and process files.
+	// Create object storage keys for output and log files.
 	operationDirKey := fmt.Sprintf("operations/%s", operation.ID)
-	outputPDFFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeOutput, "output.pdf")
-	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
-	}
-	outputPDFFileKey := path.Join(operationDirKey, outputPDFFile.ID.String())
-	outputPDFFile, err = updateOperationFileContentKey(ctx, tx, outputPDFFile.ID, outputPDFFileKey)
-	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
-	}
-	processLogFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeRun, "process.log")
-	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
-	}
-	processLogFileKey := path.Join(operationDirKey, processLogFile.ID.String())
-	processLogFile, err = updateOperationFileContentKey(ctx, tx, processLogFile.ID, processLogFileKey)
-	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
-	}
-	operation, err = updateOperationFileIDs(ctx, tx, operation.ID, outputPDFFile.ID, processLogFile.ID)
+	outputFileKey := path.Join(operationDirKey, "output.pdf")
+	logFileKey := path.Join(operationDirKey, "log")
+	operation, err = updateOperationContentKeys(ctx, tx, operation.ID, outputFileKey, logFileKey)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
@@ -156,16 +113,16 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		if err != nil {
 			panic("unimplemented")
 		}
-		operationFile, err := createOperationFile(ctx, tx, operation.ID, OperationFileTypeInput, file.Name)
+		operationInputFile, err := createOperationInputFile(ctx, tx, operation.ID, file.Name)
 		if err != nil {
 			panic("unimplemented")
 		}
-		contentKey := path.Join(inputDirKey, operationFile.ID.String())
-		operationFile, err = updateOperationFileContentKey(ctx, tx, operationFile.ID, contentKey)
+		contentKey := path.Join(inputDirKey, operationInputFile.ID.String())
+		operationInputFile, err = updateOperationInputFileKey(ctx, tx, operationInputFile.ID, contentKey)
 		if err != nil {
 			panic("unimplemented")
 		}
-		_ = operationFile
+		_ = operationInputFile
 		err = uploadFileContent(ctx, s.s3, contentKey, file.Content)
 		if err != nil {
 			panic("unimplemented")
@@ -234,7 +191,7 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 	query := `
 		INSERT INTO operations (idempotency_key, user_id)
 		VALUES ($1, $2)
-		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_id, process_log_file_id, process_exit_code
+		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
 	`
 	args := []any{idempotencyKey, userID}
 
@@ -251,14 +208,14 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 	return b, nil
 }
 
-func updateOperationFileIDs(ctx context.Context, db executor, id uuid.UUID, outputPDFFileID uuid.UUID, processLogFileID uuid.UUID) (*Operation, error) {
+func updateOperationContentKeys(ctx context.Context, db executor, id uuid.UUID, outputFileKey string, logFileKey string) (*Operation, error) {
 	query := `
 		UPDATE operations
-		SET output_pdf_file_id = $1, process_log_file_id = $2
+		SET output_file_key = $1, log_file_key = $2
 		WHERE id = $3
-		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_id, process_log_file_id, process_exit_code
+		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
 	`
-	args := []any{outputPDFFileID, processLogFileID, id}
+	args := []any{outputFileKey, logFileKey, id}
 
 	rows, _ := db.Query(ctx, query, args...)
 	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
@@ -269,16 +226,16 @@ func updateOperationFileIDs(ctx context.Context, db executor, id uuid.UUID, outp
 	return o, nil
 }
 
-func createOperationFile(ctx context.Context, db executor, operationID uuid.UUID, typ OperationFileType, name string) (*OperationFile, error) {
+func createOperationInputFile(ctx context.Context, db executor, operationID uuid.UUID, name string) (*OperationInputFile, error) {
 	query := `
-		INSERT INTO operation_files (operation_id, type, name)
-		VALUES ($1, $2, $3)
-		RETURNING id, operation_id, type, name, content_key
+		INSERT INTO operation_input_files (operation_id, name)
+		VALUES ($1, $2)
+		RETURNING id, operation_id, name, content_key
 	`
-	args := []any{operationID, string(typ), name}
+	args := []any{operationID, name}
 
 	rows, _ := db.Query(ctx, query, args...)
-	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationFile)
+	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationInputFile)
 	if err != nil {
 		return nil, err
 	}
@@ -286,17 +243,17 @@ func createOperationFile(ctx context.Context, db executor, operationID uuid.UUID
 	return f, nil
 }
 
-func updateOperationFileContentKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*OperationFile, error) {
+func updateOperationInputFileKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*OperationInputFile, error) {
 	query := `
-		UPDATE operation_files
+		UPDATE operation_input_files
 		SET content_key = $1
 		WHERE id = $2
-		RETURNING id, operation_id, type, name, content_key
+		RETURNING id, operation_id, name, content_key
 	`
 	args := []any{contentKey, id}
 
 	rows, _ := db.Query(ctx, query, args...)
-	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationFile)
+	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationInputFile)
 	if err != nil {
 		return nil, err
 	}
@@ -338,22 +295,22 @@ func uploadFileContent(ctx context.Context, s3Client *s3.Client, key string, con
 
 func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation *Operation) error {
 	type message struct {
-		ID               uuid.UUID `json:"id"`
-		IdempotencyKey   uuid.UUID `json:"idempotency_key"`
-		CreatedAt        time.Time `json:"created_at"`
-		UserID           uuid.UUID `json:"user_id"`
-		OutputPDFFileID  uuid.UUID `json:"output_pdf_file_id"`
-		ProcessLogFileID uuid.UUID `json:"process_log_file_id"`
-		ProcessExitCode  *int      `json:"process_exit_code"`
+		ID             uuid.UUID `json:"id"`
+		IdempotencyKey uuid.UUID `json:"idempotency_key"`
+		CreatedAt      time.Time `json:"created_at"`
+		UserID         uuid.UUID `json:"user_id"`
+		OutputFileKey  uuid.UUID `json:"output_file_key"`
+		LogFileKey     uuid.UUID `json:"log_file_key"`
+		ExitCode       *int      `json:"exit_code"`
 	}
 	msg := message{
-		ID:               operation.ID,
-		IdempotencyKey:   operation.IdempotencyKey,
-		CreatedAt:        operation.CreatedAt,
-		UserID:           operation.UserID,
-		OutputPDFFileID:  operation.OutputPDFFileID,
-		ProcessLogFileID: operation.ProcessLogFileID,
-		ProcessExitCode:  operation.ProcessExitCode,
+		ID:             operation.ID,
+		IdempotencyKey: operation.IdempotencyKey,
+		CreatedAt:      operation.CreatedAt,
+		UserID:         operation.UserID,
+		OutputFileKey:  operation.OutputFileKey,
+		LogFileKey:     operation.LogFileKey,
+		ExitCode:       operation.ExitCode,
 	}
 	msgBuf := new(bytes.Buffer)
 	if err := json.NewEncoder(msgBuf).Encode(msg); err != nil {
@@ -385,13 +342,13 @@ func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation
 
 func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 	type row struct {
-		ID               uuid.UUID `db:"id"`
-		IdempotencyKey   uuid.UUID `db:"idempotency_key"`
-		CreatedAt        time.Time `db:"created_at"`
-		UserID           uuid.UUID `db:"user_id"`
-		OutputPDFFileID  uuid.UUID `db:"output_pdf_file_id"`
-		ProcessLogFileID uuid.UUID `db:"process_log_file_id"`
-		ProcessExitCode  *int      `db:"process_exit_code"`
+		ID             uuid.UUID `db:"id"`
+		IdempotencyKey uuid.UUID `db:"idempotency_key"`
+		CreatedAt      time.Time `db:"created_at"`
+		UserID         uuid.UUID `db:"user_id"`
+		OutputFileKey  uuid.UUID `db:"output_file_key"`
+		LogFileKey     uuid.UUID `db:"log_file_key"`
+		ExitCode       *int      `db:"exit_code"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
@@ -399,22 +356,21 @@ func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 	}
 
 	o := &Operation{
-		ID:               collectedRow.ID,
-		IdempotencyKey:   collectedRow.IdempotencyKey,
-		CreatedAt:        collectedRow.CreatedAt,
-		UserID:           collectedRow.UserID,
-		OutputPDFFileID:  collectedRow.OutputPDFFileID,
-		ProcessLogFileID: collectedRow.ProcessLogFileID,
-		ProcessExitCode:  collectedRow.ProcessExitCode,
+		ID:             collectedRow.ID,
+		IdempotencyKey: collectedRow.IdempotencyKey,
+		CreatedAt:      collectedRow.CreatedAt,
+		UserID:         collectedRow.UserID,
+		OutputFileKey:  collectedRow.OutputFileKey,
+		LogFileKey:     collectedRow.LogFileKey,
+		ExitCode:       collectedRow.ExitCode,
 	}
 	return o, nil
 }
 
-func rowToOperationFile(collectableRow pgx.CollectableRow) (*OperationFile, error) {
+func rowToOperationInputFile(collectableRow pgx.CollectableRow) (*OperationInputFile, error) {
 	type row struct {
 		ID          uuid.UUID `db:"id"`
 		OperationID uuid.UUID `db:"operation_id"`
-		Type        string    `db:"type"`
 		Name        string    `db:"name"`
 		ContentKey  string    `db:"content_key"`
 	}
@@ -423,19 +379,9 @@ func rowToOperationFile(collectableRow pgx.CollectableRow) (*OperationFile, erro
 		return nil, err
 	}
 
-	typ, known := operationFileTypeFromString(collectedRow.Type)
-	if !known {
-		slog.Warn(
-			"got unknown OperationFileType from the database",
-			"operation_file_id", collectedRow.ID,
-			"type", collectedRow.Type,
-		)
-	}
-
-	f := &OperationFile{
+	f := &OperationInputFile{
 		ID:          collectedRow.ID,
 		OperationID: collectedRow.OperationID,
-		Type:        typ,
 		Name:        collectedRow.Name,
 		ContentKey:  collectedRow.ContentKey,
 	}
