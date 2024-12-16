@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"html/template"
@@ -15,7 +14,12 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/google/uuid"
+	"github.com/rabbitmq/amqp091-go"
+
 	"github.com/k11v/brick/internal/build"
+	"github.com/k11v/brick/internal/run/runpg"
+	"github.com/k11v/brick/internal/run/runs3"
 )
 
 var templateFuncs = make(template.FuncMap)
@@ -96,22 +100,35 @@ func newServer(conf *config) *http.Server {
 			}
 		}
 
-		for file, err := range files {
-			if err != nil {
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				return
-			}
-
-			contentBuf := new(bytes.Buffer)
-			_, err = io.Copy(contentBuf, file.Content)
-			if err != nil {
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				return
-			}
-
-			head := contentBuf.Bytes()[:min(contentBuf.Len(), 100)]
-			slog.Info("received file", "name", file.Name, "content", string(head))
+		db, err := runpg.NewPool(r.Context(), "postgres://postgres:postgres@127.0.0.1:5432/postgres")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
+		defer db.Close()
+
+		mq, err := amqp091.Dial("amqp://guest:guest@127.0.0.1:5672/")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer func() {
+			_ = mq.Close()
+		}()
+
+		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
+
+		operationService := build.NewOperationService(db, mq, s3Client)
+		operation, err := operationService.Create(r.Context(), &build.OperationServiceCreateParams{
+			UserID:         uuid.New(),
+			Files:          files,
+			IdempotencyKey: uuid.New(),
+		})
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_ = operation
 
 		w.WriteHeader(http.StatusOK)
 		err = writeTemplate(w, "build", nil, "main.tmpl")
