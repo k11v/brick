@@ -35,8 +35,8 @@ type Operation struct {
 	IdempotencyKey uuid.UUID
 	CreatedAt      time.Time
 	UserID         uuid.UUID
-	OutputFileKey  uuid.UUID
-	LogFileKey     uuid.UUID
+	OutputFileKey  *string
+	LogFileKey     *string
 	ExitCode       *int
 }
 
@@ -44,19 +44,19 @@ type OperationInputFile struct {
 	ID          uuid.UUID
 	OperationID uuid.UUID
 	Name        string
-	ContentKey  string
+	ContentKey  *string
 }
 
 type OperationService struct {
-	operationsAllowed int
-
 	db *pgxpool.Pool
 	mq *amqp091.Connection
 	s3 *s3.Client
+
+	operationsAllowed int
 }
 
-func NewOperationService(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client) *OperationService {
-	return &OperationService{db: db, mq: mq, s3: s3Client}
+func NewOperationService(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, operationsAllowed int) *OperationService {
+	return &OperationService{db: db, mq: mq, s3: s3Client, operationsAllowed: operationsAllowed}
 }
 
 type OperationServiceCreateParams struct {
@@ -299,8 +299,8 @@ func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation
 		IdempotencyKey uuid.UUID `json:"idempotency_key"`
 		CreatedAt      time.Time `json:"created_at"`
 		UserID         uuid.UUID `json:"user_id"`
-		OutputFileKey  uuid.UUID `json:"output_file_key"`
-		LogFileKey     uuid.UUID `json:"log_file_key"`
+		OutputFileKey  *string   `json:"output_file_key"`
+		LogFileKey     *string   `json:"log_file_key"`
 		ExitCode       *int      `json:"exit_code"`
 	}
 	msg := message{
@@ -346,8 +346,8 @@ func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 		IdempotencyKey uuid.UUID `db:"idempotency_key"`
 		CreatedAt      time.Time `db:"created_at"`
 		UserID         uuid.UUID `db:"user_id"`
-		OutputFileKey  uuid.UUID `db:"output_file_key"`
-		LogFileKey     uuid.UUID `db:"log_file_key"`
+		OutputFileKey  *string   `db:"output_file_key"`
+		LogFileKey     *string   `db:"log_file_key"`
 		ExitCode       *int      `db:"exit_code"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
@@ -372,7 +372,7 @@ func rowToOperationInputFile(collectableRow pgx.CollectableRow) (*OperationInput
 		ID          uuid.UUID `db:"id"`
 		OperationID uuid.UUID `db:"operation_id"`
 		Name        string    `db:"name"`
-		ContentKey  string    `db:"content_key"`
+		ContentKey  *string   `db:"content_key"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
