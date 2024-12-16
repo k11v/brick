@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"path"
 	"time"
@@ -23,14 +24,24 @@ var (
 )
 
 type Operation struct {
-	ID                uuid.UUID
-	IdempotencyKey    uuid.UUID
-	CreatedAt         time.Time
-	UserID            uuid.UUID
-	KeyFromInputFile  *map[string]string
-	OutputPDFFileKey  string
-	ProcessLogFileKey string
-	ProcessExitCode   *int
+	ID               uuid.UUID
+	IdempotencyKey   uuid.UUID
+	CreatedAt        time.Time
+	UserID           uuid.UUID
+	OutputPDFFileID  uuid.UUID
+	ProcessLogFileID uuid.UUID
+	ProcessExitCode  *int
+
+	InputFiles     []*OperationFile
+	OutputPDFFile  *OperationFile
+	ProcessLogFile *OperationFile
+}
+
+type OperationFile struct {
+	ID          uuid.UUID
+	OperationID uuid.UUID
+	Name        string
+	ContentKey  string
 }
 
 type OperationService struct {
@@ -79,7 +90,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
-	operationDirKey := fmt.Sprintf("builds/%s", operation.ID)
+	operationDirKey := fmt.Sprintf("operations/%s", operation.ID)
 	outputPDFFileKey := path.Join(operationDirKey, "output", "output.pdf")
 	processLogFileKey := path.Join(operationDirKey, "output", "process.log")
 	operation, err = updateOperation(ctx, tx, operation.ID, outputPDFFileKey, processLogFileKey)
@@ -91,32 +102,32 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 	inputDirKey := path.Join(operationDirKey, "input")
 	for file, err := range params.Files {
 		if err != nil {
-			// ...
+			panic("unimplemented")
 		}
-		operationInputFile, err := createOperationInputFile(ctx, tx, operation.ID, file.Name)
+		operationFile, err := createOperationFile(ctx, tx, operation.ID, file.Name)
 		if err != nil {
-			// ...
+			panic("unimplemented")
 		}
-		inputFileKey := path.Join(inputDirKey, operationInputFile.ID.String())
-		operationInputFile, err = updateOperationInputFile(ctx, tx, operationInputFile.ID, inputFileKey)
+		contentKey := path.Join(inputDirKey, operationFile.ID.String())
+		operationFile, err = updateOperationFile(ctx, tx, operationFile.ID, contentKey)
 		if err != nil {
-			// ...
+			panic("unimplemented")
 		}
-		err = uploadFile(ctx, s.s3, inputFileKey, file.Content)
+		err = uploadFileContent(ctx, s.s3, contentKey, file.Content)
 		if err != nil {
-			// ...
+			panic("unimplemented")
 		}
 	}
 
 	// Send operation created event to workers.
 	err = sendOperationCreated(ctx, s.mq, operation)
 	if err != nil {
-		// ...
+		panic("unimplemented")
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		// ...
+		panic("unimplemented")
 	}
 
 	return operation, nil
@@ -152,7 +163,7 @@ func lockOperations(ctx context.Context, db executor, userID uuid.UUID) error {
 func getOperationCount(ctx context.Context, db executor, userID uuid.UUID, startTime, endTime time.Time) (int, error) {
 	query := `
 		SELECT count(*)
-		FROM builds
+		FROM operations
 		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
 	`
 	args := []any{userID, startTime, endTime}
@@ -168,9 +179,9 @@ func getOperationCount(ctx context.Context, db executor, userID uuid.UUID, start
 
 func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID, userID uuid.UUID) (*Operation, error) {
 	query := `
-		INSERT INTO builds (idempotency_key, user_id)
+		INSERT INTO operations (idempotency_key, user_id)
 		VALUES ($1, $2)
-		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_key, process_log_file_key, process_exit_code
+		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_id, process_log_file_id, process_exit_code
 	`
 	args := []any{idempotencyKey, userID}
 
@@ -187,47 +198,111 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 	return b, nil
 }
 
-func updateOperation(ctx context.Context, db executor, id uuid.UUID, outputPDFFileKey string, processLogFileKey string) (*Operation, error) {
+func updateOperation(ctx context.Context, db executor, id uuid.UUID, outputPDFFileID uuid.UUID, processLogFileID uuid.UUID) (*Operation, error) {
 	query := `
-		UPDATE builds
-		SET output_pdf_file_key = $1, process_log_file_key = $2
+		UPDATE operations
+		SET output_pdf_file_id = $1, process_log_file_id = $2
 		WHERE id = $3
-		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_key, process_log_file_key, process_exit_code
+		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_id, process_log_file_id, process_exit_code
 	`
-	args := []any{outputPDFFileKey, processLogFileKey, id}
+	args := []any{outputPDFFileID, processLogFileID, id}
 
 	rows, _ := db.Query(ctx, query, args...)
-	b, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
+	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
 	if err != nil {
 		return nil, err
 	}
 
-	return b, nil
+	return o, nil
+}
+
+func createOperationFile(ctx context.Context, db executor, operationID uuid.UUID, name string) (*OperationFile, error) {
+	query := `
+		INSERT INTO operation_files (operation_id, name)
+		VALUES ($1, $2)
+		RETURNING id, operation_id, name, content_key
+	`
+	args := []any{operationID, name}
+
+	rows, _ := db.Query(ctx, query, args...)
+	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func updateOperationFile(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*OperationFile, error) {
+	query := `
+		UPDATE operation_files
+		SET content_key = $1
+		WHERE id = $2
+		RETURNING id, operation_id, name, content_key
+	`
+	args := []any{contentKey, id}
+
+	rows, _ := db.Query(ctx, query, args...)
+	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func uploadFileContent(ctx context.Context, s3Client *s3.Client, key string, content io.Reader) error {
+	return nil
+}
+
+func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation *Operation) error {
+	return nil
 }
 
 func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 	type row struct {
-		ID                uuid.UUID `db:"id"`
-		IdempotencyKey    uuid.UUID `db:"idempotency_key"`
-		CreatedAt         time.Time `db:"user_id"`
-		UserID            uuid.UUID `db:"created_at"`
-		OutputPDFFileKey  string    `db:"output_pdf_file_key"`
-		ProcessLogFileKey string    `db:"process_log_file_key"`
-		ProcessExitCode   *int      `db:"process_exit_code"`
+		ID               uuid.UUID `db:"id"`
+		IdempotencyKey   uuid.UUID `db:"idempotency_key"`
+		CreatedAt        time.Time `db:"created_at"`
+		UserID           uuid.UUID `db:"user_id"`
+		OutputPDFFileID  uuid.UUID `db:"output_pdf_file_id"`
+		ProcessLogFileID uuid.UUID `db:"process_log_file_id"`
+		ProcessExitCode  *int      `db:"process_exit_code"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
 		return nil, err
 	}
 
-	b := &Operation{
-		ID:                collectedRow.ID,
-		IdempotencyKey:    collectedRow.IdempotencyKey,
-		UserID:            collectedRow.UserID,
-		CreatedAt:         collectedRow.CreatedAt,
-		OutputPDFFileKey:  collectedRow.OutputPDFFileKey,
-		ProcessLogFileKey: collectedRow.ProcessLogFileKey,
-		ProcessExitCode:   collectedRow.ProcessExitCode,
+	o := &Operation{
+		ID:               collectedRow.ID,
+		IdempotencyKey:   collectedRow.IdempotencyKey,
+		CreatedAt:        collectedRow.CreatedAt,
+		UserID:           collectedRow.UserID,
+		OutputPDFFileID:  collectedRow.OutputPDFFileID,
+		ProcessLogFileID: collectedRow.ProcessLogFileID,
+		ProcessExitCode:  collectedRow.ProcessExitCode,
 	}
-	return b, nil
+	return o, nil
+}
+
+func rowToOperationFile(collectableRow pgx.CollectableRow) (*OperationFile, error) {
+	type row struct {
+		ID          uuid.UUID `db:"id"`
+		OperationID uuid.UUID `db:"operation_id"`
+		Name        string    `db:"name"`
+		ContentKey  string    `db:"content_key"`
+	}
+	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
+	if err != nil {
+		return nil, err
+	}
+
+	f := &OperationFile{
+		ID:          collectedRow.ID,
+		OperationID: collectedRow.OperationID,
+		Name:        collectedRow.Name,
+		ContentKey:  collectedRow.ContentKey,
+	}
+	return f, nil
 }
