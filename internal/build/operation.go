@@ -97,10 +97,28 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
+
+	// Create output and process files.
 	operationDirKey := fmt.Sprintf("operations/%s", operation.ID)
-	outputPDFFileKey := path.Join(operationDirKey, "output", "output.pdf")
-	processLogFileKey := path.Join(operationDirKey, "output", "process.log")
-	operation, err = updateOperation(ctx, tx, operation.ID, outputPDFFileKey, processLogFileKey)
+	outputPDFFile, err := createOperationFile(ctx, tx, operation.ID, "output.pdf")
+	if err != nil {
+		return nil, fmt.Errorf("build.OperationService: %w", err)
+	}
+	outputPDFFileKey := path.Join(operationDirKey, outputPDFFile.ID.String())
+	outputPDFFile, err = updateOperationFile(ctx, tx, outputPDFFile.ID, outputPDFFileKey)
+	if err != nil {
+		return nil, fmt.Errorf("build.OperationService: %w", err)
+	}
+	processLogFile, err := createOperationFile(ctx, tx, operation.ID, "process.log")
+	if err != nil {
+		return nil, fmt.Errorf("build.OperationService: %w", err)
+	}
+	processLogFileKey := path.Join(operationDirKey, processLogFile.ID.String())
+	processLogFile, err = updateOperationFile(ctx, tx, processLogFile.ID, processLogFileKey)
+	if err != nil {
+		return nil, fmt.Errorf("build.OperationService: %w", err)
+	}
+	operation, err = updateOperation(ctx, tx, operation.ID, outputPDFFile.ID, processLogFile.ID)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
@@ -120,6 +138,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		if err != nil {
 			panic("unimplemented")
 		}
+		_ = operationFile
 		err = uploadFileContent(ctx, s.s3, contentKey, file.Content)
 		if err != nil {
 			panic("unimplemented")
