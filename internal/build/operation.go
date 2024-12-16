@@ -27,7 +27,7 @@ type Operation struct {
 	IdempotencyKey    uuid.UUID
 	CreatedAt         time.Time
 	UserID            uuid.UUID
-	InputDirPrefix    string
+	KeyFromInputFile  *map[string]string
 	OutputPDFFileKey  string
 	ProcessLogFileKey string
 	ProcessExitCode   *int
@@ -43,7 +43,7 @@ type OperationService struct {
 
 type OperationServiceCreateParams struct {
 	UserID         uuid.UUID
-	Files          iter.Seq2[File, error]
+	Files          iter.Seq2[*File, error]
 	IdempotencyKey uuid.UUID
 }
 
@@ -56,11 +56,13 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		_ = tx.Rollback(ctx)
 	}()
 
-	err = lockBuilds(ctx, tx, params.UserID)
+	// Lock operations to get their count.
+	err = lockOperations(ctx, tx, params.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
 
+	// Check daily quota.
 	todayStartTime := time.Now().UTC().Truncate(24 * time.Hour)
 	todayEndTime := todayStartTime.Add(24 * time.Hour)
 	operationsUsed, err := getOperationCount(ctx, tx, params.UserID, todayStartTime, todayEndTime)
@@ -72,18 +74,52 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
 
-	id := uuid.New()
-	operationDirPrefix := fmt.Sprintf("builds/%s", id)
-	inputDirPrefix := path.Join(operationDirPrefix, "input")
-	outputPDFFileKey := path.Join(operationDirPrefix, "output", "output.pdf")
-	processLogFileKey := path.Join(operationDirPrefix, "output", "process.log")
-	operation, err := createOperation(ctx, tx, id, params.IdempotencyKey, params.UserID, inputDirPrefix, outputPDFFileKey, processLogFileKey)
+	// Create operation.
+	operation, err := createOperation(ctx, tx, params.IdempotencyKey, params.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
-	_ = operation
+	operationDirKey := fmt.Sprintf("builds/%s", operation.ID)
+	outputPDFFileKey := path.Join(operationDirKey, "output", "output.pdf")
+	processLogFileKey := path.Join(operationDirKey, "output", "process.log")
+	operation, err = updateOperation(ctx, tx, operation.ID, outputPDFFileKey, processLogFileKey)
+	if err != nil {
+		return nil, fmt.Errorf("build.OperationService: %w", err)
+	}
 
-	return &Operation{}, nil
+	// Create input files and upload their content to object storage.
+	inputDirKey := path.Join(operationDirKey, "input")
+	for file, err := range params.Files {
+		if err != nil {
+			// ...
+		}
+		operationInputFile, err := createOperationInputFile(ctx, tx, operation.ID, file.Name)
+		if err != nil {
+			// ...
+		}
+		inputFileKey := path.Join(inputDirKey, operationInputFile.ID.String())
+		operationInputFile, err = updateOperationInputFile(ctx, tx, operationInputFile.ID, inputFileKey)
+		if err != nil {
+			// ...
+		}
+		err = uploadFile(ctx, s.s3, inputFileKey, file.Content)
+		if err != nil {
+			// ...
+		}
+	}
+
+	// Send operation created event to workers.
+	err = sendOperationCreated(ctx, s.mq, operation)
+	if err != nil {
+		// ...
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		// ...
+	}
+
+	return operation, nil
 }
 
 type executor interface {
@@ -94,7 +130,7 @@ type executor interface {
 	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
 
-func lockBuilds(ctx context.Context, db executor, userID uuid.UUID) error {
+func lockOperations(ctx context.Context, db executor, userID uuid.UUID) error {
 	query := `
 		INSERT INTO user_locks (user_id)
 		VALUES ($1)
@@ -130,13 +166,13 @@ func getOperationCount(ctx context.Context, db executor, userID uuid.UUID, start
 	return count, nil
 }
 
-func createOperation(ctx context.Context, db executor, id uuid.UUID, idempotencyKey uuid.UUID, userID uuid.UUID, inputDirPrefix string, outputPDFFileKey string, processLogFileKey string) (*Operation, error) {
+func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID, userID uuid.UUID) (*Operation, error) {
 	query := `
-		INSERT INTO builds (id, idempotency_key, user_id, input_dir_prefix, output_pdf_file_key, process_log_file_key)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, idempotency_key, user_id, created_at, input_dir_prefix, output_pdf_file_key, process_log_file_key, process_exit_code
+		INSERT INTO builds (idempotency_key, user_id)
+		VALUES ($1, $2)
+		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_key, process_log_file_key, process_exit_code
 	`
-	args := []any{id, idempotencyKey, userID, inputDirPrefix, outputPDFFileKey, processLogFileKey}
+	args := []any{idempotencyKey, userID}
 
 	// TODO: Study pgconn.PgError.ColumnName.
 	rows, _ := db.Query(ctx, query, args...)
@@ -151,13 +187,30 @@ func createOperation(ctx context.Context, db executor, id uuid.UUID, idempotency
 	return b, nil
 }
 
+func updateOperation(ctx context.Context, db executor, id uuid.UUID, outputPDFFileKey string, processLogFileKey string) (*Operation, error) {
+	query := `
+		UPDATE builds
+		SET output_pdf_file_key = $1, process_log_file_key = $2
+		WHERE id = $3
+		RETURNING id, idempotency_key, user_id, created_at, output_pdf_file_key, process_log_file_key, process_exit_code
+	`
+	args := []any{outputPDFFileKey, processLogFileKey, id}
+
+	rows, _ := db.Query(ctx, query, args...)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 	type row struct {
 		ID                uuid.UUID `db:"id"`
 		IdempotencyKey    uuid.UUID `db:"idempotency_key"`
 		CreatedAt         time.Time `db:"user_id"`
 		UserID            uuid.UUID `db:"created_at"`
-		InputDirPrefix    string    `db:"input_dir_prefix"`
 		OutputPDFFileKey  string    `db:"output_pdf_file_key"`
 		ProcessLogFileKey string    `db:"process_log_file_key"`
 		ProcessExitCode   *int      `db:"process_exit_code"`
@@ -172,7 +225,6 @@ func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 		IdempotencyKey:    collectedRow.IdempotencyKey,
 		UserID:            collectedRow.UserID,
 		CreatedAt:         collectedRow.CreatedAt,
-		InputDirPrefix:    collectedRow.InputDirPrefix,
 		OutputPDFFileKey:  collectedRow.OutputPDFFileKey,
 		ProcessLogFileKey: collectedRow.ProcessLogFileKey,
 		ProcessExitCode:   collectedRow.ProcessExitCode,
