@@ -105,7 +105,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
 	outputPDFFileKey := path.Join(operationDirKey, outputPDFFile.ID.String())
-	outputPDFFile, err = updateOperationFile(ctx, tx, outputPDFFile.ID, outputPDFFileKey)
+	outputPDFFile, err = updateOperationFileContentKey(ctx, tx, outputPDFFile.ID, outputPDFFileKey)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
@@ -114,11 +114,11 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
 	processLogFileKey := path.Join(operationDirKey, processLogFile.ID.String())
-	processLogFile, err = updateOperationFile(ctx, tx, processLogFile.ID, processLogFileKey)
+	processLogFile, err = updateOperationFileContentKey(ctx, tx, processLogFile.ID, processLogFileKey)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
-	operation, err = updateOperation(ctx, tx, operation.ID, outputPDFFile.ID, processLogFile.ID)
+	operation, err = updateOperationFileIDs(ctx, tx, operation.ID, outputPDFFile.ID, processLogFile.ID)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)
 	}
@@ -134,7 +134,7 @@ func (s *OperationService) Create(ctx context.Context, params *OperationServiceC
 			panic("unimplemented")
 		}
 		contentKey := path.Join(inputDirKey, operationFile.ID.String())
-		operationFile, err = updateOperationFile(ctx, tx, operationFile.ID, contentKey)
+		operationFile, err = updateOperationFileContentKey(ctx, tx, operationFile.ID, contentKey)
 		if err != nil {
 			panic("unimplemented")
 		}
@@ -224,7 +224,7 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 	return b, nil
 }
 
-func updateOperation(ctx context.Context, db executor, id uuid.UUID, outputPDFFileID uuid.UUID, processLogFileID uuid.UUID) (*Operation, error) {
+func updateOperationFileIDs(ctx context.Context, db executor, id uuid.UUID, outputPDFFileID uuid.UUID, processLogFileID uuid.UUID) (*Operation, error) {
 	query := `
 		UPDATE operations
 		SET output_pdf_file_id = $1, process_log_file_id = $2
@@ -259,7 +259,7 @@ func createOperationFile(ctx context.Context, db executor, operationID uuid.UUID
 	return f, nil
 }
 
-func updateOperationFile(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*OperationFile, error) {
+func updateOperationFileContentKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*OperationFile, error) {
 	query := `
 		UPDATE operation_files
 		SET content_key = $1
