@@ -9,13 +9,18 @@ import (
 	"path"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
+
+	"github.com/k11v/brick/internal/buildtask"
+	"github.com/k11v/brick/internal/run/runs3"
 )
 
 var (
@@ -251,7 +256,35 @@ func updateOperationFile(ctx context.Context, db executor, id uuid.UUID, content
 	return f, nil
 }
 
+// uploadPartSize should be greater than or equal 5MB.
+// See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
+const uploadPartSize = 10 * 1024 * 1024 // 10MB
+
 func uploadFileContent(ctx context.Context, s3Client *s3.Client, key string, content io.Reader) error {
+	uploader := manager.NewUploader(s3Client, func(u *manager.Uploader) {
+		u.PartSize = uploadPartSize
+	})
+
+	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket: &runs3.BucketName,
+		Key:    &key,
+		Body:   content,
+	})
+	if err != nil {
+		if apiErr := smithy.APIError(nil); errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
+			err = errors.Join(buildtask.FileTooLarge, err)
+		}
+		return err
+	}
+
+	err = s3.NewObjectExistsWaiter(s3Client).Wait(ctx, &s3.HeadObjectInput{
+		Bucket: &runs3.BucketName,
+		Key:    &key,
+	}, time.Minute)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
