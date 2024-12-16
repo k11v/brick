@@ -102,6 +102,7 @@ func newServer(conf *config) *http.Server {
 
 		db, err := runpg.NewPool(r.Context(), "postgres://postgres:postgres@127.0.0.1:5432/postgres")
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -109,6 +110,7 @@ func newServer(conf *config) *http.Server {
 
 		mq, err := amqp091.Dial("amqp://guest:guest@127.0.0.1:5672/")
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -118,13 +120,14 @@ func newServer(conf *config) *http.Server {
 
 		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
 
-		operationService := build.NewOperationService(db, mq, s3Client)
+		operationService := build.NewOperationService(db, mq, s3Client, 10)
 		operation, err := operationService.Create(r.Context(), &build.OperationServiceCreateParams{
 			UserID:         uuid.New(),
 			Files:          files,
 			IdempotencyKey: uuid.New(),
 		})
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -133,7 +136,7 @@ func newServer(conf *config) *http.Server {
 		w.WriteHeader(http.StatusOK)
 		err = writeTemplate(w, "build", nil, "main.tmpl")
 		if err != nil {
-			slog.Error("failed", "err", err)
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			err = writeErrorPage(w, http.StatusInternalServerError)
 			if err != nil {

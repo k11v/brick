@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS operations (
     idempotency_key uuid NOT NULL,
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    output_file_key text NOT NULL,
-    log_file_key text NOT NULL,
+    output_file_key text, -- NULL when inserted, then updated to be non-NULL
+    log_file_key text, -- NULL when inserted, then updated to be non-NULL
     exit_code integer,
     PRIMARY KEY (id)
 );
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS operation_input_files (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     operation_id uuid NOT NULL,
     name text NOT NULL,
-    content_key text NOT NULL, -- TODO: NULL?
+    content_key text, -- NULL when inserted, then updated to be non-NULL
     PRIMARY KEY (id),
     FOREIGN KEY (operation_id) REFERENCES operations (id)
 );
