@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"html/template"
@@ -61,9 +62,25 @@ func newServer(conf *config) *http.Server {
 
 		mr := multipart.NewReader(r.Body, boundary)
 		var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
-			fileIndex := 0
-			for {
-				namePart, err := mr.NextPart()
+			peekedPart, peekedErr, peeked := (*multipart.Part)(nil), error(nil), false
+			nextPart := func() (*multipart.Part, error) {
+				if peeked {
+					peeked = false
+					return peekedPart, peekedErr
+				}
+				return mr.NextPart()
+			}
+			peekPart := func() (*multipart.Part, error) {
+				if peeked {
+					return peekedPart, peekedErr
+				}
+				peekedPart, peekedErr = mr.NextPart()
+				peeked = true
+				return peekedPart, peekedErr
+			}
+
+			for fileIndex := 0; ; fileIndex++ {
+				namePart, err := nextPart()
 				if err != nil {
 					if errors.Is(err, io.EOF) {
 						return
@@ -72,7 +89,7 @@ func newServer(conf *config) *http.Server {
 					return
 				}
 				if namePart.FormName() != fmt.Sprintf("files/%d/name", fileIndex) {
-					_ = yield(nil, fmt.Errorf("want %d file index", fileIndex))
+					_ = yield(nil, fmt.Errorf("want file index %d", fileIndex))
 					return
 				}
 				nameBytes, err := io.ReadAll(namePart)
@@ -80,23 +97,31 @@ func newServer(conf *config) *http.Server {
 					_ = yield(nil, err)
 					return
 				}
+				name := string(nameBytes)
 
-				contentPart, err := mr.NextPart()
+				nameOrContentPart, err := peekPart()
+				if err == nil {
+					if nameOrContentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
+						file := &build.File{Name: name, Content: bytes.NewReader(nil)}
+						_ = yield(file, nil)
+						continue
+					}
+				}
+				contentPart, err := nextPart()
 				if err != nil {
+					if errors.Is(err, io.EOF) {
+						file := &build.File{Name: name, Content: bytes.NewReader(nil)}
+						_ = yield(file, nil)
+						return
+					}
 					_ = yield(nil, err)
 					return
 				}
-				if contentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
-					_ = yield(nil, fmt.Errorf("want %d file index", fileIndex))
-					return
-				}
 
-				file := &build.File{Name: string(nameBytes), Content: contentPart}
+				file := &build.File{Name: name, Content: contentPart}
 				if !yield(file, nil) {
 					return
 				}
-
-				fileIndex++
 			}
 		}
 
