@@ -41,6 +41,7 @@ func run() error {
 
 	retries := 0
 
+	slog.Info("starting worker")
 	for {
 		consumeErr := func() error {
 			conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
