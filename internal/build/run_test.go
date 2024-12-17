@@ -71,6 +71,5 @@ Text with кириллица.
 		if got := result.LogFile; got == "" {
 			t.Error("got empty LogFile")
 		}
-		t.Log("breakpoint")
 	})
 }
