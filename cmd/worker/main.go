@@ -70,6 +70,7 @@ func run() error {
 				return err
 			}
 
+			slog.Info("starting consuming")
 			for msg := range msgs {
 				slog.Default().Info("received", "msg", string(msg.Body))
 
