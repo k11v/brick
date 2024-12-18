@@ -65,10 +65,10 @@ type OperationCreatorCreateParams struct {
 	IdempotencyKey uuid.UUID
 }
 
-func (s *OperationCreator) Create(ctx context.Context, params *OperationCreatorCreateParams) (*Operation, error) {
-	tx, err := s.db.Begin(ctx)
+func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorCreateParams) (*Operation, error) {
+	tx, err := c.db.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
+		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
@@ -77,7 +77,7 @@ func (s *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 	// Lock operations to get their count.
 	err = lockOperations(ctx, tx, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
+		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
 
 	// Check daily quota.
@@ -85,17 +85,17 @@ func (s *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 	todayEndTime := todayStartTime.Add(24 * time.Hour)
 	operationsUsed, err := getOperationCount(ctx, tx, params.UserID, todayStartTime, todayEndTime)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
+		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
-	if operationsUsed >= s.operationsAllowed {
+	if operationsUsed >= c.operationsAllowed {
 		err = ErrLimitExceeded
-		return nil, fmt.Errorf("build.OperationService: %w", err)
+		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
 
 	// Create operation.
 	operation, err := createOperation(ctx, tx, params.IdempotencyKey, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
+		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
 
 	// Create object storage keys for output and log files.
@@ -104,7 +104,7 @@ func (s *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 	logFileKey := path.Join(operationDirKey, "log")
 	operation, err = updateOperationContentKeys(ctx, tx, operation.ID, outputFileKey, logFileKey)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationService: %w", err)
+		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
 
 	// Create input files and upload their content to object storage.
@@ -123,14 +123,14 @@ func (s *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 			panic("unimplemented")
 		}
 		_ = operationInputFile
-		err = uploadFileContent(ctx, s.s3, contentKey, file.Content)
+		err = uploadFileContent(ctx, c.s3, contentKey, file.Content)
 		if err != nil {
 			panic("unimplemented")
 		}
 	}
 
 	// Send operation created event to workers.
-	err = sendOperationCreated(ctx, s.mq, operation)
+	err = sendOperationCreated(ctx, c.mq, operation)
 	if err != nil {
 		panic("unimplemented")
 	}
