@@ -47,7 +47,7 @@ type OperationInputFile struct {
 	ContentKey  *string
 }
 
-type OperationService struct {
+type OperationCreator struct {
 	db *pgxpool.Pool
 	mq *amqp091.Connection
 	s3 *s3.Client
@@ -55,17 +55,17 @@ type OperationService struct {
 	operationsAllowed int
 }
 
-func NewOperationService(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, operationsAllowed int) *OperationService {
-	return &OperationService{db: db, mq: mq, s3: s3Client, operationsAllowed: operationsAllowed}
+func NewOperationCreator(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, operationsAllowed int) *OperationCreator {
+	return &OperationCreator{db: db, mq: mq, s3: s3Client, operationsAllowed: operationsAllowed}
 }
 
-type OperationServiceCreateParams struct {
+type OperationCreatorCreateParams struct {
 	UserID         uuid.UUID
 	Files          iter.Seq2[*File, error]
 	IdempotencyKey uuid.UUID
 }
 
-func (s *OperationService) Create(ctx context.Context, params *OperationServiceCreateParams) (*Operation, error) {
+func (s *OperationCreator) Create(ctx context.Context, params *OperationCreatorCreateParams) (*Operation, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationService: %w", err)

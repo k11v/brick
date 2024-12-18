@@ -145,8 +145,8 @@ func newServer(conf *config) *http.Server {
 
 		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
 
-		operationService := build.NewOperationService(db, mq, s3Client, 10)
-		operation, err := operationService.Create(r.Context(), &build.OperationServiceCreateParams{
+		operationService := build.NewOperationCreator(db, mq, s3Client, 10)
+		operation, err := operationService.Create(r.Context(), &build.OperationCreatorCreateParams{
 			UserID:         uuid.New(),
 			Files:          files,
 			IdempotencyKey: uuid.New(),
