@@ -102,7 +102,7 @@ func newServer(conf *config) *http.Server {
 				nameOrContentPart, err := peekPart()
 				if err == nil {
 					if nameOrContentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
-						file := &build.File{Name: name, Content: bytes.NewReader(nil)}
+						file := &build.File{Name: name, Data: bytes.NewReader(nil)}
 						_ = yield(file, nil)
 						continue
 					}
@@ -110,7 +110,7 @@ func newServer(conf *config) *http.Server {
 				contentPart, err := nextPart()
 				if err != nil {
 					if errors.Is(err, io.EOF) {
-						file := &build.File{Name: name, Content: bytes.NewReader(nil)}
+						file := &build.File{Name: name, Data: bytes.NewReader(nil)}
 						_ = yield(file, nil)
 						return
 					}
@@ -118,7 +118,7 @@ func newServer(conf *config) *http.Server {
 					return
 				}
 
-				file := &build.File{Name: name, Content: contentPart}
+				file := &build.File{Name: name, Data: contentPart}
 				if !yield(file, nil) {
 					return
 				}

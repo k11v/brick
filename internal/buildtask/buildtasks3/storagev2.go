@@ -55,7 +55,7 @@ func (s *Storage) UploadDirV2(ctx context.Context, prefix string, files iter.Seq
 		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 			Bucket: &runs3.BucketName,
 			Key:    &key,
-			Body:   file.Content,
+			Body:   file.Data,
 		})
 		if err != nil {
 			if apiErr := smithy.APIError(nil); errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {

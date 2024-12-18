@@ -123,7 +123,7 @@ func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 			panic("unimplemented")
 		}
 		_ = operationInputFile
-		err = uploadFileContent(ctx, c.s3, contentKey, file.Content)
+		err = uploadFileContent(ctx, c.s3, contentKey, file.Data)
 		if err != nil {
 			panic("unimplemented")
 		}
@@ -197,7 +197,7 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 
 	// TODO: Study pgconn.PgError.ColumnName.
 	rows, _ := db.Query(ctx, query, args...)
-	b, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
+	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
 	if err != nil {
 		if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) && pgErr.ColumnName == "idempotency_key" {
 			err = ErrIdempotencyKeyAlreadyUsed
@@ -205,7 +205,7 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 		return nil, err
 	}
 
-	return b, nil
+	return o, nil
 }
 
 func updateOperationContentKeys(ctx context.Context, db executor, id uuid.UUID, outputFileKey string, logFileKey string) (*Operation, error) {
