@@ -7,16 +7,20 @@ import (
 	"math/rand/v2"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 )
 
-type Worker struct{}
+type Worker struct {
+	DB *pgxpool.Pool // required
+	S3 *s3.Client    // required
+}
 
-func (*Worker) Run() error {
+func (w *Worker) Run() error {
 	ctx := context.Background()
 
 	retries := 0
-
 	for {
 		consumeErr := func() error {
 			conn, err := amqp091.Dial("amqp://guest:guest@localhost:5672/")
@@ -40,42 +44,24 @@ func (*Worker) Run() error {
 				return err
 			}
 
-			msgs, err := ch.Consume(q.Name, "", false, false, false, false, nil)
+			messages, err := ch.Consume(q.Name, "", false, false, false, false, nil)
 			if err != nil {
 				return err
 			}
 
 			slog.Info("starting consuming")
-			for msg := range msgs {
-				slog.Default().Info("received", "msg", string(msg.Body))
-
-				// TODO:
-				// Good handler must call msg.Ack, msg.Nack, or msg.Reject.
-				// These methods can fail and when they do, the channel
-				// becomes invalid which LIKELY means it closes.
-				// In this case We MAYBE need to range over the msgs
-				// until the end and drop every msg we encounter
-				// to prevent memory leaks or deadlocks.
-				// The handler should not be called when we do this.
-				// Right now we also rely on the channel not being closed
-				// after message acknowledgement to reset retries.
-				// Better API would MAYBE automatically issue a msg.Reject
-				// when the handler forgets to acknowledge do anything.
-				func(msg amqp091.Delivery) {
-					if err = msg.Ack(false); err != nil {
-						slog.Default().Error("didn't acknowledge", "err", err)
-					}
-				}(msg)
-
+			for m := range messages {
+				handler := &Handler{DB: w.DB, S3: w.S3}
+				handler.Run(m)
 				if retries > 0 && !ch.IsClosed() {
-					slog.Default().Info("recovered", "retries", retries)
+					slog.Info("recovered", "retries", retries)
 					retries = 0
 				}
 			}
 
 			return errors.New("delivery channel is closed")
 		}()
-		slog.Default().Error("didn't consume", "err", consumeErr)
+		slog.Error("didn't consume", "err", consumeErr)
 
 		retries++
 		select {
@@ -83,7 +69,7 @@ func (*Worker) Run() error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-		slog.Default().Info("retrying", "retries", retries)
+		slog.Info("retrying", "retries", retries)
 	}
 }
 

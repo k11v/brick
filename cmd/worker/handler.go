@@ -22,8 +22,8 @@ const (
 )
 
 type Handler struct {
-	db *pgxpool.Pool
-	s3 *s3.Client
+	DB *pgxpool.Pool // required
+	S3 *s3.Client    // required
 }
 
 func (h *Handler) Run(m amqp091.Delivery) {
@@ -67,7 +67,7 @@ func (h *Handler) Run(m amqp091.Delivery) {
 	}
 	id := *msg.ID
 
-	operationRunner := build.NewOperationRunner(h.db, h.s3)
+	operationRunner := &build.OperationRunner{DB: h.DB, S3: h.S3}
 	_, err = operationRunner.Run(ctx, &build.OperationRunnerRunParams{ID: id})
 	if err != nil {
 		slog.Error("", "err", err)
