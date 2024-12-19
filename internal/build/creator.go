@@ -65,6 +65,11 @@ type OperationCreatorCreateParams struct {
 	IdempotencyKey uuid.UUID
 }
 
+type File struct {
+	Name string
+	Data io.Reader
+}
+
 func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorCreateParams) (*Operation, error) {
 	tx, err := c.db.Begin(ctx)
 	if err != nil {
