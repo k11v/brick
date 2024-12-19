@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"iter"
 	"os"
 	"path/filepath"
 
@@ -52,44 +51,24 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 		_ = os.RemoveAll(tempDir)
 	}()
 
-	// Download input files from object storage to memory.
-	var inputFiles iter.Seq2[*File, error] = func(yield func(*File, error) bool) {
-		for _, operationInputFile := range operationInputFiles {
-			pr, pw := io.Pipe()
-			err = downloadFileContent(ctx, r.s3, pw, *operationInputFile.ContentKey)
-			if err != nil {
-				_ = yield(nil, err)
-				return
-			}
-			inputFile := &File{Name: operationInputFile.Name, Data: pr}
-			if !yield(inputFile, nil) {
-				return
-			}
-		}
-	}
-
-	// Write input files from memory to disk.
+	// Download input files from object storage to disk
 	inputDir := filepath.Join(tempDir, "input")
 	err = os.MkdirAll(inputDir, 0o777)
 	if err != nil {
 		return nil, fmt.Errorf("OperationRunner.Run: %w", err)
 	}
-	for file, err := range inputFiles {
-		if err != nil {
-			return nil, fmt.Errorf("OperationRunner.Run: %w", err)
-		}
-		writeFile := func(name string, data io.Reader) error {
-			file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+	for _, operationInputFile := range operationInputFiles {
+		downloadFile := func(fileName string, objectKey string) error {
+			openFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 			if err != nil {
 				return err
 			}
-			defer file.Close()
+			defer openFile.Close()
 
-			_, err = io.Copy(file, data)
-			return err
+			return downloadFileContent(ctx, r.s3, openFile, objectKey)
 		}
-		inputFile := filepath.Join(inputDir, file.Name)
-		err = writeFile(inputFile, file.Data)
+		inputFile := filepath.Join(inputDir, operationInputFile.Name)
+		err = downloadFile(inputFile, *operationInputFile.ContentKey)
 		if err != nil {
 			return nil, fmt.Errorf("OperationRunner.Run: %w", err)
 		}
@@ -105,28 +84,23 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
 
-	// Read PDF and log files from disk to memory.
-	openPDFFile, err := os.Open(runResult.PDFFile)
-	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
-	}
-	defer func() {
-		_ = openPDFFile.Close()
-	}()
-	openLogFile, err := os.Open(runResult.LogFile)
-	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
-	}
-	defer func() {
-		_ = openLogFile.Close()
-	}()
+	// Upload PDF and log files from disk to object storage.
+	uploadFile := func(objectKey string, fileName string) error {
+		openFile, err := os.Open(fileName)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = openFile.Close()
+		}()
 
-	// Upload PDF and log files from memory to object storage.
-	err = uploadFileContent(ctx, r.s3, *operation.OutputFileKey, openPDFFile)
+		return uploadFileContent(ctx, r.s3, objectKey, openFile)
+	}
+	err = uploadFile(*operation.OutputFileKey, runResult.PDFFile)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
-	err = uploadFileContent(ctx, r.s3, *operation.LogFileKey, openLogFile)
+	err = uploadFile(*operation.LogFileKey, runResult.LogFile)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
