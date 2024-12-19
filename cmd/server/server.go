@@ -44,7 +44,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			}
 		}
 	})
-	mux.HandleFunc("POST /build-create-form", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /build-div/build-create-form", func(w http.ResponseWriter, r *http.Request) {
 		mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if err != nil {
 			w.WriteHeader(http.StatusUnprocessableEntity)
