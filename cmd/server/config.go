@@ -6,7 +6,6 @@ type config struct {
 	Host              string // default: "127.0.0.1"
 	Port              int    // default: 8080
 	ReadHeaderTimeout time.Duration
-	Development       bool
 }
 
 func (cfg *config) host() string {
