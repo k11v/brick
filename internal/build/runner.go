@@ -17,12 +17,8 @@ import (
 )
 
 type OperationRunner struct {
-	db *pgxpool.Pool
-	s3 *s3.Client
-}
-
-func NewOperationRunner(db *pgxpool.Pool, s3Client *s3.Client) *OperationRunner {
-	return &OperationRunner{db: db, s3: s3Client}
+	DB *pgxpool.Pool // required
+	S3 *s3.Client    // required
 }
 
 type OperationRunnerRunParams struct {
@@ -31,13 +27,13 @@ type OperationRunnerRunParams struct {
 
 func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunParams) (*Operation, error) {
 	// Get operation.
-	operation, err := getOperation(ctx, r.db, params.ID)
+	operation, err := getOperation(ctx, r.DB, params.ID)
 	if err != nil {
 		return nil, fmt.Errorf("OperationRunner.Run: %w", err)
 	}
 
 	// Get operation input files.
-	operationInputFiles, err := getOperationInputFiles(ctx, r.db, operation.ID)
+	operationInputFiles, err := getOperationInputFiles(ctx, r.DB, operation.ID)
 	if err != nil {
 		return nil, fmt.Errorf("OperationRunner.Run: %w", err)
 	}
@@ -65,7 +61,7 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 			}
 			defer openFile.Close()
 
-			return downloadFileContent(ctx, r.s3, openFile, objectKey)
+			return downloadFileContent(ctx, r.S3, openFile, objectKey)
 		}
 		inputFile := filepath.Join(inputDir, operationInputFile.Name)
 		err = downloadFile(inputFile, *operationInputFile.ContentKey)
@@ -94,7 +90,7 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 			_ = openFile.Close()
 		}()
 
-		return uploadFileContent(ctx, r.s3, objectKey, openFile)
+		return uploadFileContent(ctx, r.S3, objectKey, openFile)
 	}
 	err = uploadFile(*operation.OutputFileKey, runResult.PDFFile)
 	if err != nil {
@@ -106,7 +102,7 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 	}
 
 	// Update operation exit code.
-	operation, err = updateOperationExitCode(ctx, r.db, operation.ID, runResult.ExitCode)
+	operation, err = updateOperationExitCode(ctx, r.DB, operation.ID, runResult.ExitCode)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
