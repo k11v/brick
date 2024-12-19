@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/k11v/brick/internal/run/runs3"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type OperationRunner struct {
 	DB *pgxpool.Pool // required
@@ -125,6 +128,9 @@ func getOperation(ctx context.Context, db executor, id uuid.UUID) (*Operation, e
 	rows, _ := db.Query(ctx, query, args...)
 	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 
