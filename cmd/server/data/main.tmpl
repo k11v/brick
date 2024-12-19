@@ -10,6 +10,18 @@
 </div>
 {{end}}
 
+{{define "buildDiv"}}
+<div>
+  <h2>Queued (buildDiv)</h2>
+  <div>
+    <div>2:30 PM</div>
+    <div>7 files</div>
+  </div>
+  <p>The build is queued.</p>
+  <button type="button" class="block">Cancel</button>
+</div>
+{{end}}
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -49,6 +61,7 @@
         </section>
         <button type="submit" class="block">Build</button>
       </form>
+      <button type="button" hx-get="/build-div" hx-target="#result" class="block">Get</button>
       <div id="result"></div>
     </main>
     <footer>

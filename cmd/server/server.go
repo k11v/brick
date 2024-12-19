@@ -149,6 +149,15 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			}
 		}
 	})
+	mux.HandleFunc("GET /build-div", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		err := writeTemplate(w, "buildDiv", struct{}{}, "main.tmpl")
+		if err != nil {
+			slog.Error("", "err", err)
+			return
+		}
+	})
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(dataFS)))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
