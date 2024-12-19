@@ -51,6 +51,7 @@ func (w *Worker) Run() error {
 
 			slog.Info("starting consuming")
 			for m := range messages {
+				slog.Info("received message")
 				handler := &Handler{DB: w.DB, S3: w.S3}
 				handler.Run(m)
 				if retries > 0 && !ch.IsClosed() {
