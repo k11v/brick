@@ -48,15 +48,11 @@ type OperationInputFile struct {
 }
 
 type OperationCreator struct {
-	db *pgxpool.Pool
-	mq *amqp091.Connection
-	s3 *s3.Client
+	DB *pgxpool.Pool       // required
+	MQ *amqp091.Connection // required
+	S3 *s3.Client          // required
 
-	operationsAllowed int
-}
-
-func NewOperationCreator(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, operationsAllowed int) *OperationCreator {
-	return &OperationCreator{db: db, mq: mq, s3: s3Client, operationsAllowed: operationsAllowed}
+	OperationsAllowed int
 }
 
 type OperationCreatorCreateParams struct {
@@ -71,7 +67,7 @@ type File struct {
 }
 
 func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorCreateParams) (*Operation, error) {
-	tx, err := c.db.Begin(ctx)
+	tx, err := c.DB.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
@@ -92,7 +88,7 @@ func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 	if err != nil {
 		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
-	if operationsUsed >= c.operationsAllowed {
+	if operationsUsed >= c.OperationsAllowed {
 		err = ErrLimitExceeded
 		return nil, fmt.Errorf("build.OperationCreator: %w", err)
 	}
@@ -128,14 +124,14 @@ func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 			panic("unimplemented")
 		}
 		_ = operationInputFile
-		err = uploadFileContent(ctx, c.s3, contentKey, file.Data)
+		err = uploadFileContent(ctx, c.S3, contentKey, file.Data)
 		if err != nil {
 			panic("unimplemented")
 		}
 	}
 
 	// Send operation created event to workers.
-	err = sendOperationCreated(ctx, c.mq, operation)
+	err = sendOperationCreated(ctx, c.MQ, operation)
 	if err != nil {
 		panic("unimplemented")
 	}

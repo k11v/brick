@@ -125,8 +125,8 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			}
 		}
 
-		operationService := build.NewOperationCreator(db, mq, s3Client, 10)
-		operation, err := operationService.Create(r.Context(), &build.OperationCreatorCreateParams{
+		operationCreator := &build.OperationCreator{DB: db, MQ: mq, S3: s3Client, OperationsAllowed: 10}
+		operation, err := operationCreator.Create(r.Context(), &build.OperationCreatorCreateParams{
 			UserID:         uuid.New(),
 			Files:          files,
 			IdempotencyKey: uuid.New(),
