@@ -3,7 +3,6 @@ package main
 import (
 	"embed"
 	"io/fs"
-	"os"
 )
 
 //go:embed data
@@ -17,7 +16,4 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-
-	// TODO: Remove.
-	dataFS = os.DirFS("cmd/html-server/data")
 }
