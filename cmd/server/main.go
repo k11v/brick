@@ -1,21 +1,47 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/rabbitmq/amqp091-go"
+
+	"github.com/k11v/brick/internal/run/runpg"
+	"github.com/k11v/brick/internal/run/runs3"
 )
 
 func main() {
-	server := newServer(&config{})
+	run := func() int {
+		ctx := context.Background()
 
-	slog.Info("starting server", "addr", server.Addr)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		db, err := runpg.NewPool(ctx, "postgres://postgres:postgres@127.0.0.1:5432/postgres")
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+		defer db.Close()
+		mq, err := amqp091.Dial("amqp://guest:guest@127.0.0.1:5672/")
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+		defer func() {
+			_ = mq.Close()
+		}()
+		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
+		server := newServer(db, mq, s3Client, &config{})
+
+		slog.Info("starting server", "addr", server.Addr)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+
+		return 0
 	}
-
-	os.Exit(0)
+	os.Exit(run())
 }

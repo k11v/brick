@@ -15,17 +15,17 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 
 	"github.com/k11v/brick/internal/build"
-	"github.com/k11v/brick/internal/run/runpg"
-	"github.com/k11v/brick/internal/run/runs3"
 )
 
 var templateFuncs = make(template.FuncMap)
 
-func newServer(conf *config) *http.Server {
+func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, conf *config) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
 	subLogger := slog.Default().With("component", "server")
@@ -124,26 +124,6 @@ func newServer(conf *config) *http.Server {
 				}
 			}
 		}
-
-		db, err := runpg.NewPool(r.Context(), "postgres://postgres:postgres@127.0.0.1:5432/postgres")
-		if err != nil {
-			slog.Error("", "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer db.Close()
-
-		mq, err := amqp091.Dial("amqp://guest:guest@127.0.0.1:5672/")
-		if err != nil {
-			slog.Error("", "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer func() {
-			_ = mq.Close()
-		}()
-
-		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
 
 		operationService := build.NewOperationCreator(db, mq, s3Client, 10)
 		operation, err := operationService.Create(r.Context(), &build.OperationCreatorCreateParams{
