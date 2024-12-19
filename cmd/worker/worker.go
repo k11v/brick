@@ -54,6 +54,7 @@ func (w *Worker) Run() error {
 				slog.Info("received message")
 				handler := &Handler{DB: w.DB, S3: w.S3}
 				handler.Run(m)
+				slog.Info("handled message")
 				if retries > 0 && !ch.IsClosed() {
 					slog.Info("recovered", "retries", retries)
 					retries = 0
