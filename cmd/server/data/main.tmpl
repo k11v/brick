@@ -1,24 +1,31 @@
-{{define "build"}}
-<div>
-  <h2>Queued</h2>
-  <div>
-    <div>2:30 PM</div>
-    <div>7 files</div>
-  </div>
-  <p>The build is queued.</p>
-  <button type="button" class="block">Cancel</button>
-</div>
-{{end}}
-
 {{define "buildDiv"}}
 <div>
-  <h2>Queued (buildDiv)</h2>
+  {{$status := status .Operation}}
+  <h2>{{$status}}</h2>
   <div>
-    <div>2:30 PM</div>
-    <div>7 files</div>
+    <div>{{time .TimeLocation .Operation.CreatedAt}}</div>
+    <div>from Markdown</div>
+    <div>to PDF</div>
   </div>
-  <p>The build is queued.</p>
-  <button type="button" class="block">Cancel</button>
+  {{if eq $status "Queued"}}
+    <p>The build is in a queue. It will start as soon as possible.</p>
+    <button type="button" class="block">Cancel</button>
+  {{else if eq $status "Running"}}
+    <p>The build is running. Your PDF file will be ready soon.</p>
+    <button type="button" disabled class="block">Cancel</button>
+  {{else if eq $status "Completed"}}
+    <p>The PDF file is ready.</p>
+    <button type="button" class="block">Download</button>
+  {{else if eq $status "Failed"}}
+    <p>The build failed. You can read the logs to diagnose the problem.</p>
+    <textarea disabled></textarea>
+    <button type="button" disabled class="block">Download</button>
+  {{else if eq $status "Canceled"}}
+    <p>The build was canceled. You can request another build if needed.</p>
+    <button type="button" disabled class="block">Download</button>
+  {{else}}
+    <p>?</p>
+  {{end}}
 </div>
 {{end}}
 
@@ -43,7 +50,11 @@
     </header>
     <main>
       <p>Brick is a service that builds PDF files from Markdown files.</p>
-      <form hx-post="/build-div/build-create-form" hx-target="#result" hx-encoding="multipart/form-data">
+      <form hx-target="#result" hx-post="/build-div/build-create-form" hx-encoding="multipart/form-data">
+        <input type="hidden" name="time_location" id="build-create-form-time-location-field" class="hidden" />
+        <script>
+          document.getElementById("build-create-form-time-location-field").value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        </script>
         <section>
           <h2>main.md</h2>
           <input type="hidden" name="files/0/name" value="main.md" class="hidden" />
@@ -61,7 +72,7 @@
         </section>
         <button type="submit" class="block">Build</button>
       </form>
-      <button type="button" hx-get="/build-div" hx-target="#result" class="block">Get</button>
+      <button type="button" hx-target="#result" hx-get="/build-div" hx-vals="js:{'time_location': Intl.DateTimeFormat().resolvedOptions().timeZone}" class="block">Get</button>
       <div id="result"></div>
     </main>
     <footer>

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
@@ -23,7 +24,20 @@ import (
 	"github.com/k11v/brick/internal/build"
 )
 
-var templateFuncs = make(template.FuncMap)
+var templateFuncs = template.FuncMap{
+	"time": func(loc *time.Location, t *time.Time) string {
+		return t.In(loc).Format("2006-01-02 15:04")
+	},
+	"status": func(operation *build.Operation) string {
+		if operation.ExitCode == nil {
+			return "Queued"
+		}
+		if *operation.ExitCode == 0 {
+			return "Completed"
+		}
+		return "Failed"
+	},
+}
 
 func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, conf *config) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
@@ -61,24 +75,42 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 		}
 
 		mr := multipart.NewReader(r.Body, boundary)
-		var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
-			peekedPart, peekedErr, peeked := (*multipart.Part)(nil), error(nil), false
-			nextPart := func() (*multipart.Part, error) {
-				if peeked {
-					peeked = false
-					return peekedPart, peekedErr
-				}
-				return mr.NextPart()
-			}
-			peekPart := func() (*multipart.Part, error) {
-				if peeked {
-					return peekedPart, peekedErr
-				}
-				peekedPart, peekedErr = mr.NextPart()
-				peeked = true
+		peekedPart, peekedErr, peeked := (*multipart.Part)(nil), error(nil), false
+		nextPart := func() (*multipart.Part, error) {
+			if peeked {
+				peeked = false
 				return peekedPart, peekedErr
 			}
+			return mr.NextPart()
+		}
+		peekPart := func() (*multipart.Part, error) {
+			if peeked {
+				return peekedPart, peekedErr
+			}
+			peekedPart, peekedErr = mr.NextPart()
+			peeked = true
+			return peekedPart, peekedErr
+		}
 
+		// Form value time_location.
+		// If time_location is "", the server uses the default.
+		const formValueTimeLocation = "time_location"
+		timeLocationString := ""
+		if part, err := peekPart(); err == nil && part.FormName() == formValueTimeLocation {
+			_, _ = nextPart()
+			timeLocationBytes, err := io.ReadAll(part)
+			if err != nil {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				return
+			}
+			timeLocationString = string(timeLocationBytes)
+		}
+		timeLocation, err := time.LoadLocation(timeLocationString)
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+		}
+
+		var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
 			for fileIndex := 0; ; fileIndex++ {
 				namePart, err := nextPart()
 				if err != nil {
@@ -139,7 +171,13 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 		_ = operation
 
 		w.WriteHeader(http.StatusOK)
-		err = writeTemplate(w, "build", nil, "main.tmpl")
+		err = writeTemplate(w, "buildDiv", struct {
+			Operation    *build.Operation
+			TimeLocation *time.Location
+		}{
+			Operation:    operation,
+			TimeLocation: timeLocation,
+		}, "main.tmpl")
 		if err != nil {
 			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -150,9 +188,47 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 		}
 	})
 	mux.HandleFunc("GET /build-div", func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+
+		// Form value time_location.
+		// If time_location is "", the server uses the default.
+		const formValueTimeLocation = "time_location"
+		timeLocationString := r.FormValue(formValueTimeLocation)
+		timeLocation, err := time.LoadLocation(timeLocationString)
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+
+		operationID := uuid.MustParse("d319dbd2-33f8-4110-9dbc-4e00c3859a09")
+		userID := uuid.MustParse("3b4ff7e0-c540-4665-b148-af529d2f5be7")
+		otherUserID := uuid.MustParse("980a5afb-3c22-4c20-8279-2c9ecdc284a7")
+		_ = otherUserID
+
+		operationGetter := &build.OperationGetter{DB: db}
+		operation, err := operationGetter.Get(r.Context(), &build.OperationGetterGetParams{
+			ID:     operationID,
+			UserID: userID,
+		})
+		if err != nil {
+			slog.Error("", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
-		err := writeTemplate(w, "buildDiv", struct{}{}, "main.tmpl")
+		err = writeTemplate(w, "buildDiv", struct {
+			Operation    *build.Operation
+			TimeLocation *time.Location
+		}{
+			Operation:    operation,
+			TimeLocation: timeLocation,
+		}, "main.tmpl")
 		if err != nil {
 			slog.Error("", "err", err)
 			return
