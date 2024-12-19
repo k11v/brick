@@ -64,6 +64,10 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 			return downloadFileContent(ctx, r.S3, openFile, objectKey)
 		}
 		inputFile := filepath.Join(inputDir, operationInputFile.Name)
+		err = os.MkdirAll(filepath.Dir(inputFile), 0o777)
+		if err != nil {
+			return nil, fmt.Errorf("OperationRunner.Run: %w", err)
+		}
 		err = downloadFile(inputFile, *operationInputFile.ContentKey)
 		if err != nil {
 			return nil, fmt.Errorf("OperationRunner.Run: %w", err)
