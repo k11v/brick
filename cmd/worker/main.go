@@ -56,7 +56,7 @@ func run() error {
 			}
 			defer ch.Close()
 
-			q, err := ch.QueueDeclare("example", false, false, false, false, nil)
+			q, err := ch.QueueDeclare("operation.created", false, false, false, false, nil)
 			if err != nil {
 				return err
 			}
