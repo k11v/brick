@@ -32,19 +32,19 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 	// Get operation.
 	operation, err := getOperation(ctx, r.DB, params.ID)
 	if err != nil {
-		return nil, fmt.Errorf("OperationRunner.Run: %w", err)
+		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
 
 	// Get operation input files.
 	operationInputFiles, err := getOperationInputFiles(ctx, r.DB, operation.ID)
 	if err != nil {
-		return nil, fmt.Errorf("OperationRunner.Run: %w", err)
+		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
 
 	// Create temporary directory.
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		return nil, fmt.Errorf("OperationRunner.Run: %w", err)
+		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
 	defer func() {
 		_ = os.RemoveAll(tempDir)
@@ -54,7 +54,7 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 	inputDir := filepath.Join(tempDir, "input")
 	err = os.MkdirAll(inputDir, 0o777)
 	if err != nil {
-		return nil, fmt.Errorf("OperationRunner.Run: %w", err)
+		return nil, fmt.Errorf("build.OperationRunner: %w", err)
 	}
 	for _, operationInputFile := range operationInputFiles {
 		downloadFile := func(fileName string, objectKey string) error {
@@ -69,11 +69,11 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 		inputFile := filepath.Join(inputDir, operationInputFile.Name)
 		err = os.MkdirAll(filepath.Dir(inputFile), 0o777)
 		if err != nil {
-			return nil, fmt.Errorf("OperationRunner.Run: %w", err)
+			return nil, fmt.Errorf("build.OperationRunner: %w", err)
 		}
 		err = downloadFile(inputFile, *operationInputFile.ContentKey)
 		if err != nil {
-			return nil, fmt.Errorf("OperationRunner.Run: %w", err)
+			return nil, fmt.Errorf("build.OperationRunner: %w", err)
 		}
 	}
 
