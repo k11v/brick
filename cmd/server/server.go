@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -36,6 +37,26 @@ var templateFuncs = template.FuncMap{
 			return "Completed"
 		}
 		return "Failed"
+	},
+	"jsonObject": func(args ...any) (string, error) {
+		o := make(map[string]any)
+		if len(args)%2 != 0 {
+			return "", errors.New("args length is not even")
+		}
+		for len(args) > 0 {
+			var kAny, v any
+			kAny, v, args = args[0], args[1], args[2:]
+			k, ok := kAny.(string)
+			if !ok {
+				return "", errors.New("key is not a string")
+			}
+			o[k] = v
+		}
+		oBytes, err := json.Marshal(o)
+		if err != nil {
+			return "", err
+		}
+		return string(oBytes), nil
 	},
 }
 
