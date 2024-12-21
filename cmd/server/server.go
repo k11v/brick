@@ -215,7 +215,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 		}
 	})
 	mux.HandleFunc("POST /sign-in", func(w http.ResponseWriter, r *http.Request) {
-		privateKeyPemFile := "private.pem"
+		privateKeyPemFile := ".run/jwt/private.pem"
 		privateKeyPemBytes, err := os.ReadFile(privateKeyPemFile)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -265,7 +265,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /sign-out", func(w http.ResponseWriter, r *http.Request) {
-		publicKeyPemFile := "public.pem"
+		publicKeyPemFile := ".run/jwt/public.pem"
 		publicKeyPemBytes, err := os.ReadFile(publicKeyPemFile)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
