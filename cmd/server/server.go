@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"html/template"
@@ -13,12 +16,15 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 
@@ -207,6 +213,173 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 				slog.Error("failed to write error page", "err", err)
 			}
 		}
+	})
+	mux.HandleFunc("POST /sign-in", func(w http.ResponseWriter, r *http.Request) {
+		privateKeyPemFile := "private.pem"
+		privateKeyPemBytes, err := os.ReadFile(privateKeyPemFile)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		privateKeyPemBlock, _ := pem.Decode(privateKeyPemBytes)
+		if privateKeyPemBlock == nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		privateKeyX509Bytes := privateKeyPemBlock.Bytes
+		privateKeyAny, err := x509.ParsePKCS8PrivateKey(privateKeyX509Bytes)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		privateKey, ok := privateKeyAny.(ed25519.PrivateKey)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Cookie access_token.
+		const cookieAccessToken = "access_token"
+		accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodEdDSA, jwt.RegisteredClaims{
+			Subject:   uuid.NewString(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(14 * 24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.NewString(),
+		})
+		accessToken, err := accessTokenJWT.SignedString(privateKey)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		accessTokenCookie := &http.Cookie{
+			Name:     cookieAccessToken,
+			Value:    accessToken,
+			Path:     "/",
+			Domain:   "localhost",
+			MaxAge:   int(14 * 24 * time.Hour),
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		}
+		http.SetCookie(w, accessTokenCookie)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /sign-out", func(w http.ResponseWriter, r *http.Request) {
+		publicKeyPemFile := "public.pem"
+		publicKeyPemBytes, err := os.ReadFile(publicKeyPemFile)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		publicKeyPemBlock, _ := pem.Decode(publicKeyPemBytes)
+		if publicKeyPemBlock == nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		publicKeyX509Bytes := publicKeyPemBlock.Bytes
+		publicKeyAny, err := x509.ParsePKIXPublicKey(publicKeyX509Bytes)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		publicKey, ok := publicKeyAny.(ed25519.PublicKey)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Cookie access_token.
+		const cookieAccessToken = "access_token"
+		accessTokenCookie, err := r.Cookie(cookieAccessToken)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		err = accessTokenCookie.Valid()
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		accessToken := accessTokenCookie.Value
+		accessTokenJWT, err := jwt.ParseWithClaims(
+			accessToken,
+			jwt.RegisteredClaims{},
+			func(t *jwt.Token) (interface{}, error) {
+				return publicKey, nil
+			},
+			jwt.WithValidMethods([]string{jwt.SigningMethodEdDSA.Alg()}),
+		)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if !accessTokenJWT.Valid { // TODO: Remove as it is likely redundant.
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		claims, ok := accessTokenJWT.Claims.(jwt.RegisteredClaims) // TODO: Consider panicking instead as it is likely only influenced on what we pass to ParseWithClaims.
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		accessTokenExpiresAt := claims.ExpiresAt.Time // TODO: Check if we get time.Time correctly.
+		accessTokenID, err := uuid.Parse(claims.ID)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		{
+			query := `
+				SELECT EXISTS(
+					SELECT 1
+					FROM revoked_access_tokens
+					WHERE id = $1
+				)
+			`
+			args := []any{accessTokenID}
+
+			rows, _ := db.Query(r.Context(), query, args...)
+			exists, err := pgx.CollectExactlyOneRow(rows, pgx.RowTo[bool])
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			if exists {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+		}
+
+		{
+			query := `
+				INSERT INTO revoked_access_tokens (id, expires_at)
+				VALUES ($1, $2)
+				ON CONFLICT (id) DO NOTHING
+			`
+			args := []any{accessTokenID, accessTokenExpiresAt}
+
+			_, err := db.Exec(r.Context(), query, args...) // TODO: Check if ignoring the command tag is OK.
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Cookie access_token.
+		const responseCookieAccessToken = "access_token"
+		accessTokenResponseCookie := &http.Cookie{ // TODO: Check if all we need is Name and MaxAge.
+			Name:     responseCookieAccessToken,
+			Value:    "",
+			Path:     "/",
+			Domain:   "localhost",
+			MaxAge:   -1, // Negative MaxAge causes deletes the cookie.
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		}
+		http.SetCookie(w, accessTokenResponseCookie)
+		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /build-div", func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
