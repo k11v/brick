@@ -1,6 +1,7 @@
 {{define "buildDiv"}}
 <div>
   {{$status := status .Operation}}
+  <button type="button" hx-target="#result" hx-get="/build-div" hx-vals="{{ jsonObject "operation_id" .Operation.ID }}" hx-vals="js:{'time_location': Intl.DateTimeFormat().resolvedOptions().timeZone}" class="block">Get</button>
   <h2>{{$status}}</h2>
   <div>
     <div>{{time .TimeLocation .Operation.CreatedAt}}</div>
@@ -72,7 +73,6 @@
         </section>
         <button type="submit" class="block">Build</button>
       </form>
-      <button type="button" hx-target="#result" hx-get="/build-div" hx-vals="js:{'time_location': Intl.DateTimeFormat().resolvedOptions().timeZone}" class="block">Get</button>
       <div id="result"></div>
     </main>
     <footer>

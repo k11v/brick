@@ -215,6 +215,19 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			return
 		}
 
+		// Cookie access_token.
+		// ...
+		userID := uuid.MustParse("3b4ff7e0-c540-4665-b148-af529d2f5be7")
+
+		// Form value operation_id.
+		const formValueOperationID = "operation_id"
+		operationIDString := r.FormValue(formValueOperationID)
+		operationID, err := uuid.Parse(operationIDString)
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+
 		// Form value time_location.
 		// If time_location is "", the server uses the default.
 		const formValueTimeLocation = "time_location"
@@ -224,11 +237,6 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			return
 		}
-
-		operationID := uuid.MustParse("d319dbd2-33f8-4110-9dbc-4e00c3859a09")
-		userID := uuid.MustParse("3b4ff7e0-c540-4665-b148-af529d2f5be7")
-		otherUserID := uuid.MustParse("980a5afb-3c22-4c20-8279-2c9ecdc284a7")
-		_ = otherUserID
 
 		operationGetter := &build.OperationGetter{DB: db}
 		operation, err := operationGetter.Get(r.Context(), &build.OperationGetterGetParams{
