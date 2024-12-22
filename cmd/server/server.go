@@ -258,7 +258,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			Value:    accessToken,
 			Path:     "/",
 			Domain:   "localhost",
-			MaxAge:   int(14 * 24 * time.Hour),
+			MaxAge:   int(14 * 24 * time.Hour / time.Second),
 			Secure:   true,
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
