@@ -214,7 +214,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			}
 		}
 	})
-	mux.HandleFunc("POST /sign-in", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /header/sign-in", func(w http.ResponseWriter, r *http.Request) {
 		privateKeyPemFile := ".run/jwt/private.pem"
 		privateKeyPemBytes, err := os.ReadFile(privateKeyPemFile)
 		if err != nil {
@@ -238,12 +238,14 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			return
 		}
 
+		userID := uuid.New()
+
 		// Cookie access_token.
 		const cookieAccessToken = "access_token"
 		accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodEdDSA, jwt.RegisteredClaims{
-			Subject:   uuid.NewString(),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(14 * 24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   userID.String(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(14 * 24 * time.Hour)), // TODO: Consider time zones.
+			IssuedAt:  jwt.NewNumericDate(time.Now()),                          // TODO: Consider time zones.
 			ID:        uuid.NewString(),
 		})
 		accessToken, err := accessTokenJWT.SignedString(privateKey)
@@ -262,28 +264,46 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(w, accessTokenCookie)
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		err = writeTemplate(w, "header", struct {
+			User *struct{ ID uuid.UUID }
+		}{
+			User: &struct{ ID uuid.UUID }{ID: userID},
+		}, "main.tmpl")
+		if err != nil {
+			slog.Error("", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			err = writeErrorPage(w, http.StatusInternalServerError)
+			if err != nil {
+				slog.Error("failed to write error page", "err", err)
+			}
+		}
 	})
-	mux.HandleFunc("POST /sign-out", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /header/sign-out", func(w http.ResponseWriter, r *http.Request) {
 		publicKeyPemFile := ".run/jwt/public.pem"
 		publicKeyPemBytes, err := os.ReadFile(publicKeyPemFile)
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		publicKeyPemBlock, _ := pem.Decode(publicKeyPemBytes)
 		if publicKeyPemBlock == nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		publicKeyX509Bytes := publicKeyPemBlock.Bytes
 		publicKeyAny, err := x509.ParsePKIXPublicKey(publicKeyX509Bytes)
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		publicKey, ok := publicKeyAny.(ed25519.PublicKey)
 		if !ok {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -292,39 +312,45 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 		const cookieAccessToken = "access_token"
 		accessTokenCookie, err := r.Cookie(cookieAccessToken)
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		err = accessTokenCookie.Valid()
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		accessToken := accessTokenCookie.Value
 		accessTokenJWT, err := jwt.ParseWithClaims(
 			accessToken,
-			jwt.RegisteredClaims{},
+			&jwt.RegisteredClaims{},
 			func(t *jwt.Token) (interface{}, error) {
 				return publicKey, nil
 			},
 			jwt.WithValidMethods([]string{jwt.SigningMethodEdDSA.Alg()}),
 		)
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		if !accessTokenJWT.Valid { // TODO: Remove as it is likely redundant.
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		claims, ok := accessTokenJWT.Claims.(jwt.RegisteredClaims) // TODO: Consider panicking instead as it is likely only influenced on what we pass to ParseWithClaims.
+		claims, ok := accessTokenJWT.Claims.(*jwt.RegisteredClaims) // TODO: Consider panicking instead as it is likely only influenced on what we pass to ParseWithClaims.
 		if !ok {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		accessTokenExpiresAt := claims.ExpiresAt.Time // TODO: Check if we get time.Time correctly.
 		accessTokenID, err := uuid.Parse(claims.ID)
 		if err != nil {
+			slog.Error("", "err", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -341,11 +367,13 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			rows, _ := db.Query(r.Context(), query, args...)
 			exists, err := pgx.CollectExactlyOneRow(rows, pgx.RowTo[bool])
 			if err != nil {
+				slog.Error("", "err", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
 			if exists {
+				slog.Error("", "err", err)
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
@@ -361,6 +389,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 
 			_, err := db.Exec(r.Context(), query, args...) // TODO: Check if ignoring the command tag is OK.
 			if err != nil {
+				slog.Error("", "err", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -379,7 +408,21 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(w, accessTokenResponseCookie)
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		err = writeTemplate(w, "header", struct {
+			User *struct{ ID uuid.UUID }
+		}{
+			User: nil,
+		}, "main.tmpl")
+		if err != nil {
+			slog.Error("", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			err = writeErrorPage(w, http.StatusInternalServerError)
+			if err != nil {
+				slog.Error("failed to write error page", "err", err)
+			}
+		}
 	})
 	mux.HandleFunc("GET /build-div", func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
