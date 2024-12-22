@@ -32,6 +32,6 @@ CREATE TABLE IF NOT EXISTS revoked_access_tokens (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     expires_at timestamp with time zone NOT NULL,
     PRIMARY KEY (id)
-)
+);
 
 COMMIT;
