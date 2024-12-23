@@ -19,32 +19,32 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
-type OperationRunner struct {
+type BuildRunner struct {
 	DB *pgxpool.Pool // required
 	S3 *s3.Client    // required
 }
 
-type OperationRunnerRunParams struct {
+type BuildRunnerRunParams struct {
 	ID uuid.UUID
 }
 
-func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunParams) (*Operation, error) {
-	// Get operation.
-	operation, err := getOperation(ctx, r.DB, params.ID)
+func (r *BuildRunner) Run(ctx context.Context, params *BuildRunnerRunParams) (*Build, error) {
+	// Get build.
+	b, err := getBuild(ctx, r.DB, params.ID)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
 	}
 
-	// Get operation input files.
-	operationInputFiles, err := getOperationInputFiles(ctx, r.DB, operation.ID)
+	// Get build input files.
+	buildInputFiles, err := getBuildInputFiles(ctx, r.DB, b.ID)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
 	}
 
 	// Create temporary directory.
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
 	}
 	defer func() {
 		_ = os.RemoveAll(tempDir)
@@ -54,9 +54,9 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 	inputDir := filepath.Join(tempDir, "input")
 	err = os.MkdirAll(inputDir, 0o777)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
 	}
-	for _, operationInputFile := range operationInputFiles {
+	for _, buildInputFile := range buildInputFiles {
 		downloadFile := func(fileName string, objectKey string) error {
 			openFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 			if err != nil {
@@ -66,14 +66,14 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 
 			return downloadFileContent(ctx, r.S3, openFile, objectKey)
 		}
-		inputFile := filepath.Join(inputDir, operationInputFile.Name)
+		inputFile := filepath.Join(inputDir, buildInputFile.Name)
 		err = os.MkdirAll(filepath.Dir(inputFile), 0o777)
 		if err != nil {
-			return nil, fmt.Errorf("build.OperationRunner: %w", err)
+			return nil, fmt.Errorf("build.BuildRunner: %w", err)
 		}
-		err = downloadFile(inputFile, *operationInputFile.ContentKey)
+		err = downloadFile(inputFile, *buildInputFile.ContentKey)
 		if err != nil {
-			return nil, fmt.Errorf("build.OperationRunner: %w", err)
+			return nil, fmt.Errorf("build.BuildRunner: %w", err)
 		}
 	}
 
@@ -84,7 +84,7 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 		OutputDir: outputDir,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
 	}
 
 	// Upload PDF and log files from disk to object storage.
@@ -99,34 +99,34 @@ func (r *OperationRunner) Run(ctx context.Context, params *OperationRunnerRunPar
 
 		return uploadFileContent(ctx, r.S3, objectKey, openFile)
 	}
-	err = uploadFile(*operation.OutputFileKey, runResult.PDFFile)
+	err = uploadFile(*b.OutputFileKey, runResult.PDFFile)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
 	}
-	err = uploadFile(*operation.LogFileKey, runResult.LogFile)
+	err = uploadFile(*b.LogFileKey, runResult.LogFile)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
-	}
-
-	// Update operation exit code.
-	operation, err = updateOperationExitCode(ctx, r.DB, operation.ID, runResult.ExitCode)
-	if err != nil {
-		return nil, fmt.Errorf("build.OperationRunner: %w", err)
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
 	}
 
-	return operation, nil
+	// Update build exit code.
+	b, err = updateBuildExitCode(ctx, r.DB, b.ID, runResult.ExitCode)
+	if err != nil {
+		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+	}
+
+	return b, nil
 }
 
-func getOperation(ctx context.Context, db executor, id uuid.UUID) (*Operation, error) {
+func getBuild(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 	query := `
 		SELECT id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
-		FROM operations
+		FROM builds
 		WHERE id = $1
 	`
 	args := []any{id}
 
 	rows, _ := db.Query(ctx, query, args...)
-	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -134,19 +134,19 @@ func getOperation(ctx context.Context, db executor, id uuid.UUID) (*Operation, e
 		return nil, err
 	}
 
-	return o, nil
+	return b, nil
 }
 
-func getOperationInputFiles(ctx context.Context, db executor, operationID uuid.UUID) ([]*OperationInputFile, error) {
+func getBuildInputFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]*BuildInputFile, error) {
 	query := `
-		SELECT id, operation_id, name, content_key
-		FROM operation_input_files
-		WHERE operation_id = $1
+		SELECT id, build_id, name, content_key
+		FROM build_input_files
+		WHERE build_id = $1
 	`
-	args := []any{operationID}
+	args := []any{buildID}
 
 	rows, _ := db.Query(ctx, query, args...)
-	files, err := pgx.CollectRows(rows, rowToOperationInputFile)
+	files, err := pgx.CollectRows(rows, rowToBuildInputFile)
 	if err != nil {
 		return nil, err
 	}
@@ -188,9 +188,9 @@ func (writerAt fakeWriterAt) WriteAt(p []byte, _ int64) (n int, err error) {
 	return writerAt.w.Write(p)
 }
 
-func updateOperationExitCode(ctx context.Context, db executor, id uuid.UUID, exitCode int) (*Operation, error) {
+func updateBuildExitCode(ctx context.Context, db executor, id uuid.UUID, exitCode int) (*Build, error) {
 	query := `
-		UPDATE operations
+		UPDATE builds
 		SET exit_code = $1
 		WHERE id = $2
 		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
@@ -198,10 +198,10 @@ func updateOperationExitCode(ctx context.Context, db executor, id uuid.UUID, exi
 	args := []any{exitCode, id}
 
 	rows, _ := db.Query(ctx, query, args...)
-	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
 		return nil, err
 	}
 
-	return o, nil
+	return b, nil
 }

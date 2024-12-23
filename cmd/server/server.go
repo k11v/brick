@@ -60,7 +60,7 @@ var templateFuncs = template.FuncMap{
 	"time": func(loc *time.Location, t *time.Time) string {
 		return t.In(loc).Format("2006-01-02 15:04")
 	},
-	"status": func(operation *build.Operation) string {
+	"status": func(operation *build.Build) string {
 		if operation.ExitCode == nil {
 			return "Queued"
 		}
@@ -209,8 +209,8 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			}
 		}
 
-		operationCreator := &build.OperationCreator{DB: db, MQ: mq, S3: s3Client, OperationsAllowed: 10}
-		operation, err := operationCreator.Create(r.Context(), &build.OperationCreatorCreateParams{
+		operationCreator := &build.BuildCreator{DB: db, MQ: mq, S3: s3Client, BuildsAllowed: 10}
+		operation, err := operationCreator.Create(r.Context(), &build.BuildCreatorCreateParams{
 			UserID:         uuid.New(),
 			Files:          files,
 			IdempotencyKey: uuid.New(),
@@ -224,7 +224,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 
 		w.WriteHeader(http.StatusOK)
 		err = writeTemplate(w, "buildDiv", struct {
-			Operation    *build.Operation
+			Operation    *build.Build
 			TimeLocation *time.Location
 		}{
 			Operation:    operation,
@@ -479,8 +479,8 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			return
 		}
 
-		operationGetter := &build.OperationGetter{DB: db}
-		operation, err := operationGetter.Get(r.Context(), &build.OperationGetterGetParams{
+		operationGetter := &build.BuildGetter{DB: db}
+		operation, err := operationGetter.Get(r.Context(), &build.BuildGetterGetParams{
 			ID:     operationID,
 			UserID: userID,
 		})
@@ -493,7 +493,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		err = writeTemplate(w, "buildDiv", struct {
-			Operation    *build.Operation
+			Operation    *build.Build
 			TimeLocation *time.Location
 		}{
 			Operation:    operation,
