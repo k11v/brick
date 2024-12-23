@@ -31,6 +31,30 @@ import (
 	"github.com/k11v/brick/internal/build"
 )
 
+func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, conf *Config) *http.Server {
+	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
+
+	subLogger := slog.With("component", "server")
+	subLogLogger := slog.NewLogLogger(subLogger.Handler(), slog.LevelError)
+
+	mux := &http.ServeMux{}
+	h := NewHandler(db, mq, s3Client, dataFS)
+	mux.HandleFunc("GET /static/", h.StaticFile)
+	mux.HandleFunc("GET /", h.NotFoundPage)
+	mux.HandleFunc("GET /{$}", h.MainPage)
+	mux.HandleFunc("POST /build-div/build-create-form", h.NotFoundPage)
+	mux.HandleFunc("POST /header/sign-in", h.NotFoundPage)
+	mux.HandleFunc("POST /header/sign-out", h.NotFoundPage)
+	mux.HandleFunc("GET /build-div", h.NotFoundPage)
+
+	return &http.Server{
+		Addr:              addr,
+		ErrorLog:          subLogLogger,
+		Handler:           mux,
+		ReadHeaderTimeout: conf.ReadHeaderTimeout,
+	}
+}
+
 var templateFuncs = template.FuncMap{
 	"time": func(loc *time.Location, t *time.Time) string {
 		return t.In(loc).Format("2006-01-02 15:04")
@@ -66,7 +90,7 @@ var templateFuncs = template.FuncMap{
 	},
 }
 
-func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, conf *config) *http.Server {
+func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, conf *Config) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
 	subLogger := slog.Default().With("component", "server")

@@ -2,13 +2,13 @@ package main
 
 import "time"
 
-type config struct {
+type Config struct {
 	Host              string // default: "127.0.0.1"
 	Port              int    // default: 8080
 	ReadHeaderTimeout time.Duration
 }
 
-func (cfg *config) host() string {
+func (cfg *Config) host() string {
 	h := cfg.Host
 	if h == "" {
 		h = "127.0.0.1"
@@ -16,7 +16,7 @@ func (cfg *config) host() string {
 	return h
 }
 
-func (cfg *config) port() int {
+func (cfg *Config) port() int {
 	p := cfg.Port
 	if p == 0 {
 		p = 8080

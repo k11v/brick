@@ -33,10 +33,11 @@ func main() {
 			_ = mq.Close()
 		}()
 		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
-		server := newServer(db, mq, s3Client, &config{})
+		server := NewServer(db, mq, s3Client, &Config{})
 
 		slog.Info("starting server", "addr", server.Addr)
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		err = server.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return 1
 		}
