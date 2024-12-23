@@ -39,13 +39,14 @@ func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 
 	mux := &http.ServeMux{}
 	h := NewHandler(db, mq, s3Client, dataFS)
-	mux.HandleFunc("GET /static/", h.StaticFile)
 	mux.HandleFunc("GET /", h.NotFoundPage)
+	mux.HandleFunc("GET /static/", h.StaticFile)
 	mux.HandleFunc("GET /{$}", h.MainPage)
+	mux.HandleFunc("GET /Build", h.Build)
+
 	mux.HandleFunc("POST /build-div/build-create-form", h.NotFoundPage)
 	mux.HandleFunc("POST /header/sign-in", h.NotFoundPage)
 	mux.HandleFunc("POST /header/sign-out", h.NotFoundPage)
-	mux.HandleFunc("GET /build-div", h.NotFoundPage)
 
 	return &http.Server{
 		Addr:              addr,
