@@ -52,7 +52,7 @@ func (h *Handler) execute(name string, data any) ([]byte, error) {
 		"time": func(loc *time.Location, t *time.Time) string {
 			return t.In(loc).Format("2006-01-02 15:04")
 		},
-		"status": func(operation *build.Operation) string {
+		"status": func(operation *build.Build) string {
 			if operation.ExitCode == nil {
 				return "Queued"
 			}
@@ -118,10 +118,10 @@ func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
 	component, err := h.execute("Build", struct {
 		TimeLocation *time.Location
-		Operation    *build.Operation
+		Operation    *build.Build
 	}{
 		TimeLocation: time.Now().Location(),
-		Operation:    &build.Operation{},
+		Operation:    &build.Build{},
 	},
 	)
 	if err != nil {

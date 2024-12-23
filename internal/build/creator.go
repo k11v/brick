@@ -30,7 +30,7 @@ var (
 	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
 )
 
-type Operation struct {
+type Build struct {
 	ID             uuid.UUID
 	IdempotencyKey uuid.UUID
 	CreatedAt      time.Time
@@ -40,22 +40,22 @@ type Operation struct {
 	ExitCode       *int
 }
 
-type OperationInputFile struct {
-	ID          uuid.UUID
-	OperationID uuid.UUID
-	Name        string
-	ContentKey  *string
+type BuildInputFile struct {
+	ID         uuid.UUID
+	BuildID    uuid.UUID
+	Name       string
+	ContentKey *string
 }
 
-type OperationCreator struct {
+type BuildCreator struct {
 	DB *pgxpool.Pool       // required
 	MQ *amqp091.Connection // required
 	S3 *s3.Client          // required
 
-	OperationsAllowed int
+	BuildsAllowed int
 }
 
-type OperationCreatorCreateParams struct {
+type BuildCreatorCreateParams struct {
 	UserID         uuid.UUID
 	Files          iter.Seq2[*File, error]
 	IdempotencyKey uuid.UUID
@@ -66,72 +66,72 @@ type File struct {
 	Data io.Reader
 }
 
-func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorCreateParams) (*Operation, error) {
+func (c *BuildCreator) Create(ctx context.Context, params *BuildCreatorCreateParams) (*Build, error) {
 	tx, err := c.DB.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationCreator: %w", err)
+		return nil, fmt.Errorf("build.BuildCreator: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
 	}()
 
-	// Lock operations to get their count.
-	err = lockOperations(ctx, tx, params.UserID)
+	// Lock builds to get their count.
+	err = lockBuilds(ctx, tx, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationCreator: %w", err)
+		return nil, fmt.Errorf("build.BuildCreator: %w", err)
 	}
 
 	// Check daily quota.
 	todayStartTime := time.Now().UTC().Truncate(24 * time.Hour)
 	todayEndTime := todayStartTime.Add(24 * time.Hour)
-	operationsUsed, err := getOperationCount(ctx, tx, params.UserID, todayStartTime, todayEndTime)
+	buildsUsed, err := getBuildCount(ctx, tx, params.UserID, todayStartTime, todayEndTime)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationCreator: %w", err)
+		return nil, fmt.Errorf("build.BuildCreator: %w", err)
 	}
-	if operationsUsed >= c.OperationsAllowed {
+	if buildsUsed >= c.BuildsAllowed {
 		err = ErrLimitExceeded
-		return nil, fmt.Errorf("build.OperationCreator: %w", err)
+		return nil, fmt.Errorf("build.BuildCreator: %w", err)
 	}
 
-	// Create operation.
-	operation, err := createOperation(ctx, tx, params.IdempotencyKey, params.UserID)
+	// Create build.
+	b, err := createBuild(ctx, tx, params.IdempotencyKey, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationCreator: %w", err)
+		return nil, fmt.Errorf("build.BuildCreator: %w", err)
 	}
 
 	// Create object storage keys for output and log files.
-	operationDirKey := fmt.Sprintf("operations/%s", operation.ID)
-	outputFileKey := path.Join(operationDirKey, "output.pdf")
-	logFileKey := path.Join(operationDirKey, "log")
-	operation, err = updateOperationContentKeys(ctx, tx, operation.ID, outputFileKey, logFileKey)
+	buildDirKey := fmt.Sprintf("builds/%s", b.ID)
+	outputFileKey := path.Join(buildDirKey, "output.pdf")
+	logFileKey := path.Join(buildDirKey, "log")
+	b, err = updateBuildContentKeys(ctx, tx, b.ID, outputFileKey, logFileKey)
 	if err != nil {
-		return nil, fmt.Errorf("build.OperationCreator: %w", err)
+		return nil, fmt.Errorf("build.BuildCreator: %w", err)
 	}
 
 	// Create input files and upload their content to object storage.
-	inputDirKey := path.Join(operationDirKey, "input")
+	inputDirKey := path.Join(buildDirKey, "input")
 	for file, err := range params.Files {
 		if err != nil {
 			panic("unimplemented")
 		}
-		operationInputFile, err := createOperationInputFile(ctx, tx, operation.ID, file.Name)
+		buildInputFile, err := createBuildInputFile(ctx, tx, b.ID, file.Name)
 		if err != nil {
 			panic("unimplemented")
 		}
-		contentKey := path.Join(inputDirKey, operationInputFile.ID.String())
-		operationInputFile, err = updateOperationInputFileKey(ctx, tx, operationInputFile.ID, contentKey)
+		contentKey := path.Join(inputDirKey, buildInputFile.ID.String())
+		buildInputFile, err = updateBuildInputFileKey(ctx, tx, buildInputFile.ID, contentKey)
 		if err != nil {
 			panic("unimplemented")
 		}
-		_ = operationInputFile
+		_ = buildInputFile
 		err = uploadFileContent(ctx, c.S3, contentKey, file.Data)
 		if err != nil {
 			panic("unimplemented")
 		}
 	}
 
-	// Send operation created event to workers.
-	err = sendOperationCreated(ctx, c.MQ, operation)
+	// Send build created event to workers.
+	err = sendBuildCreated(ctx, c.MQ, b)
 	if err != nil {
 		panic("unimplemented")
 	}
@@ -141,7 +141,7 @@ func (c *OperationCreator) Create(ctx context.Context, params *OperationCreatorC
 		panic("unimplemented")
 	}
 
-	return operation, nil
+	return b, nil
 }
 
 type executor interface {
@@ -152,7 +152,7 @@ type executor interface {
 	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
 
-func lockOperations(ctx context.Context, db executor, userID uuid.UUID) error {
+func lockBuilds(ctx context.Context, db executor, userID uuid.UUID) error {
 	query := `
 		INSERT INTO user_locks (user_id)
 		VALUES ($1)
@@ -171,10 +171,10 @@ func lockOperations(ctx context.Context, db executor, userID uuid.UUID) error {
 	return nil
 }
 
-func getOperationCount(ctx context.Context, db executor, userID uuid.UUID, startTime, endTime time.Time) (int, error) {
+func getBuildCount(ctx context.Context, db executor, userID uuid.UUID, startTime, endTime time.Time) (int, error) {
 	query := `
 		SELECT count(*)
-		FROM operations
+		FROM builds
 		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
 	`
 	args := []any{userID, startTime, endTime}
@@ -188,9 +188,9 @@ func getOperationCount(ctx context.Context, db executor, userID uuid.UUID, start
 	return count, nil
 }
 
-func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID, userID uuid.UUID) (*Operation, error) {
+func createBuild(ctx context.Context, db executor, idempotencyKey uuid.UUID, userID uuid.UUID) (*Build, error) {
 	query := `
-		INSERT INTO operations (idempotency_key, user_id)
+		INSERT INTO builds (idempotency_key, user_id)
 		VALUES ($1, $2)
 		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
 	`
@@ -198,7 +198,7 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 
 	// TODO: Study pgconn.PgError.ColumnName.
 	rows, _ := db.Query(ctx, query, args...)
-	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
 		if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) && pgErr.ColumnName == "idempotency_key" {
 			err = ErrIdempotencyKeyAlreadyUsed
@@ -206,12 +206,12 @@ func createOperation(ctx context.Context, db executor, idempotencyKey uuid.UUID,
 		return nil, err
 	}
 
-	return o, nil
+	return b, nil
 }
 
-func updateOperationContentKeys(ctx context.Context, db executor, id uuid.UUID, outputFileKey string, logFileKey string) (*Operation, error) {
+func updateBuildContentKeys(ctx context.Context, db executor, id uuid.UUID, outputFileKey string, logFileKey string) (*Build, error) {
 	query := `
-		UPDATE operations
+		UPDATE builds
 		SET output_file_key = $1, log_file_key = $2
 		WHERE id = $3
 		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
@@ -219,24 +219,24 @@ func updateOperationContentKeys(ctx context.Context, db executor, id uuid.UUID, 
 	args := []any{outputFileKey, logFileKey, id}
 
 	rows, _ := db.Query(ctx, query, args...)
-	o, err := pgx.CollectExactlyOneRow(rows, rowToOperation)
+	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
 	if err != nil {
 		return nil, err
 	}
 
-	return o, nil
+	return b, nil
 }
 
-func createOperationInputFile(ctx context.Context, db executor, operationID uuid.UUID, name string) (*OperationInputFile, error) {
+func createBuildInputFile(ctx context.Context, db executor, buildID uuid.UUID, name string) (*BuildInputFile, error) {
 	query := `
-		INSERT INTO operation_input_files (operation_id, name)
+		INSERT INTO build_input_files (build_id, name)
 		VALUES ($1, $2)
-		RETURNING id, operation_id, name, content_key
+		RETURNING id, build_id, name, content_key
 	`
-	args := []any{operationID, name}
+	args := []any{buildID, name}
 
 	rows, _ := db.Query(ctx, query, args...)
-	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationInputFile)
+	f, err := pgx.CollectExactlyOneRow(rows, rowToBuildInputFile)
 	if err != nil {
 		return nil, err
 	}
@@ -244,17 +244,17 @@ func createOperationInputFile(ctx context.Context, db executor, operationID uuid
 	return f, nil
 }
 
-func updateOperationInputFileKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*OperationInputFile, error) {
+func updateBuildInputFileKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*BuildInputFile, error) {
 	query := `
-		UPDATE operation_input_files
+		UPDATE build_input_files
 		SET content_key = $1
 		WHERE id = $2
-		RETURNING id, operation_id, name, content_key
+		RETURNING id, build_id, name, content_key
 	`
 	args := []any{contentKey, id}
 
 	rows, _ := db.Query(ctx, query, args...)
-	f, err := pgx.CollectExactlyOneRow(rows, rowToOperationInputFile)
+	f, err := pgx.CollectExactlyOneRow(rows, rowToBuildInputFile)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func uploadFileContent(ctx context.Context, s3Client *s3.Client, key string, con
 	return nil
 }
 
-func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation *Operation) error {
+func sendBuildCreated(ctx context.Context, mq *amqp091.Connection, b *Build) error {
 	type message struct {
 		ID             uuid.UUID `json:"id"`
 		IdempotencyKey uuid.UUID `json:"idempotency_key"`
@@ -305,13 +305,13 @@ func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation
 		ExitCode       *int      `json:"exit_code"`
 	}
 	msg := message{
-		ID:             operation.ID,
-		IdempotencyKey: operation.IdempotencyKey,
-		CreatedAt:      operation.CreatedAt,
-		UserID:         operation.UserID,
-		OutputFileKey:  operation.OutputFileKey,
-		LogFileKey:     operation.LogFileKey,
-		ExitCode:       operation.ExitCode,
+		ID:             b.ID,
+		IdempotencyKey: b.IdempotencyKey,
+		CreatedAt:      b.CreatedAt,
+		UserID:         b.UserID,
+		OutputFileKey:  b.OutputFileKey,
+		LogFileKey:     b.LogFileKey,
+		ExitCode:       b.ExitCode,
 	}
 	msgBuf := new(bytes.Buffer)
 	if err := json.NewEncoder(msgBuf).Encode(msg); err != nil {
@@ -324,7 +324,7 @@ func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation
 	}
 	defer ch.Close()
 
-	q, err := ch.QueueDeclare("operation.created", false, false, false, false, nil)
+	q, err := ch.QueueDeclare("build.created", false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
@@ -341,7 +341,7 @@ func sendOperationCreated(ctx context.Context, mq *amqp091.Connection, operation
 	return nil
 }
 
-func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
+func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 	type row struct {
 		ID             uuid.UUID `db:"id"`
 		IdempotencyKey uuid.UUID `db:"idempotency_key"`
@@ -356,7 +356,7 @@ func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 		return nil, err
 	}
 
-	o := &Operation{
+	b := &Build{
 		ID:             collectedRow.ID,
 		IdempotencyKey: collectedRow.IdempotencyKey,
 		CreatedAt:      collectedRow.CreatedAt,
@@ -365,26 +365,26 @@ func rowToOperation(collectableRow pgx.CollectableRow) (*Operation, error) {
 		LogFileKey:     collectedRow.LogFileKey,
 		ExitCode:       collectedRow.ExitCode,
 	}
-	return o, nil
+	return b, nil
 }
 
-func rowToOperationInputFile(collectableRow pgx.CollectableRow) (*OperationInputFile, error) {
+func rowToBuildInputFile(collectableRow pgx.CollectableRow) (*BuildInputFile, error) {
 	type row struct {
-		ID          uuid.UUID `db:"id"`
-		OperationID uuid.UUID `db:"operation_id"`
-		Name        string    `db:"name"`
-		ContentKey  *string   `db:"content_key"`
+		ID         uuid.UUID `db:"id"`
+		buildID    uuid.UUID `db:"build_id"`
+		Name       string    `db:"name"`
+		ContentKey *string   `db:"content_key"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
 		return nil, err
 	}
 
-	f := &OperationInputFile{
-		ID:          collectedRow.ID,
-		OperationID: collectedRow.OperationID,
-		Name:        collectedRow.Name,
-		ContentKey:  collectedRow.ContentKey,
+	f := &BuildInputFile{
+		ID:         collectedRow.ID,
+		BuildID:    collectedRow.buildID,
+		Name:       collectedRow.Name,
+		ContentKey: collectedRow.ContentKey,
 	}
 	return f, nil
 }
