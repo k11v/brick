@@ -6,6 +6,7 @@ import (
 	"errors"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -112,4 +113,25 @@ func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(page)
+}
+
+func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
+	component, err := h.execute("Build", struct {
+		TimeLocation *time.Location
+		Operation    *build.Operation
+	}{
+		TimeLocation: time.Now().Location(),
+		Operation:    &build.Operation{},
+	},
+	)
+	if err != nil {
+		slog.Error("", "err", err)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write(h.internalServerErrorPage)
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(component)
 }
