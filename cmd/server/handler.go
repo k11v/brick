@@ -115,13 +115,15 @@ func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(page)
 }
 
+type ExecuteBuildParams struct {
+	TimeLocation *time.Location
+	Build        *build.Build
+}
+
 func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
-	component, err := h.execute("Build", struct {
-		TimeLocation *time.Location
-		Operation    *build.Build
-	}{
+	component, err := h.execute("Build", ExecuteBuildParams{
 		TimeLocation: time.Now().Location(),
-		Operation:    &build.Build{},
+		Build:        &build.Build{},
 	},
 	)
 	if err != nil {
