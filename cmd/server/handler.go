@@ -264,6 +264,59 @@ func (h *Handler) BuildOutputFile(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(buf.Bytes())
 }
 
+type ExecuteBuildLogParams struct {
+	Content string
+}
+
+func (h *Handler) BuildLog(w http.ResponseWriter, r *http.Request) {
+	// Cookie token.
+	const cookieToken = "token"
+	tokenCookie, err := r.Cookie(cookieToken)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	token, err := parseAndValidateTokenFromCookie(r.Context(), h.db, h.jwtVerificationKey, tokenCookie)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	userID := token.UserID
+
+	// Form value id.
+	const formValueID = "id"
+	id, err := uuid.Parse(r.FormValue(formValueID))
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s form value: %w", formValueID, err))
+		return
+	}
+
+	buf := new(bytes.Buffer) // TODO: Avoid loading entire output file into memory.
+	getter := &build.Getter{DB: h.db, S3: h.s3}
+	err = getter.GetLogFile(r.Context(), buf, &build.GetterGetParams{
+		ID:     id,
+		UserID: userID,
+	})
+	if err != nil {
+		if errors.Is(err, build.ErrNotFound) || errors.Is(err, build.ErrAccessDenied) || errors.Is(err, build.ErrNotDone) {
+			h.serveClientError(w, r, err)
+		} else {
+			h.serveServerError(w, r, err)
+		}
+		return
+	}
+
+	buildLogHTML, err := h.execute("BuildLog", &ExecuteBuildLogParams{Content: buf.String()})
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buildLogHTML)
+}
+
 func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 	// Header Content-Type.
 	const headerContentType = "Content-Type"
