@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE IF NOT EXISTS operations (
+CREATE TABLE IF NOT EXISTS builds (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     idempotency_key uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -12,15 +12,15 @@ CREATE TABLE IF NOT EXISTS operations (
     exit_code integer,
     PRIMARY KEY (id)
 );
-CREATE UNIQUE INDEX operations_idempotency_key_idx ON operations (idempotency_key);
+CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);
 
 CREATE TABLE IF NOT EXISTS operation_input_files (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
-    operation_id uuid NOT NULL,
+    build_id uuid NOT NULL,
     name text NOT NULL,
     content_key text, -- NULL when inserted, then updated to be non-NULL
     PRIMARY KEY (id),
-    FOREIGN KEY (operation_id) REFERENCES operations (id)
+    FOREIGN KEY (build_id) REFERENCES builds (id)
 );
 
 CREATE TABLE IF NOT EXISTS user_locks (
