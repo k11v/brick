@@ -40,14 +40,14 @@ type Build struct {
 	ExitCode       *int
 }
 
-type BuildInputFile struct {
+type InputFile struct {
 	ID         uuid.UUID
 	BuildID    uuid.UUID
 	Name       string
 	ContentKey *string
 }
 
-type BuildCreator struct {
+type Creator struct {
 	DB *pgxpool.Pool       // required
 	MQ *amqp091.Connection // required
 	S3 *s3.Client          // required
@@ -55,7 +55,7 @@ type BuildCreator struct {
 	BuildsAllowed int
 }
 
-type BuildCreatorCreateParams struct {
+type CreatorCreateParams struct {
 	UserID         uuid.UUID
 	Files          iter.Seq2[*File, error]
 	IdempotencyKey uuid.UUID
@@ -66,10 +66,10 @@ type File struct {
 	Data io.Reader
 }
 
-func (c *BuildCreator) Create(ctx context.Context, params *BuildCreatorCreateParams) (*Build, error) {
+func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Build, error) {
 	tx, err := c.DB.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildCreator: %w", err)
+		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
@@ -78,7 +78,7 @@ func (c *BuildCreator) Create(ctx context.Context, params *BuildCreatorCreatePar
 	// Lock builds to get their count.
 	err = lockBuilds(ctx, tx, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildCreator: %w", err)
+		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 
 	// Check daily quota.
@@ -86,17 +86,17 @@ func (c *BuildCreator) Create(ctx context.Context, params *BuildCreatorCreatePar
 	todayEndTime := todayStartTime.Add(24 * time.Hour)
 	buildsUsed, err := getBuildCount(ctx, tx, params.UserID, todayStartTime, todayEndTime)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildCreator: %w", err)
+		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 	if buildsUsed >= c.BuildsAllowed {
 		err = ErrLimitExceeded
-		return nil, fmt.Errorf("build.BuildCreator: %w", err)
+		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 
 	// Create build.
 	b, err := createBuild(ctx, tx, params.IdempotencyKey, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildCreator: %w", err)
+		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 
 	// Create object storage keys for output and log files.
@@ -105,7 +105,7 @@ func (c *BuildCreator) Create(ctx context.Context, params *BuildCreatorCreatePar
 	logFileKey := path.Join(buildDirKey, "log")
 	b, err = updateBuildContentKeys(ctx, tx, b.ID, outputFileKey, logFileKey)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildCreator: %w", err)
+		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 
 	// Create input files and upload their content to object storage.
@@ -227,7 +227,7 @@ func updateBuildContentKeys(ctx context.Context, db executor, id uuid.UUID, outp
 	return b, nil
 }
 
-func createBuildInputFile(ctx context.Context, db executor, buildID uuid.UUID, name string) (*BuildInputFile, error) {
+func createBuildInputFile(ctx context.Context, db executor, buildID uuid.UUID, name string) (*InputFile, error) {
 	query := `
 		INSERT INTO build_input_files (build_id, name)
 		VALUES ($1, $2)
@@ -244,7 +244,7 @@ func createBuildInputFile(ctx context.Context, db executor, buildID uuid.UUID, n
 	return f, nil
 }
 
-func updateBuildInputFileKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*BuildInputFile, error) {
+func updateBuildInputFileKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*InputFile, error) {
 	query := `
 		UPDATE build_input_files
 		SET content_key = $1
@@ -368,7 +368,7 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 	return b, nil
 }
 
-func rowToBuildInputFile(collectableRow pgx.CollectableRow) (*BuildInputFile, error) {
+func rowToBuildInputFile(collectableRow pgx.CollectableRow) (*InputFile, error) {
 	type row struct {
 		ID         uuid.UUID `db:"id"`
 		buildID    uuid.UUID `db:"build_id"`
@@ -380,7 +380,7 @@ func rowToBuildInputFile(collectableRow pgx.CollectableRow) (*BuildInputFile, er
 		return nil, err
 	}
 
-	f := &BuildInputFile{
+	f := &InputFile{
 		ID:         collectedRow.ID,
 		BuildID:    collectedRow.buildID,
 		Name:       collectedRow.Name,

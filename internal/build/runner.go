@@ -19,32 +19,32 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
-type BuildRunner struct {
+type Runner struct {
 	DB *pgxpool.Pool // required
 	S3 *s3.Client    // required
 }
 
-type BuildRunnerRunParams struct {
+type RunnerRunParams struct {
 	ID uuid.UUID
 }
 
-func (r *BuildRunner) Run(ctx context.Context, params *BuildRunnerRunParams) (*Build, error) {
+func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, error) {
 	// Get build.
 	b, err := getBuild(ctx, r.DB, params.ID)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Get build input files.
 	buildInputFiles, err := getBuildInputFiles(ctx, r.DB, b.ID)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Create temporary directory.
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 	defer func() {
 		_ = os.RemoveAll(tempDir)
@@ -54,7 +54,7 @@ func (r *BuildRunner) Run(ctx context.Context, params *BuildRunnerRunParams) (*B
 	inputDir := filepath.Join(tempDir, "input")
 	err = os.MkdirAll(inputDir, 0o777)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 	for _, buildInputFile := range buildInputFiles {
 		downloadFile := func(fileName string, objectKey string) error {
@@ -69,11 +69,11 @@ func (r *BuildRunner) Run(ctx context.Context, params *BuildRunnerRunParams) (*B
 		inputFile := filepath.Join(inputDir, buildInputFile.Name)
 		err = os.MkdirAll(filepath.Dir(inputFile), 0o777)
 		if err != nil {
-			return nil, fmt.Errorf("build.BuildRunner: %w", err)
+			return nil, fmt.Errorf("build.Runner: %w", err)
 		}
 		err = downloadFile(inputFile, *buildInputFile.ContentKey)
 		if err != nil {
-			return nil, fmt.Errorf("build.BuildRunner: %w", err)
+			return nil, fmt.Errorf("build.Runner: %w", err)
 		}
 	}
 
@@ -84,7 +84,7 @@ func (r *BuildRunner) Run(ctx context.Context, params *BuildRunnerRunParams) (*B
 		OutputDir: outputDir,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Upload PDF and log files from disk to object storage.
@@ -101,17 +101,17 @@ func (r *BuildRunner) Run(ctx context.Context, params *BuildRunnerRunParams) (*B
 	}
 	err = uploadFile(*b.OutputFileKey, runResult.PDFFile)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 	err = uploadFile(*b.LogFileKey, runResult.LogFile)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Update build exit code.
 	b, err = updateBuildExitCode(ctx, r.DB, b.ID, runResult.ExitCode)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildRunner: %w", err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	return b, nil
@@ -137,7 +137,7 @@ func getBuild(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 	return b, nil
 }
 
-func getBuildInputFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]*BuildInputFile, error) {
+func getBuildInputFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]*InputFile, error) {
 	query := `
 		SELECT id, build_id, name, content_key
 		FROM build_input_files
