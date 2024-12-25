@@ -190,8 +190,9 @@ func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, build.ErrNotFound) || errors.Is(err, build.ErrAccessDenied) {
 			h.serveClientError(w, r, err)
+		} else {
+			h.serveServerError(w, r, err)
 		}
-		h.serveServerError(w, r, err)
 		return
 	}
 
