@@ -19,7 +19,8 @@
     <button type="button" hx-swap="none" hx-get="/BuildOutputFile" hx-vals="{{ jsonObject "id" .Build.ID }}" class="block">Download</button>
   {{else if eq $status "Failed"}}
     <p>The build failed. You can read the logs to diagnose the problem.</p>
-    <textarea disabled></textarea>
+    <textarea disabled id="build-log-textarea"></textarea>
+    <button type="button" hx-target="#build-log-textarea" hx-swap="outerHTML" hx-get="/BuildLog" hx-vals="{{ jsonObject "id" .Build.ID }}" class="block">Load logs</button>
     <button type="button" disabled class="block">Download</button>
   {{else if eq $status "Canceled"}}
     <p>The build was canceled. You can request another build if needed.</p>
@@ -28,6 +29,10 @@
     <p>?</p>
   {{end}}
 </div>
+{{end}}
+
+{{define "BuildLog"}}
+<textarea disabled id="build-log-textarea">{{.Content}}</textarea>
 {{end}}
 
 {{define "Header"}}
@@ -39,20 +44,6 @@
       <button type="button" hx-target="#header" hx-post="/HeaderFromSignOut" class="block">Sign out</button>
     {{else}}
       <button type="button" hx-target="#header" hx-post="/HeaderFromSignIn" class="block">Sign in</button>
-    {{end}}
-  </div>
-</header>
-{{end}}
-
-{{define "header"}}
-<header id="header">
-  <a href="/" class="block">Brick</a>
-  <div>
-    {{if .User}}
-      <div>{{.User.ID}}</div>
-      <button type="button" hx-target="#header" hx-post="/header/sign-out" class="block">Sign out</button>
-    {{else}}
-      <button type="button" hx-target="#header" hx-post="/header/sign-in" class="block">Sign in</button>
     {{end}}
   </div>
 </header>
