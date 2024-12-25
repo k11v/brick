@@ -183,20 +183,109 @@ func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component, err := h.execute("Build", ExecuteBuildParams{TimeLocation: timeLocation, Build: b})
+	buildHTML, err := h.execute("Build", &ExecuteBuildParams{TimeLocation: timeLocation, Build: b})
 	if err != nil {
 		h.serveServerError(w, r, err)
+		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(component)
+	_, _ = w.Write(buildHTML)
+}
+
+type ExecuteHeaderParams struct {
+	User *struct{ ID uuid.UUID }
+}
+
+func (h *Handler) HeaderFromSignIn(w http.ResponseWriter, r *http.Request) {
+	newUserID := uuid.New()
+
+	newToken, err := createToken(h.jwtSignatureKey, newUserID)
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	headerHTML, err := h.execute("Header", &ExecuteHeaderParams{User: &struct{ ID uuid.UUID }{ID: newUserID}})
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    newToken,
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   int(14 * 24 * time.Hour / time.Second), // TODO: Consider time zones.
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(headerHTML)
+}
+
+func (h *Handler) HeaderFromSignOut(w http.ResponseWriter, r *http.Request) {
+	// Cookie token.
+	const cookieToken = "token"
+	tokenCookie, err := r.Cookie(cookieToken)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	token, err := parseAndValidateTokenFromCookie(r.Context(), h.db, h.jwtVerificationKey, tokenCookie)
+	if err != nil {
+		// FIXME: parseAndValidateTokenFromCookie includes database interaction.
+		// Any error from the interaction will directly reach the client since it
+		// is served as a client error. This possibly exposes too much internals.
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+
+	err = createRevokedToken(r.Context(), h.db, token.ID, token.ExpiresAt)
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	headerHTML, err := h.execute("Header", &ExecuteHeaderParams{User: nil})
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{ // TODO: Check if all we need is Name and MaxAge.
+		Name:     "token",
+		Value:    "",
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   -1, // Negative MaxAge deletes the cookie.
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(headerHTML)
 }
 
 type Token struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	ExpiresAt time.Time
+}
+
+func createToken(jwtSignatureKey ed25519.PrivateKey, userID uuid.UUID) (string, error) {
+	jwtToken := jwt.NewWithClaims(jwt.SigningMethodEdDSA, jwt.RegisteredClaims{
+		Subject:   userID.String(),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(14 * 24 * time.Hour)), // TODO: Consider time zones.
+		IssuedAt:  jwt.NewNumericDate(time.Now()),                          // TODO: Consider time zones.
+		ID:        uuid.NewString(),
+	})
+	return jwtToken.SignedString(jwtSignatureKey)
 }
 
 func parseAndValidateTokenFromCookie(ctx context.Context, db *pgxpool.Pool, jwtVerificationKey ed25519.PublicKey, cookie *http.Cookie) (*Token, error) {
@@ -274,6 +363,18 @@ func revokedTokenExists(ctx context.Context, db *pgxpool.Pool, id uuid.UUID) (bo
 
 	rows, _ := db.Query(ctx, query, args...)
 	return pgx.CollectExactlyOneRow(rows, pgx.RowTo[bool])
+}
+
+func createRevokedToken(ctx context.Context, db *pgxpool.Pool, id uuid.UUID, expiresAt time.Time) error {
+	query := `
+		INSERT INTO revoked_tokens (id, expires_at)
+		VALUES ($1, $2)
+		ON CONFLICT (id) DO NOTHING
+	`
+	args := []any{id, expiresAt}
+
+	_, err := db.Exec(ctx, query, args...) // TODO: Check if ignoring the command tag is OK.
+	return err
 }
 
 func (h *Handler) serveClientError(w http.ResponseWriter, _ *http.Request, err error) {

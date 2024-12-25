@@ -30,6 +30,20 @@
 </div>
 {{end}}
 
+{{define "Header"}}
+<header id="header">
+  <a href="/" class="block">Brick</a>
+  <div>
+    {{if .User}}
+      <div>{{.User.ID}}</div>
+      <button type="button" hx-target="#header" hx-post="/HeaderFromSignOut" class="block">Sign out</button>
+    {{else}}
+      <button type="button" hx-target="#header" hx-post="/HeaderFromSignIn" class="block">Sign in</button>
+    {{end}}
+  </div>
+</header>
+{{end}}
+
 {{define "header"}}
 <header id="header">
   <a href="/" class="block">Brick</a>
@@ -56,7 +70,7 @@
     <title>Brick</title>
   </head>
   <body>
-    {{template "header"}}
+    {{template "Header"}}
     <main>
       <p>Brick is a service that builds PDF files from Markdown files.</p>
       <form hx-target="#result" hx-post="/build-div/build-create-form" hx-encoding="multipart/form-data">
