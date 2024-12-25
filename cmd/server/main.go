@@ -33,7 +33,14 @@ func main() {
 			_ = mq.Close()
 		}()
 		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
-		server := NewServer(db, mq, s3Client, &Config{})
+		server, err := NewServer(db, mq, s3Client, &Config{
+			JWTSignatureKeyFile:    ".run/jwt/private.pem",
+			JWTVerificationKeyFile: ".run/jwt/public.pem",
+		})
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
 
 		slog.Info("starting server", "addr", server.Addr)
 		err = server.ListenAndServe()
