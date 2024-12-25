@@ -209,8 +209,8 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			}
 		}
 
-		operationCreator := &build.BuildCreator{DB: db, MQ: mq, S3: s3Client, BuildsAllowed: 10}
-		operation, err := operationCreator.Create(r.Context(), &build.BuildCreatorCreateParams{
+		operationCreator := &build.Creator{DB: db, MQ: mq, S3: s3Client, BuildsAllowed: 10}
+		operation, err := operationCreator.Create(r.Context(), &build.CreatorCreateParams{
 			UserID:         uuid.New(),
 			Files:          files,
 			IdempotencyKey: uuid.New(),
@@ -479,8 +479,8 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			return
 		}
 
-		operationGetter := &build.BuildGetter{DB: db}
-		operation, err := operationGetter.Get(r.Context(), &build.BuildGetterGetParams{
+		operationGetter := &build.Getter{DB: db}
+		operation, err := operationGetter.Get(r.Context(), &build.GetterGetParams{
 			ID:     operationID,
 			UserID: userID,
 		})

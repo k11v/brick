@@ -11,23 +11,23 @@ import (
 
 var ErrAccessDenied = errors.New("access denied")
 
-type BuildGetter struct {
+type Getter struct {
 	DB *pgxpool.Pool // required
 }
 
-type BuildGetterGetParams struct {
+type GetterGetParams struct {
 	ID     uuid.UUID
 	UserID uuid.UUID
 }
 
-func (g *BuildGetter) Get(ctx context.Context, params *BuildGetterGetParams) (*Build, error) {
+func (g *Getter) Get(ctx context.Context, params *GetterGetParams) (*Build, error) {
 	b, err := getBuild(ctx, g.DB, params.ID)
 	if err != nil {
-		return nil, fmt.Errorf("build.BuildGetter: %w", err)
+		return nil, fmt.Errorf("build.Getter: %w", err)
 	}
 	if b.UserID != params.UserID {
 		err = ErrAccessDenied
-		return nil, fmt.Errorf("build.BuildGetter: %w", err)
+		return nil, fmt.Errorf("build.Getter: %w", err)
 	}
 	return b, nil
 }
