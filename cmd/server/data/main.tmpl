@@ -16,7 +16,7 @@
     <button type="button" disabled class="block">Cancel</button>
   {{else if eq $status "Completed"}}
     <p>The PDF file is ready.</p>
-    <button type="button" class="block">Download</button>
+    <button type="button" hx-swap="none" hx-get="/BuildOutputFile" hx-vals="{{ jsonObject "id" .Build.ID }}" class="block">Download</button>
   {{else if eq $status "Failed"}}
     <p>The build failed. You can read the logs to diagnose the problem.</p>
     <textarea disabled></textarea>

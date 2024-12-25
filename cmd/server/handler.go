@@ -15,6 +15,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -182,7 +183,7 @@ func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	getter := &build.Getter{DB: h.db}
+	getter := &build.Getter{DB: h.db, S3: h.s3}
 	b, err := getter.Get(r.Context(), &build.GetterGetParams{
 		ID:     id,
 		UserID: userID,
@@ -205,6 +206,62 @@ func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(buildHTML)
+}
+
+func (h *Handler) BuildOutputFile(w http.ResponseWriter, r *http.Request) {
+	// Header HX-Request.
+	const headerHXRequest = "HX-Request"
+	hxRequest, err := strconv.ParseBool(r.Header.Get(headerHXRequest))
+	if err != nil {
+		hxRequest = false
+	}
+	if hxRequest { // TODO: This works but seems a bit risky. What if it loops?
+		w.Header().Set("HX-Redirect", r.URL.String())
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Cookie token.
+	const cookieToken = "token"
+	tokenCookie, err := r.Cookie(cookieToken)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	token, err := parseAndValidateTokenFromCookie(r.Context(), h.db, h.jwtVerificationKey, tokenCookie)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	userID := token.UserID
+
+	// Form value id.
+	const formValueID = "id"
+	id, err := uuid.Parse(r.FormValue(formValueID))
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s form value: %w", formValueID, err))
+		return
+	}
+
+	buf := new(bytes.Buffer) // TODO: Avoid loading entire output file into memory.
+	getter := &build.Getter{DB: h.db, S3: h.s3}
+	err = getter.GetOutputFile(r.Context(), buf, &build.GetterGetParams{
+		ID:     id,
+		UserID: userID,
+	})
+	if err != nil {
+		if errors.Is(err, build.ErrNotFound) || errors.Is(err, build.ErrAccessDenied) || errors.Is(err, build.ErrNotDone) {
+			h.serveClientError(w, r, err)
+		} else {
+			h.serveServerError(w, r, err)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=output.pdf")
+	w.Header().Set("Content-Type", "application/pdf")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
