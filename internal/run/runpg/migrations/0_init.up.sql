@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS builds (
 );
 CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);
 
-CREATE TABLE IF NOT EXISTS operation_input_files (
+CREATE TABLE IF NOT EXISTS build_input_files (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     build_id uuid NOT NULL,
     name text NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS user_locks (
     PRIMARY KEY (user_id)
 );
 
-CREATE TABLE IF NOT EXISTS revoked_access_tokens (
+CREATE TABLE IF NOT EXISTS revoked_tokens (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     expires_at timestamp with time zone NOT NULL,
     PRIMARY KEY (id)
