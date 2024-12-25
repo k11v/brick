@@ -122,8 +122,16 @@ func (h *Handler) NotFoundPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(h.notFoundPage)
 }
 
+type ExecuteMainPageParams struct {
+	Header *ExecuteHeaderParams
+}
+
 func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
-	page, err := h.execute("main.tmpl", nil)
+	page, err := h.execute("main.tmpl", &ExecuteMainPageParams{
+		Header: &ExecuteHeaderParams{
+			User: nil,
+		},
+	})
 	if err != nil {
 		h.serveServerError(w, r, err)
 		return

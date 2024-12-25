@@ -70,7 +70,7 @@
     <title>Brick</title>
   </head>
   <body>
-    {{template "Header"}}
+    {{template "Header" .Header}}
     <main>
       <p>Brick is a service that builds PDF files from Markdown files.</p>
       <form hx-target="#result" hx-post="/build-div/build-create-form" hx-encoding="multipart/form-data">
