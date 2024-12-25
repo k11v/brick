@@ -4,15 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrAccessDenied = errors.New("access denied")
+var (
+	ErrAccessDenied = errors.New("access denied")
+	ErrNotDone      = errors.New("not done")
+)
 
 type Getter struct {
 	DB *pgxpool.Pool // required
+	S3 *s3.Client    // required
 }
 
 type GetterGetParams struct {
@@ -26,8 +32,37 @@ func (g *Getter) Get(ctx context.Context, params *GetterGetParams) (*Build, erro
 		return nil, fmt.Errorf("build.Getter: %w", err)
 	}
 	if b.UserID != params.UserID {
-		err = ErrAccessDenied
-		return nil, fmt.Errorf("build.Getter: %w", err)
+		return nil, fmt.Errorf("build.Getter: %w", ErrAccessDenied)
 	}
 	return b, nil
+}
+
+func (g *Getter) GetOutputFile(ctx context.Context, w io.Writer, params *GetterGetParams) error {
+	b, err := g.Get(ctx, params)
+	if err != nil {
+		return err
+	}
+	if b.ExitCode == nil {
+		return fmt.Errorf("build.Getter: %w", ErrNotDone)
+	}
+	err = downloadFileContent(ctx, g.S3, w, *b.OutputFileKey)
+	if err != nil {
+		return fmt.Errorf("build.Getter: %w", err)
+	}
+	return nil
+}
+
+func (g *Getter) GetLogFile(ctx context.Context, w io.Writer, params *GetterGetParams) error {
+	b, err := g.Get(ctx, params)
+	if err != nil {
+		return err
+	}
+	if b.ExitCode == nil {
+		return fmt.Errorf("build.Getter: %w", ErrNotDone)
+	}
+	err = downloadFileContent(ctx, g.S3, w, *b.LogFileKey)
+	if err != nil {
+		return fmt.Errorf("build.Getter: %w", err)
+	}
+	return nil
 }
