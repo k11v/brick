@@ -52,10 +52,9 @@ func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 	mux.HandleFunc("GET /static/", h.StaticFile)
 	mux.HandleFunc("GET /{$}", h.MainPage)
 	mux.HandleFunc("GET /Build", h.Build)
+	mux.HandleFunc("POST /BuildFromBuild", h.BuildFromBuild)
 	mux.HandleFunc("POST /HeaderFromSignIn", h.HeaderFromSignIn)
 	mux.HandleFunc("POST /HeaderFromSignOut", h.HeaderFromSignOut)
-
-	mux.HandleFunc("POST /build-div/build-create-form", h.NotFoundPage)
 
 	server := &http.Server{
 		Addr:              addr,

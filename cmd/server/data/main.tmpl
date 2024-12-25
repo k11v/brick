@@ -1,7 +1,7 @@
 {{define "Build"}}
 <div>
   {{$status := status .Build}}
-  <button type="button" hx-target="#result" hx-get="/Build" hx-vals="{{ jsonObject "build_id" .Build.ID }}" hx-vals="js:{'time_location': Intl.DateTimeFormat().resolvedOptions().timeZone}" class="block">Get</button>
+  <button type="button" hx-target="#result" hx-get="/Build" hx-vals="{{ jsonObject "id" .Build.ID }}" hx-vals="js:{'time_location': Intl.DateTimeFormat().resolvedOptions().timeZone}" class="block">Get</button>
   <h2>{{$status}}</h2>
   <div>
     <div>{{time .TimeLocation .Build.CreatedAt}}</div>
@@ -73,7 +73,7 @@
     {{template "Header" .Header}}
     <main>
       <p>Brick is a service that builds PDF files from Markdown files.</p>
-      <form hx-target="#result" hx-post="/build-div/build-create-form" hx-encoding="multipart/form-data">
+      <form hx-target="#result" hx-post="/BuildFromBuild" hx-encoding="multipart/form-data">
         <input type="hidden" name="time_location" id="build-create-form-time-location-field" class="hidden" />
         <script>
           document.getElementById("build-create-form-time-location-field").value = Intl.DateTimeFormat().resolvedOptions().timeZone;

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 	"path"
 	"time"
 
@@ -112,20 +113,24 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 	inputDirKey := path.Join(buildDirKey, "input")
 	for file, err := range params.Files {
 		if err != nil {
+			slog.Error("range params.Files", "err", err)
 			panic("unimplemented")
 		}
 		buildInputFile, err := createBuildInputFile(ctx, tx, b.ID, file.Name)
 		if err != nil {
+			slog.Error("createBuildInputFile", "err", err)
 			panic("unimplemented")
 		}
 		contentKey := path.Join(inputDirKey, buildInputFile.ID.String())
 		buildInputFile, err = updateBuildInputFileKey(ctx, tx, buildInputFile.ID, contentKey)
 		if err != nil {
+			slog.Error("updateBuildInputFileKey", "err", err)
 			panic("unimplemented")
 		}
 		_ = buildInputFile
 		err = uploadFileContent(ctx, c.S3, contentKey, file.Data)
 		if err != nil {
+			slog.Error("uploadFileContent", "err", err)
 			panic("unimplemented")
 		}
 	}
@@ -133,11 +138,13 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 	// Send build created event to workers.
 	err = sendBuildCreated(ctx, c.MQ, b)
 	if err != nil {
+		slog.Error("sendBuildCreated", "err", err)
 		panic("unimplemented")
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
+		slog.Error("Commit", "err", err)
 		panic("unimplemented")
 	}
 
@@ -371,7 +378,7 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 func rowToBuildInputFile(collectableRow pgx.CollectableRow) (*InputFile, error) {
 	type row struct {
 		ID         uuid.UUID `db:"id"`
-		buildID    uuid.UUID `db:"build_id"`
+		BuildID    uuid.UUID `db:"build_id"`
 		Name       string    `db:"name"`
 		ContentKey *string   `db:"content_key"`
 	}
@@ -382,7 +389,7 @@ func rowToBuildInputFile(collectableRow pgx.CollectableRow) (*InputFile, error) 
 
 	f := &InputFile{
 		ID:         collectedRow.ID,
-		BuildID:    collectedRow.buildID,
+		BuildID:    collectedRow.BuildID,
 		Name:       collectedRow.Name,
 		ContentKey: collectedRow.ContentKey,
 	}

@@ -8,8 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
+	"iter"
 	"log/slog"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -187,6 +191,144 @@ func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, build.ErrNotFound) || errors.Is(err, build.ErrAccessDenied) {
 			h.serveClientError(w, r, err)
 		}
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	buildHTML, err := h.execute("Build", &ExecuteBuildParams{TimeLocation: timeLocation, Build: b})
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buildHTML)
+}
+
+func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
+	// Header Content-Type.
+	const headerContentType = "Content-Type"
+	mediaType, params, err := mime.ParseMediaType(r.Header.Get(headerContentType))
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s header: %w", headerContentType, err))
+		return
+	}
+	if mediaType != "multipart/form-data" {
+		h.serveClientError(w, r, fmt.Errorf("not multipart/form-data %s header", headerContentType))
+		return
+	}
+	boundary := params["boundary"]
+	if boundary == "" {
+		h.serveClientError(w, r, fmt.Errorf("%s header with empty boundary", headerContentType))
+		return
+	}
+
+	// Cookie token.
+	const cookieToken = "token"
+	tokenCookie, err := r.Cookie(cookieToken)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	token, err := parseAndValidateTokenFromCookie(r.Context(), h.db, h.jwtVerificationKey, tokenCookie)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	userID := token.UserID
+
+	mr := multipart.NewReader(r.Body, boundary)
+	peekedPart, peekedErr, peeked := (*multipart.Part)(nil), error(nil), false
+	nextPart := func() (*multipart.Part, error) {
+		if peeked {
+			peeked = false
+			return peekedPart, peekedErr
+		}
+		return mr.NextPart()
+	}
+	peekPart := func() (*multipart.Part, error) {
+		if peeked {
+			return peekedPart, peekedErr
+		}
+		peekedPart, peekedErr = mr.NextPart()
+		peeked = true
+		return peekedPart, peekedErr
+	}
+
+	// Form value time_location.
+	const formValueTimeLocation = "time_location"
+	timeLocationFormValue := ""
+	if part, err := peekPart(); err == nil && part.FormName() == formValueTimeLocation {
+		_, _ = nextPart()
+		timeLocationBytes, err := io.ReadAll(part)
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		timeLocationFormValue = string(timeLocationBytes)
+	}
+	timeLocation, err := time.LoadLocation(timeLocationFormValue)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s form value: %w", formValueTimeLocation, err))
+		return
+	}
+
+	// Form value files/*.
+	var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
+		for fileIndex := 0; ; fileIndex++ {
+			namePart, err := nextPart()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				_ = yield(nil, err)
+				return
+			}
+			if namePart.FormName() != fmt.Sprintf("files/%d/name", fileIndex) {
+				_ = yield(nil, fmt.Errorf("want file index %d", fileIndex))
+				return
+			}
+			nameBytes, err := io.ReadAll(namePart)
+			if err != nil {
+				_ = yield(nil, err)
+				return
+			}
+			name := string(nameBytes)
+
+			nameOrContentPart, err := peekPart()
+			if err == nil {
+				if nameOrContentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
+					file := &build.File{Name: name, Data: bytes.NewReader(nil)}
+					_ = yield(file, nil)
+					continue
+				}
+			}
+			contentPart, err := nextPart()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					file := &build.File{Name: name, Data: bytes.NewReader(nil)}
+					_ = yield(file, nil)
+					return
+				}
+				_ = yield(nil, err)
+				return
+			}
+
+			file := &build.File{Name: name, Data: contentPart}
+			if !yield(file, nil) {
+				return
+			}
+		}
+	}
+
+	creator := &build.Creator{DB: h.db, MQ: h.mq, S3: h.s3, BuildsAllowed: 10}
+	b, err := creator.Create(r.Context(), &build.CreatorCreateParams{
+		UserID:         userID,
+		Files:          files,
+		IdempotencyKey: uuid.New(),
+	})
+	if err != nil {
 		h.serveServerError(w, r, err)
 		return
 	}
