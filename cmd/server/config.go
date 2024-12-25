@@ -1,8 +1,13 @@
 package main
 
-import "time"
+import (
+	"time"
+)
 
 type Config struct {
+	JWTSignatureKeyFile    string // required
+	JWTVerificationKeyFile string // required
+
 	Host              string // default: "127.0.0.1"
 	Port              int    // default: 8080
 	ReadHeaderTimeout time.Duration
