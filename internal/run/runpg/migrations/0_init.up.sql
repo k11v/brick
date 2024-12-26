@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS builds (
     output_file_key text, -- NULL when inserted, then updated to be non-NULL
     log_file_key text, -- NULL when inserted, then updated to be non-NULL
     exit_code integer,
+    status text NOT NULL,
     PRIMARY KEY (id)
 );
 CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);

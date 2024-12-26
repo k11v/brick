@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 var (
 	ErrAccessDenied = errors.New("access denied")
 	ErrNotDone      = errors.New("not done")
+	ErrNotSucceeded = errors.New("not succeeded")
 )
 
 type Getter struct {
@@ -42,8 +44,8 @@ func (g *Getter) GetOutputFile(ctx context.Context, w io.Writer, params *GetterG
 	if err != nil {
 		return err
 	}
-	if b.ExitCode == nil {
-		return fmt.Errorf("build.Getter: %w", ErrNotDone)
+	if b.Status != StatusSucceeded {
+		return fmt.Errorf("build.Getter: %w", ErrNotSucceeded)
 	}
 	err = downloadFileContent(ctx, g.S3, w, *b.OutputFileKey)
 	if err != nil {
@@ -57,7 +59,7 @@ func (g *Getter) GetLogFile(ctx context.Context, w io.Writer, params *GetterGetP
 	if err != nil {
 		return err
 	}
-	if b.ExitCode == nil {
+	if strings.Split(string(b.Status), ".")[0] == "done" {
 		return fmt.Errorf("build.Getter: %w", ErrNotDone)
 	}
 	err = downloadFileContent(ctx, g.S3, w, *b.LogFileKey)

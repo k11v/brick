@@ -39,6 +39,7 @@ type Build struct {
 	OutputFileKey  *string
 	LogFileKey     *string
 	ExitCode       *int
+	Status         Status
 }
 
 type InputFile struct {
@@ -197,11 +198,11 @@ func getBuildCount(ctx context.Context, db executor, userID uuid.UUID, startTime
 
 func createBuild(ctx context.Context, db executor, idempotencyKey uuid.UUID, userID uuid.UUID) (*Build, error) {
 	query := `
-		INSERT INTO builds (idempotency_key, user_id)
-		VALUES ($1, $2)
-		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
+		INSERT INTO builds (idempotency_key, user_id, status)
+		VALUES ($1, $2, $3)
+		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
 	`
-	args := []any{idempotencyKey, userID}
+	args := []any{idempotencyKey, userID, string(StatusPending)}
 
 	// TODO: Study pgconn.PgError.ColumnName.
 	rows, _ := db.Query(ctx, query, args...)
@@ -221,7 +222,7 @@ func updateBuildContentKeys(ctx context.Context, db executor, id uuid.UUID, outp
 		UPDATE builds
 		SET output_file_key = $1, log_file_key = $2
 		WHERE id = $3
-		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
+		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
 	`
 	args := []any{outputFileKey, logFileKey, id}
 
@@ -357,6 +358,7 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 		OutputFileKey  *string   `db:"output_file_key"`
 		LogFileKey     *string   `db:"log_file_key"`
 		ExitCode       *int      `db:"exit_code"`
+		Status         string    `db:"status"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
@@ -371,6 +373,7 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 		OutputFileKey:  collectedRow.OutputFileKey,
 		LogFileKey:     collectedRow.LogFileKey,
 		ExitCode:       collectedRow.ExitCode,
+		Status:         Status(collectedRow.Status), // TODO: Warn if unknown.
 	}
 	return b, nil
 }
