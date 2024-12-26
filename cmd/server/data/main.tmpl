@@ -1,28 +1,51 @@
 {{define "Build"}}
 <div>
-  {{$status := status .Build}}
   <button type="button" hx-target="#result" hx-get="/Build" hx-vals="{{ jsonObject "id" .Build.ID }}" hx-vals="js:{'time_location': Intl.DateTimeFormat().resolvedOptions().timeZone}" class="block">Get</button>
-  <h2>{{$status}}</h2>
-  <div>
-    <div>{{time .TimeLocation .Build.CreatedAt}}</div>
-    <div>from Markdown</div>
-    <div>to PDF</div>
-  </div>
-  {{if eq $status "Queued"}}
+  {{if eq .Build.Status "pending"}}
+    <h2>Pending</h2>
+    <div>
+      <div>{{time .TimeLocation .Build.CreatedAt}}</div>
+      <div>from Markdown</div>
+      <div>to PDF</div>
+    </div>
     <p>The build is in a queue. It will start as soon as possible.</p>
-    <button type="button" class="block">Cancel</button>
-  {{else if eq $status "Running"}}
+    <button type="button" hx-target="#result" hx-post="/BuildFromCancel" hx-vals="{{ jsonObject "id" .Build.ID }}" hx-vals="js:{'time_location': Intl.DateTimeFormat().resolvedOptions().timeZone}" class="block">Cancel</button>
+  {{else if eq .Build.Status "running"}}
+    <h2>Running</h2>
+    <div>
+      <div>{{time .TimeLocation .Build.CreatedAt}}</div>
+      <div>from Markdown</div>
+      <div>to PDF</div>
+    </div>
     <p>The build is running. Your PDF file will be ready soon.</p>
     <button type="button" disabled class="block">Cancel</button>
-  {{else if eq $status "Completed"}}
+  {{else if eq .Build.Status "done.succeeded"}}
+    <h2>Succeeded</h2>
+    <div>
+      <div>{{time .TimeLocation .Build.CreatedAt}}</div>
+      <div>from Markdown</div>
+      <div>to PDF</div>
+    </div>
     <p>The PDF file is ready.</p>
     <button type="button" hx-swap="none" hx-get="/BuildOutputFile" hx-vals="{{ jsonObject "id" .Build.ID }}" class="block">Download</button>
-  {{else if eq $status "Failed"}}
+  {{else if eq .Build.Status "done.failed"}}
+    <h2>Failed</h2>
+    <div>
+      <div>{{time .TimeLocation .Build.CreatedAt}}</div>
+      <div>from Markdown</div>
+      <div>to PDF</div>
+    </div>
     <p>The build failed. You can read the logs to diagnose the problem.</p>
     <textarea disabled id="build-log-textarea"></textarea>
     <button type="button" hx-target="#build-log-textarea" hx-swap="outerHTML" hx-get="/BuildLog" hx-vals="{{ jsonObject "id" .Build.ID }}" class="block">Load logs</button>
     <button type="button" disabled class="block">Download</button>
-  {{else if eq $status "Canceled"}}
+  {{else if eq .Build.Status "done.canceled"}}
+    <h2>Canceled</h2>
+    <div>
+      <div>{{time .TimeLocation .Build.CreatedAt}}</div>
+      <div>from Markdown</div>
+      <div>to PDF</div>
+    </div>
     <p>The build was canceled. You can request another build if needed.</p>
     <button type="button" disabled class="block">Download</button>
   {{else}}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -29,8 +30,48 @@ type RunnerRunParams struct {
 }
 
 func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, error) {
-	// Get build.
-	b, err := getBuild(ctx, r.DB, params.ID)
+	tx, err := r.DB.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("build.Runner: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	// Get build for status update to running.
+	b, err := getBuildForUpdate(ctx, r.DB, params.ID)
+	if err != nil {
+		return nil, fmt.Errorf("build.Runner: %w", err)
+	}
+
+	// FIXME:
+	//
+	// We probably want only one runner to be entering the next stage.
+	// Otherwise multiple runners may try to write output and log files
+	// and the result might be undetermined.
+	// So additionally we could check if build status is not "running".
+	// But if it is running it is not necessarily true, maybe we have set
+	// the status and crashed.
+	//
+	// Also if it fails (by simply returning an error), we are stuck in running.
+
+	// If build is running, return.
+	if strings.Split(string(b.Status), ".")[0] == "running" {
+		return nil, fmt.Errorf("build.Runner: %w", ErrAlreadyRunning)
+	}
+
+	// If build is done, return.
+	if strings.Split(string(b.Status), ".")[0] == "done" {
+		return nil, fmt.Errorf("build.Runner: %w", ErrAlreadyDone)
+	}
+
+	// Update build status to running.
+	b, err = updateBuildStatus(ctx, tx, params.ID, StatusRunning)
+	if err != nil {
+		return nil, fmt.Errorf("build.Runner: %w", err)
+	}
+
+	err = tx.Commit(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
@@ -87,7 +128,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
-	// Upload PDF and log files from disk to object storage.
+	// Upload log file from disk to object storage.
 	uploadFile := func(objectKey string, fileName string) error {
 		openFile, err := os.Open(fileName)
 		if err != nil {
@@ -99,17 +140,33 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 
 		return uploadFileContent(ctx, r.S3, objectKey, openFile)
 	}
-	err = uploadFile(*b.OutputFileKey, runResult.PDFFile)
-	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
-	}
 	err = uploadFile(*b.LogFileKey, runResult.LogFile)
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
+	// If run succeeded, upload PDF file from disk to object storage.
+	if runResult.ExitCode == 0 {
+		err = uploadFile(*b.OutputFileKey, runResult.PDFFile)
+		if err != nil {
+			return nil, fmt.Errorf("build.Runner: %w", err)
+		}
+	}
+
 	// Update build exit code.
 	b, err = updateBuildExitCode(ctx, r.DB, b.ID, runResult.ExitCode)
+	if err != nil {
+		return nil, fmt.Errorf("build.Runner: %w", err)
+	}
+
+	// Update build status to done.
+	var doneStatus Status
+	if runResult.ExitCode == 0 {
+		doneStatus = StatusSucceeded
+	} else {
+		doneStatus = StatusFailed
+	}
+	b, err = updateBuildStatus(ctx, r.DB, b.ID, doneStatus)
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
@@ -119,7 +176,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 
 func getBuild(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 	query := `
-		SELECT id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
+		SELECT id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
 		FROM builds
 		WHERE id = $1
 	`
@@ -193,7 +250,7 @@ func updateBuildExitCode(ctx context.Context, db executor, id uuid.UUID, exitCod
 		UPDATE builds
 		SET exit_code = $1
 		WHERE id = $2
-		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code
+		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
 	`
 	args := []any{exitCode, id}
 

@@ -77,15 +77,6 @@ func (h *Handler) execute(name string, data any) ([]byte, error) {
 		"time": func(loc *time.Location, t *time.Time) string {
 			return t.In(loc).Format("2006-01-02 15:04")
 		},
-		"status": func(operation *build.Build) string {
-			if operation.ExitCode == nil {
-				return "Queued"
-			}
-			if *operation.ExitCode == 0 {
-				return "Completed"
-			}
-			return "Failed"
-		},
 		"jsonObject": func(args ...any) (string, error) {
 			o := make(map[string]any)
 			if len(args)%2 != 0 {
@@ -441,6 +432,62 @@ func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		h.serveServerError(w, r, err)
+		return
+	}
+
+	buildHTML, err := h.execute("Build", &ExecuteBuildParams{TimeLocation: timeLocation, Build: b})
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buildHTML)
+}
+
+func (h *Handler) BuildFromCancel(w http.ResponseWriter, r *http.Request) {
+	// Cookie token.
+	const cookieToken = "token"
+	tokenCookie, err := r.Cookie(cookieToken)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	token, err := parseAndValidateTokenFromCookie(r.Context(), h.db, h.jwtVerificationKey, tokenCookie)
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s cookie: %w", cookieToken, err))
+		return
+	}
+	userID := token.UserID
+
+	// Form value id.
+	const formValueID = "id"
+	id, err := uuid.Parse(r.FormValue(formValueID))
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s form value: %w", formValueID, err))
+		return
+	}
+
+	// Form value time_location.
+	const formValueTimeLocation = "time_location"
+	timeLocation, err := time.LoadLocation(r.FormValue(formValueTimeLocation))
+	if err != nil {
+		h.serveClientError(w, r, fmt.Errorf("%s form value: %w", formValueTimeLocation, err))
+		return
+	}
+
+	canceler := &build.Canceler{DB: h.db, MQ: h.mq, S3: h.s3}
+	b, err := canceler.Cancel(r.Context(), &build.CancelerCancelParams{
+		ID:     id,
+		UserID: userID,
+	})
+	if err != nil {
+		if errors.Is(err, build.ErrNotFound) || errors.Is(err, build.ErrAccessDenied) || errors.Is(err, build.ErrAlreadyDone) {
+			h.serveClientError(w, r, err)
+		} else {
+			h.serveServerError(w, r, err)
+		}
 		return
 	}
 
