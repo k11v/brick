@@ -38,4 +38,4 @@ COPY --from=builder /root/bin/ /user/bin/
 EXPOSE 8080
 USER user:user
 WORKDIR /user/
-ENTRYPOINT ["server"]
+ENTRYPOINT ["build"]
