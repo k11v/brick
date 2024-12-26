@@ -1,16 +1,22 @@
 package build
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/strslice"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -119,49 +125,133 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	}
 
 	// Run.
-	outputDir := filepath.Join(tempDir, "output")
-	runResult, err := Run(&RunParams{
-		InputDir:  inputDir,
-		OutputDir: outputDir,
-	})
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		panic(err)
 	}
 
-	// Upload log file from disk to object storage.
-	uploadFile := func(objectKey string, fileName string) error {
-		openFile, err := os.Open(fileName)
+	createResp, err := cli.ContainerCreate(
+		ctx,
+		&container.Config{
+			AttachStdout:    true,
+			AttachStderr:    true,
+			Cmd:             strslice.StrSlice{"-i", "main.md", "-o", "/user/build/output/main.pdf", "-c", "/user/build/output/cache"},
+			Image:           "brick",
+			Entrypoint:      strslice.StrSlice{"build"},
+			WorkingDir:      "/user/build/input",
+			NetworkDisabled: true, // Likely keep.
+		},
+		&container.HostConfig{
+			NetworkMode:    "none",                                        // Maybe keep.
+			CapDrop:        strslice.StrSlice{},                           // Likely keep but change to drop all.
+			CgroupnsMode:   container.CgroupnsModePrivate,                 // Likely keep. It is likely the default.
+			IpcMode:        container.IPCModePrivate,                      // Likely keep. It is likely the default. Likely stricter IPCModeNone could be considered.
+			OomScoreAdj:    500,                                           // Maybe keep. Maybe change value. It likely controls the likelyhood of this container getting killed in OOM scenario.
+			PidMode:        "private",                                     // Likely keep. Maybe change. It is maybe the default.
+			Privileged:     false,                                         // Likely keep. It is the default.
+			ReadonlyRootfs: true,                                          // Maybe keep. Likely needs other settings.
+			SecurityOpt:    nil,                                           // Maybe keep but change value. It is related to SELinux.
+			StorageOpt:     nil,                                           // Maybe keep. It is related to storage.
+			Tmpfs:          map[string]string{"/user/build": "size=256m"}, // Maybe keep. Maybe change.
+			UTSMode:        "private",                                     // Maybe keep. Likely change. The default is possibly "host".
+			UsernsMode:     "private",                                     // Maybe keep. Possibly a more secure user namespace mode could be configured if we are tinkering with Docker Engine's daemon.json.
+			ShmSize:        0,                                             // Maybe keep. Likely change.
+			Sysctls:        nil,                                           // Maybe keep but change value. If it is about setting sysctl, the ones I saw weren't all that useful.
+			Runtime:        "",                                            // Maybe keep. It is probably about Docker runtimes like Kata. Maybe could be used to tighten security further.
+			Resources: container.Resources{
+				CPUShares: 768,                    // Relative to other containers. The default is likely 1024. Maybe keep. Maybe change.
+				Memory:    1 * 1024 * 1024 * 1024, // 1GB. Maybe keep. Maybe change.
+				NanoCPUs:  1 * 1000000000,         // 1 CPU. Maybe keep. Maybe change.
+
+				// Maybe add other.
+			},
+			Mounts:        nil, // Maybe use instead of Tmpfs but change.
+			MaskedPaths:   nil, // Maybe use.
+			ReadonlyPaths: nil, // Maybe use. It seems useful but not sure if I need it.
+		},
+		nil, // Maybe use &network.NetworkingConfig.
+		nil, // Maybe use &v1.Platform.
+		"",
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		// TODO: Remove the container.
+	}()
+	if len(createResp.Warnings) > 0 {
+		slog.Warn("", "warnings", createResp.Warnings)
+	}
+
+	// COPY INPUT FILES TO CONTAINER HERE.
+
+	err = cli.ContainerStart(ctx, createResp.ID, container.StartOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	var waitResp container.WaitResponse
+	waitRespCh, errCh := cli.ContainerWait(ctx, createResp.ID, container.WaitConditionNotRunning)
+	select {
+	case err = <-errCh:
 		if err != nil {
-			return err
+			panic(err)
 		}
-		defer func() {
-			_ = openFile.Close()
-		}()
-
-		return uploadFileContent(ctx, r.S3, objectKey, openFile)
+	case waitResp = <-waitRespCh:
+	case <-ctx.Done():
+		panic(ctx.Err())
 	}
-	err = uploadFile(*b.LogFileKey, runResult.LogFile)
+	if waitResp.Error != nil {
+		panic("waitResp.Error is not nil")
+	}
+	exitCode := int(waitResp.StatusCode)
+
+	// TODO: Consider more container.LogOptions.
+	// TODO: Do we need to close multiplexedLogReadCloser?
+	logPipeReader, logPipeWriter := io.Pipe()
+	multiplexedLogReadCloser, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		panic(err)
+	}
+	go func() {
+		// TODO: Can we use a single writer for both?
+		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
+		_, err = stdcopy.StdCopy(logPipeWriter, logPipeWriter, multiplexedLogReadCloser)
+		if err != nil {
+			panic(err)
+		}
+		err = logPipeWriter.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	// Upload log file from pipe to object storage.
+	err = uploadFileContent(ctx, r.S3, *b.LogFileKey, logPipeReader)
+	if err != nil {
+		panic(err)
 	}
 
-	// If run succeeded, upload PDF file from disk to object storage.
-	if runResult.ExitCode == 0 {
-		err = uploadFile(*b.OutputFileKey, runResult.PDFFile)
+	// If run succeeded, upload PDF file from SOMEWHERE to object storage.
+	if exitCode == 0 {
+		// COPY OUTPUT FILES FROM CONTAINER HERE.
+
+		// FIXME: Use real output file reader.
+		err = uploadFileContent(ctx, r.S3, *b.OutputFileKey, bytes.NewReader(nil))
 		if err != nil {
-			return nil, fmt.Errorf("build.Runner: %w", err)
+			panic(err)
 		}
 	}
 
 	// Update build exit code.
-	b, err = updateBuildExitCode(ctx, r.DB, b.ID, runResult.ExitCode)
+	b, err = updateBuildExitCode(ctx, r.DB, b.ID, exitCode)
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Update build status to done.
 	var doneStatus Status
-	if runResult.ExitCode == 0 {
+	if exitCode == 0 {
 		doneStatus = StatusSucceeded
 	} else {
 		doneStatus = StatusFailed
