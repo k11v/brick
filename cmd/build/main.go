@@ -15,6 +15,7 @@ var (
 	cacheDir   = flag.String("c", "", "cache dir")
 )
 
+// stubMain.
 func main() {
 	run := func() int {
 		flag.Parse()
@@ -35,7 +36,41 @@ func main() {
 			return 2
 		}
 
-		const flagCacheDir = "-o"
+		const flagCacheDir = "-c"
+		if *cacheDir == "" {
+			_, _ = fmt.Fprintf(os.Stderr, "error: missing %s flag\n", flagCacheDir)
+			return 2
+		}
+
+		fmt.Println("done")
+
+		return 0
+	}
+	os.Exit(run())
+}
+
+// realMain.
+func realMain() {
+	run := func() int {
+		flag.Parse()
+
+		const flagInputFile = "-i"
+		if *inputFile == "" {
+			_, _ = fmt.Fprintf(os.Stderr, "error: missing %s flag\n", flagInputFile)
+			return 2
+		}
+		if *inputFile != "main.md" { // build.Run can only build main.md for now.
+			_, _ = fmt.Fprintf(os.Stderr, "error: %s flag is not %q\n", flagInputFile, "main.md")
+			return 2
+		}
+
+		const flagOutputFile = "-o"
+		if *outputFile == "" {
+			_, _ = fmt.Fprintf(os.Stderr, "error: missing %s flag\n", flagOutputFile)
+			return 2
+		}
+
+		const flagCacheDir = "-c"
 		if *cacheDir == "" {
 			_, _ = fmt.Fprintf(os.Stderr, "error: missing %s flag\n", flagCacheDir)
 			return 2
