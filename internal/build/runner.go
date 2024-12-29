@@ -133,17 +133,16 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	createResp, err := cli.ContainerCreate(
 		ctx,
 		&container.Config{
-			AttachStdout:    true,
-			AttachStderr:    true,
-			Cmd:             strslice.StrSlice{"-i", "main.md", "-o", "/user/build/output/main.pdf", "-c", "/user/build/output/cache"},
-			Image:           "brick",
-			Entrypoint:      strslice.StrSlice{"build"},
-			WorkingDir:      "/user/build/input",
-			NetworkDisabled: true, // Likely keep.
+			Image:        "brick-build",
+			Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/build/output/main.pdf", "-c", "/user/build/output/cache"},
+			WorkingDir:   "/user/build/input",
+			AttachStderr: true,
+			AttachStdout: true,
 		},
 		&container.HostConfig{
-			NetworkMode:    "none",                                        // Maybe keep.
-			CapDrop:        strslice.StrSlice{},                           // Likely keep but change to drop all.
+			NetworkMode: "none",
+			CapDrop:     strslice.StrSlice{"all"},
+
 			CgroupnsMode:   container.CgroupnsModePrivate,                 // Likely keep. It is likely the default.
 			IpcMode:        container.IPCModePrivate,                      // Likely keep. It is likely the default. Likely stricter IPCModeNone could be considered.
 			OomScoreAdj:    500,                                           // Maybe keep. Maybe change value. It likely controls the likelyhood of this container getting killed in OOM scenario.
