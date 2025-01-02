@@ -250,6 +250,11 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		}
 	}
 
+	err = cli.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{}) // TODO: defer
+	if err != nil {
+		panic(err)
+	}
+
 	// Update build exit code.
 	b, err = updateBuildExitCode(ctx, r.DB, b.ID, exitCode)
 	if err != nil {
