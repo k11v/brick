@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -140,33 +141,40 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			AttachStdout: true,
 		},
 		&container.HostConfig{
-			NetworkMode: "none",
-			CapDrop:     strslice.StrSlice{"all"},
+			NetworkMode:    "none",
+			CapDrop:        strslice.StrSlice{"all"},
+			ReadonlyRootfs: true,
+			Mounts: []mount.Mount{{
+				Type:   mount.TypeTmpfs,
+				Target: "/user/build",
+				TmpfsOptions: &mount.TmpfsOptions{
+					SizeBytes: 256 * 1024 * 1024, // 256MB
+					Mode:      0o1777,            // TODO: Check
+				},
+			}},
 
-			CgroupnsMode:   container.CgroupnsModePrivate,                 // Likely keep. It is likely the default.
-			IpcMode:        container.IPCModePrivate,                      // Likely keep. It is likely the default. Likely stricter IPCModeNone could be considered.
-			OomScoreAdj:    500,                                           // Maybe keep. Maybe change value. It likely controls the likelyhood of this container getting killed in OOM scenario.
-			PidMode:        "private",                                     // Likely keep. Maybe change. It is maybe the default.
-			Privileged:     false,                                         // Likely keep. It is the default.
-			ReadonlyRootfs: true,                                          // Maybe keep. Likely needs other settings.
-			SecurityOpt:    nil,                                           // Maybe keep but change value. It is related to SELinux.
-			StorageOpt:     nil,                                           // Maybe keep. It is related to storage.
-			Tmpfs:          map[string]string{"/user/build": "size=256m"}, // Maybe keep. Maybe change.
-			UTSMode:        "private",                                     // Maybe keep. Likely change. The default is possibly "host".
-			UsernsMode:     "private",                                     // Maybe keep. Possibly a more secure user namespace mode could be configured if we are tinkering with Docker Engine's daemon.json.
-			ShmSize:        0,                                             // Maybe keep. Likely change.
-			Sysctls:        nil,                                           // Maybe keep but change value. If it is about setting sysctl, the ones I saw weren't all that useful.
-			Runtime:        "",                                            // Maybe keep. It is probably about Docker runtimes like Kata. Maybe could be used to tighten security further.
-			Resources: container.Resources{
-				CPUShares: 768,                    // Relative to other containers. The default is likely 1024. Maybe keep. Maybe change.
-				Memory:    1 * 1024 * 1024 * 1024, // 1GB. Maybe keep. Maybe change.
-				NanoCPUs:  1 * 1000000000,         // 1 CPU. Maybe keep. Maybe change.
+			// CgroupnsMode: container.CgroupnsModePrivate,                 // Likely keep. It is likely the default.
+			// IpcMode:      container.IPCModePrivate,                      // Likely keep. It is likely the default. Likely stricter IPCModeNone could be considered.
+			// OomScoreAdj:  500,                                           // Maybe keep. Maybe change value. It likely controls the likelyhood of this container getting killed in OOM scenario.
+			// PidMode:      "private",                                     // Likely keep. Maybe change. It is maybe the default.
+			// Privileged:   false,                                         // Likely keep. It is the default.
+			// SecurityOpt:  nil,                                           // Maybe keep but change value. It is related to SELinux.
+			// StorageOpt:   nil,                                           // Maybe keep. It is related to storage.
+			// Tmpfs:        map[string]string{"/user/build": "size=256m"}, // Maybe keep. Maybe change.
+			// UTSMode:      "private",                                     // Maybe keep. Likely change. The default is possibly "host".
+			// UsernsMode:   "private",                                     // Maybe keep. Possibly a more secure user namespace mode could be configured if we are tinkering with Docker Engine's daemon.json.
+			// ShmSize:      0,                                             // Maybe keep. Likely change.
+			// Sysctls:      nil,                                           // Maybe keep but change value. If it is about setting sysctl, the ones I saw weren't all that useful.
+			// Runtime:      "",                                            // Maybe keep. It is probably about Docker runtimes like Kata. Maybe could be used to tighten security further.
+			// Resources: container.Resources{
+			// 	CPUShares: 768,                    // Relative to other containers. The default is likely 1024. Maybe keep. Maybe change.
+			// 	Memory:    1 * 1024 * 1024 * 1024, // 1GB. Maybe keep. Maybe change.
+			// 	NanoCPUs:  1 * 1000000000,         // 1 CPU. Maybe keep. Maybe change.
 
-				// Maybe add other.
-			},
-			Mounts:        nil, // Maybe use instead of Tmpfs but change.
-			MaskedPaths:   nil, // Maybe use.
-			ReadonlyPaths: nil, // Maybe use. It seems useful but not sure if I need it.
+			// 	// Maybe add other.
+			// },
+			// MaskedPaths:   nil, // Maybe use.
+			// ReadonlyPaths: nil, // Maybe use. It seems useful but not sure if I need it.
 		},
 		nil, // Maybe use &network.NetworkingConfig.
 		nil, // Maybe use &v1.Platform.
