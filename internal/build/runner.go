@@ -190,7 +190,16 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		slog.Warn("", "warnings", createResp.Warnings)
 	}
 
-	// COPY INPUT FILES TO CONTAINER HERE.
+	openInputTar, err := os.Open(".run/main.tar")
+	if err != nil {
+		panic(err)
+	}
+	err = cli.CopyToContainer(ctx, createResp.ID, "/user/build/input", openInputTar, container.CopyToContainerOptions{
+		CopyUIDGID: false,
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	err = cli.ContainerStart(ctx, createResp.ID, container.StartOptions{})
 	if err != nil {
