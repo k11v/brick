@@ -34,5 +34,5 @@ COPY --from=builder /root/bin/build /user/bin/build
 
 # Run application.
 USER user:user
-WORKDIR /user/
+WORKDIR /user/build/input
 ENTRYPOINT ["build"]
