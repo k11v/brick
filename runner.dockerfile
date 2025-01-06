@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/root/gocache \
     go build -o /root/bin/ ./cmd/...
 
 
-FROM alpine:3.20 AS runner
+FROM pandoc/latex:3.6-alpine AS runner
 
 # Prepare environment.
 ENV UID=2000 GID=2000 HOME=/user
