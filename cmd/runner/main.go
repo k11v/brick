@@ -8,6 +8,8 @@ import (
 	"io"
 	"mime/multipart"
 	"os"
+
+	"github.com/k11v/brick/internal/build"
 )
 
 var (
@@ -99,9 +101,54 @@ func main() {
 			return 1
 		}
 
-		fmt.Println("done")
+		// Run.
+		result, err := build.Run(&build.RunParams{
+			InputDir:  ".",
+			OutputDir: *cacheDir,
+		})
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
 
-		return 0
+		openOutputFile, err := os.Create(*outputFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+		defer func() {
+			_ = openOutputFile.Close()
+		}()
+
+		openResultPDFFile, err := os.Open(result.PDFFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+		defer func() {
+			_ = openResultPDFFile.Close()
+		}()
+		_, err = io.Copy(openOutputFile, openResultPDFFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+
+		openResultLogFile, err := os.Open(result.LogFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+		defer func() {
+			_ = openResultLogFile.Close()
+		}()
+		_, err = io.Copy(os.Stdout, openResultLogFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 1
+		}
+
+		return result.ExitCode
 	}
 	os.Exit(run())
 }
