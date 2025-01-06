@@ -135,8 +135,8 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		ctx,
 		&container.Config{
 			Image:        "brick-runner",
-			Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/run/output/main.pdf", "-c", "/user/run/output/cache"},
-			WorkingDir:   "/user/run/input",
+			Entrypoint:   strslice.StrSlice{"/bin/sh", "-c", `mkdir /user/mnt/input && cd /user/mnt/input && exec runner "$@"`, "_"},
+			Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/mnt/output/main.pdf", "-c", "/user/mnt/output/cache"},
 			AttachStdin:  true,
 			AttachStderr: true,
 			AttachStdout: true,
@@ -163,7 +163,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			ReadonlyRootfs: true,
 			Mounts: []mount.Mount{{
 				Type:   mount.TypeTmpfs,
-				Target: "/user/run",
+				Target: "/user/mnt",
 				TmpfsOptions: &mount.TmpfsOptions{
 					SizeBytes: 256 * 1024 * 1024, // 256MB
 					Mode:      0o1777,            // TODO: Check
@@ -177,7 +177,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			// Privileged:   false,                                         // Likely keep. It is the default.
 			// SecurityOpt:  nil,                                           // Maybe keep but change value. It is related to SELinux.
 			// StorageOpt:   nil,                                           // Maybe keep. It is related to storage.
-			// Tmpfs:        map[string]string{"/user/run": "size=256m"}, // Maybe keep. Maybe change.
+			// Tmpfs:        map[string]string{"/user/mnt": "size=256m"}, // Maybe keep. Maybe change.
 			// UTSMode:      "private",                                     // Maybe keep. Likely change. The default is possibly "host".
 			// UsernsMode:   "private",                                     // Maybe keep. Possibly a more secure user namespace mode could be configured if we are tinkering with Docker Engine's daemon.json.
 			// ShmSize:      0,                                             // Maybe keep. Likely change.
@@ -212,11 +212,6 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		panic(err)
 	}
 
-	err = cli.ContainerStart(ctx, createResp.ID, container.StartOptions{})
-	if err != nil {
-		panic(err)
-	}
-
 	attachResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
 		Stream:     true,
 		Stdin:      true,
@@ -229,6 +224,11 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		panic(err)
 	}
 	defer attachResp.Close()
+
+	err = cli.ContainerStart(ctx, createResp.ID, container.StartOptions{})
+	if err != nil {
+		panic(err)
+	}
 
 	_, err = io.Copy(attachResp.Conn, openInputTar)
 	if err != nil {

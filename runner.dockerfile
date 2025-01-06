@@ -26,7 +26,7 @@ RUN addgroup -g "$GID" -S user \
  && adduser -u "$UID" -G user -h "$HOME" -H -s /bin/sh -S user \
  && mkdir "$HOME" \
  && mkdir "$HOME/bin" \
- && mkdir "$HOME/run" \
+ && mkdir "$HOME/mnt" \
  && chown -R "$UID:$GID" "$HOME"
 
 # Copy application.
@@ -34,5 +34,6 @@ COPY --from=builder /root/bin/runner /user/bin/runner
 
 # Run application.
 USER user:user
-WORKDIR /user/
+VOLUME /user/mnt
+WORKDIR /user
 ENTRYPOINT ["runner"]
