@@ -162,7 +162,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 				"CAP_KILL",
 				"CAP_AUDIT_WRITE",
 			},
-			ReadonlyRootfs: true,
+			ReadonlyRootfs: false, // TODO: Consider true.
 			Mounts: []mount.Mount{{
 				Type:   mount.TypeTmpfs,
 				Target: "/user/mnt",
