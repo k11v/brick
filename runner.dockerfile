@@ -30,9 +30,9 @@ RUN addgroup -g "$GID" -S user \
  && chown -R "$UID:$GID" "$HOME"
 
 # Copy application.
-COPY --from=builder /root/bin/build /user/bin/build
+COPY --from=builder /root/bin/runner /user/bin/runner
 
 # Run application.
 USER user:user
 WORKDIR /user/build/input
-ENTRYPOINT ["build"]
+ENTRYPOINT ["runner"]
