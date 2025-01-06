@@ -34,5 +34,4 @@ COPY --from=builder /root/bin/runner /user/bin/runner
 
 # Run application.
 USER user:user
-WORKDIR /user/build/input
 ENTRYPOINT ["runner"]
