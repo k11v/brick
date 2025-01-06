@@ -134,9 +134,9 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	createResp, err := cli.ContainerCreate(
 		ctx,
 		&container.Config{
-			Image:        "brick-build",
-			Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/build/output/main.pdf", "-c", "/user/build/output/cache"},
-			WorkingDir:   "/user/build/input",
+			Image:        "brick-runner",
+			Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/run/output/main.pdf", "-c", "/user/run/output/cache"},
+			WorkingDir:   "/user/run/input",
 			AttachStderr: true,
 			AttachStdout: true,
 		},
@@ -162,7 +162,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			ReadonlyRootfs: true,
 			Mounts: []mount.Mount{{
 				Type:   mount.TypeTmpfs,
-				Target: "/user/build",
+				Target: "/user/run",
 				TmpfsOptions: &mount.TmpfsOptions{
 					SizeBytes: 256 * 1024 * 1024, // 256MB
 					Mode:      0o1777,            // TODO: Check
@@ -176,7 +176,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			// Privileged:   false,                                         // Likely keep. It is the default.
 			// SecurityOpt:  nil,                                           // Maybe keep but change value. It is related to SELinux.
 			// StorageOpt:   nil,                                           // Maybe keep. It is related to storage.
-			// Tmpfs:        map[string]string{"/user/build": "size=256m"}, // Maybe keep. Maybe change.
+			// Tmpfs:        map[string]string{"/user/run": "size=256m"}, // Maybe keep. Maybe change.
 			// UTSMode:      "private",                                     // Maybe keep. Likely change. The default is possibly "host".
 			// UsernsMode:   "private",                                     // Maybe keep. Possibly a more secure user namespace mode could be configured if we are tinkering with Docker Engine's daemon.json.
 			// ShmSize:      0,                                             // Maybe keep. Likely change.
@@ -210,7 +210,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	if err != nil {
 		panic(err)
 	}
-	err = cli.CopyToContainer(ctx, createResp.ID, "/user/build/input", openInputTar, container.CopyToContainerOptions{
+	err = cli.CopyToContainer(ctx, createResp.ID, "/user/run/input", openInputTar, container.CopyToContainerOptions{
 		CopyUIDGID: false,
 	})
 	if err != nil {
