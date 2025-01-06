@@ -59,7 +59,7 @@ func (g *Getter) GetLogFile(ctx context.Context, w io.Writer, params *GetterGetP
 	if err != nil {
 		return err
 	}
-	if strings.Split(string(b.Status), ".")[0] == "done" {
+	if strings.Split(string(b.Status), ".")[0] != "done" {
 		return fmt.Errorf("build.Getter: %w", ErrNotDone)
 	}
 	err = downloadFileContent(ctx, g.S3, w, *b.LogFileKey)
