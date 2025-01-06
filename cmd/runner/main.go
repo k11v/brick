@@ -6,14 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"os"
 
 	"github.com/k11v/brick/internal/build"
 )
 
 var (
-	boundary   = flag.String("b", "", "stdin MIME multipart boundary")
 	inputFile  = flag.String("i", "", "Markdown input file")
 	outputFile = flag.String("o", "", "PDF output file")
 	cacheDir   = flag.String("c", "", "cache dir")
@@ -22,12 +20,6 @@ var (
 func main() {
 	run := func() int {
 		flag.Parse()
-
-		const flagBoundary = "-b"
-		if *boundary != "" {
-			_, _ = fmt.Fprintf(os.Stderr, "error: empty %s flag\n", flagBoundary)
-			return 2
-		}
 
 		const flagInputFile = "-i"
 		if *inputFile == "" {
@@ -53,16 +45,10 @@ func main() {
 
 		// Read a tar file with input files from stdin
 		// and extract it to the working directory.
-		mr := multipart.NewReader(os.Stdin, *boundary)
-		tarFile, err := mr.NextPart()
-		if err != nil {
-			_, _ = fmt.Fprintln(os.Stderr, err.Error())
-			return 1
-		}
-		tr := tar.NewReader(tarFile)
+		tr := tar.NewReader(os.Stdin)
 		for {
 			var h *tar.Header
-			h, err = tr.Next()
+			h, err := tr.Next()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					break
@@ -78,7 +64,7 @@ func main() {
 					_, _ = fmt.Fprintln(os.Stderr, err.Error())
 					return 1
 				}
-				_, err = io.Copy(f, tarFile)
+				_, err = io.Copy(f, os.Stdin)
 				if err != nil {
 					_, _ = fmt.Fprintln(os.Stderr, err.Error())
 					return 1
@@ -94,11 +80,6 @@ func main() {
 				_, _ = fmt.Fprintln(os.Stderr, "error: unsupported tar entry type")
 				return 1
 			}
-		}
-		_, err = mr.NextPart()
-		if !errors.Is(err, io.EOF) {
-			_, _ = fmt.Fprintln(os.Stderr, "error: extra stdin part")
-			return 1
 		}
 
 		// Run.
