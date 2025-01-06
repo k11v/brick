@@ -92,27 +92,29 @@ func main() {
 			return 1
 		}
 
-		openOutputFile, err := os.Create(*outputFile)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			return 1
-		}
-		defer func() {
-			_ = openOutputFile.Close()
-		}()
+		if result.ExitCode == 0 {
+			openOutputFile, err := os.Create(*outputFile)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				return 1
+			}
+			defer func() {
+				_ = openOutputFile.Close()
+			}()
 
-		openResultPDFFile, err := os.Open(result.PDFFile)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			return 1
-		}
-		defer func() {
-			_ = openResultPDFFile.Close()
-		}()
-		_, err = io.Copy(openOutputFile, openResultPDFFile)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			return 1
+			openResultPDFFile, err := os.Open(result.PDFFile)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				return 1
+			}
+			defer func() {
+				_ = openResultPDFFile.Close()
+			}()
+			_, err = io.Copy(openOutputFile, openResultPDFFile)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				return 1
+			}
 		}
 
 		openResultLogFile, err := os.Open(result.LogFile)
