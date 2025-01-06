@@ -137,6 +137,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			Image:        "brick-runner",
 			Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/run/output/main.pdf", "-c", "/user/run/output/cache"},
 			WorkingDir:   "/user/run/input",
+			AttachStdin:  true,
 			AttachStderr: true,
 			AttachStdout: true,
 		},
@@ -210,17 +211,31 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	if err != nil {
 		panic(err)
 	}
-	err = cli.CopyToContainer(ctx, createResp.ID, "/user/run/input", openInputTar, container.CopyToContainerOptions{
-		CopyUIDGID: false,
-	})
-	if err != nil {
-		panic(err)
-	}
 
 	err = cli.ContainerStart(ctx, createResp.ID, container.StartOptions{})
 	if err != nil {
 		panic(err)
 	}
+
+	attachResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
+		Stream:     true,
+		Stdin:      true,
+		Stdout:     false, // TODO: Consider using instead of ContainerLogs.
+		Stderr:     false, // TODO: Consider using instead of ContainerLogs.
+		Logs:       false, // TODO: Consider using instead of ContainerLogs.
+		DetachKeys: "",    // TODO: Consider what happens when stdin I pass contains default detach keys.
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer attachResp.Close()
+
+	_, err = io.Copy(attachResp.Conn, openInputTar)
+	if err != nil {
+		panic(err)
+	}
+
+	attachResp.Close() // also called by defer
 
 	var waitResp container.WaitResponse
 	waitRespCh, errCh := cli.ContainerWait(ctx, createResp.ID, container.WaitConditionNotRunning)
