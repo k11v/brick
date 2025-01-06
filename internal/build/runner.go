@@ -140,6 +140,8 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			AttachStdin:  true,
 			AttachStderr: true,
 			AttachStdout: true,
+			OpenStdin:    true,
+			StdinOnce:    true,
 		},
 		&container.HostConfig{
 			NetworkMode: "none",
@@ -234,8 +236,10 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	if err != nil {
 		panic(err)
 	}
-
-	attachResp.Close() // also called by defer
+	err = attachResp.CloseWrite()
+	if err != nil {
+		panic(err)
+	}
 
 	var waitResp container.WaitResponse
 	waitRespCh, errCh := cli.ContainerWait(ctx, createResp.ID, container.WaitConditionNotRunning)
