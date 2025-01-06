@@ -26,7 +26,7 @@ RUN addgroup -g "$GID" -S user \
  && adduser -u "$UID" -G user -h "$HOME" -H -s /bin/sh -S user \
  && mkdir "$HOME" \
  && mkdir "$HOME/bin" \
- && mkdir "$HOME/build" \
+ && mkdir "$HOME/run" \
  && chown -R "$UID:$GID" "$HOME"
 
 # Copy application.
