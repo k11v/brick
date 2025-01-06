@@ -64,7 +64,7 @@ func main() {
 					_, _ = fmt.Fprintln(os.Stderr, err.Error())
 					return 1
 				}
-				_, err = io.Copy(f, os.Stdin)
+				_, err = io.Copy(f, tr)
 				if err != nil {
 					_, _ = fmt.Fprintln(os.Stderr, err.Error())
 					return 1
