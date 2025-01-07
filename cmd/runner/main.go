@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"mime/multipart"
+	"net/textproto"
 	"os"
 
 	"github.com/k11v/brick/internal/build"
@@ -117,6 +119,15 @@ func main() {
 			}
 		}
 
+		mw := multipart.NewWriter(os.Stdout)
+		defer func() {
+			_ = mw.Close()
+		}()
+
+		logFileOut, err := mw.CreatePart(textproto.MIMEHeader{})
+		if err != nil {
+			panic(err)
+		}
 		openResultLogFile, err := os.Open(result.LogFile)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -125,10 +136,26 @@ func main() {
 		defer func() {
 			_ = openResultLogFile.Close()
 		}()
-		_, err = io.Copy(os.Stdout, openResultLogFile)
+		_, err = io.Copy(logFileOut, openResultLogFile)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return 1
+		}
+
+		outputFileOut, err := mw.CreatePart(textproto.MIMEHeader{})
+		if err != nil {
+			panic(err)
+		}
+		openResultOutputFile, err := os.Open(result.PDFFile)
+		if err != nil {
+			panic(err)
+		}
+		defer func() {
+			_ = openResultOutputFile.Close()
+		}()
+		_, err = io.Copy(outputFileOut, openResultOutputFile)
+		if err != nil {
+			panic(err)
 		}
 
 		return result.ExitCode
