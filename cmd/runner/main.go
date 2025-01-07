@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"os"
+	"strings"
 
 	"github.com/k11v/brick/internal/build"
 )
@@ -45,12 +47,40 @@ func main() {
 			return 2
 		}
 
+		// Peek stdin and detect the multipart boundary.
+		// The boundary line should be less than 74 bytes:
+		// 2 bytes for "--", up to 70 bytes for user-defined boundary, and 2 bytes for "\r\n".
+		// See https://datatracker.ietf.org/doc/html/rfc1341.
+		bufstdin := bufio.NewReader(os.Stdin)
+		peek, err := bufstdin.Peek(74)
+		if err != nil && err != io.EOF {
+			_, _ = fmt.Fprintf(os.Stderr, "error: invalid stdin boundary: %v\n", err)
+			return 2
+		}
+		boundary := string(peek)
+		if boundary[:2] != "--" {
+			_, _ = fmt.Fprint(os.Stderr, "error: invalid stdin boundary start\n")
+			return 2
+		}
+		boundaryEnd := strings.Index(boundary, "\r\n")
+		if boundaryEnd == -1 {
+			_, _ = fmt.Fprint(os.Stderr, "error: invalid stdin boundary length or end\n")
+			return 2
+		}
+		boundary = boundary[2:boundaryEnd]
+
 		// Read a tar file with input files from stdin
 		// and extract it to the working directory.
-		tr := tar.NewReader(os.Stdin)
+		mr := multipart.NewReader(bufstdin, boundary)
+		tarFile, err := mr.NextPart()
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+			return 1
+		}
+		tr := tar.NewReader(tarFile)
 		for {
 			var h *tar.Header
-			h, err := tr.Next()
+			h, err = tr.Next()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					break
@@ -82,6 +112,11 @@ func main() {
 				_, _ = fmt.Fprintln(os.Stderr, "error: unsupported tar entry type")
 				return 1
 			}
+		}
+		_, err = mr.NextPart()
+		if !errors.Is(err, io.EOF) {
+			_, _ = fmt.Fprintln(os.Stderr, "error: extra stdin part")
+			return 1
 		}
 
 		// Run.
