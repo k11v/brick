@@ -3,50 +3,25 @@ package main
 import (
 	"archive/tar"
 	"bufio"
+	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/textproto"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/k11v/brick/internal/build"
 )
 
-var (
-	inputFile  = flag.String("i", "", "Markdown input file")
-	outputFile = flag.String("o", "", "PDF output file")
-	cacheDir   = flag.String("c", "", "cache dir")
-)
+type Params struct {
+	InputFile string `json:"input_file"`
+}
 
 func main() {
 	run := func() int {
-		flag.Parse()
-
-		const flagInputFile = "-i"
-		if *inputFile == "" {
-			_, _ = fmt.Fprintf(os.Stderr, "error: empty %s flag\n", flagInputFile)
-			return 2
-		}
-		if *inputFile != "main.md" { // build.Run can only build main.md for now.
-			_, _ = fmt.Fprintf(os.Stderr, "error: %s flag is not %q\n", flagInputFile, "main.md")
-			return 2
-		}
-
-		const flagOutputFile = "-o"
-		if *outputFile == "" {
-			_, _ = fmt.Fprintf(os.Stderr, "error: empty %s flag\n", flagOutputFile)
-			return 2
-		}
-
-		const flagCacheDir = "-c"
-		if *cacheDir == "" {
-			_, _ = fmt.Fprintf(os.Stderr, "error: empty %s flag\n", flagCacheDir)
-			return 2
-		}
-
 		// Peek stdin and detect the multipart boundary.
 		// The boundary line should be less than 74 bytes:
 		// 2 bytes for "--", up to 70 bytes for user-defined boundary, and 2 bytes for "\r\n".
@@ -69,15 +44,21 @@ func main() {
 		}
 		boundary = boundary[2:boundaryEnd]
 
-		// Read a tar file with input files from stdin
-		// and extract it to the working directory.
 		mr := multipart.NewReader(bufstdin, boundary)
-		tarFile, err := mr.NextPart()
+
+		// Read tar with input files from stdin and
+		// extract it to the input directory.
+		err = os.Mkdir("input", 0o777)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err.Error())
 			return 1
 		}
-		tr := tar.NewReader(tarFile)
+		tarContent, err := mr.NextPart()
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+			return 1
+		}
+		tr := tar.NewReader(tarContent)
 		for {
 			var h *tar.Header
 			h, err = tr.Next()
@@ -91,7 +72,7 @@ func main() {
 			switch h.Typeflag {
 			case tar.TypeReg:
 				var f *os.File
-				f, err = os.Create(h.Name)
+				f, err = os.Create(filepath.Join("input", h.Name))
 				if err != nil {
 					_, _ = fmt.Fprintln(os.Stderr, err.Error())
 					return 1
@@ -103,7 +84,7 @@ func main() {
 				}
 				_ = f.Close()
 			case tar.TypeDir:
-				err = os.Mkdir(h.Name, 0o777)
+				err = os.Mkdir(filepath.Join("input", h.Name), 0o777)
 				if err != nil {
 					_, _ = fmt.Fprintln(os.Stderr, err.Error())
 					return 1
@@ -113,45 +94,49 @@ func main() {
 				return 1
 			}
 		}
+
+		// Read and decode JSON with params from stdin.
+		var params Params
+		paramsContent, err := mr.NextPart()
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+			return 2
+		}
+		dec := json.NewDecoder(paramsContent)
+		dec.DisallowUnknownFields()
+		err = dec.Decode(&params)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return 2
+		}
+		if dec.More() {
+			_, _ = fmt.Fprint(os.Stderr, "error: multiple top-level values\n")
+			return 2
+		}
+		if params.InputFile == "" {
+			_, _ = fmt.Fprintf(os.Stderr, "error: empty %s param\n", "input_file")
+			return 2
+		}
+		if params.InputFile != "main.md" { // build.Run can only build main.md for now.
+			_, _ = fmt.Fprintf(os.Stderr, "error: %s param is not %q\n", "input_file", "main.md")
+			return 2
+		}
+
+		// Check stdin doesn't have extra parts.
 		_, err = mr.NextPart()
 		if !errors.Is(err, io.EOF) {
 			_, _ = fmt.Fprintln(os.Stderr, "error: extra stdin part")
-			return 1
+			return 2
 		}
 
 		// Run.
 		result, err := build.Run(&build.RunParams{
-			InputDir:  ".",
-			OutputDir: *cacheDir,
+			InputDir:  "input",
+			OutputDir: "output",
 		})
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return 1
-		}
-
-		if result.ExitCode == 0 {
-			openOutputFile, err := os.Create(*outputFile)
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				return 1
-			}
-			defer func() {
-				_ = openOutputFile.Close()
-			}()
-
-			openResultPDFFile, err := os.Open(result.PDFFile)
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				return 1
-			}
-			defer func() {
-				_ = openResultPDFFile.Close()
-			}()
-			_, err = io.Copy(openOutputFile, openResultPDFFile)
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				return 1
-			}
 		}
 
 		mw := multipart.NewWriter(os.Stdout)
