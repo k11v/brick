@@ -1,12 +1,15 @@
 package build
 
 import (
-	"bytes"
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +20,6 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -232,7 +234,30 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		panic(err)
 	}
 
-	_, err = io.Copy(attachResp.Conn, openInputTar)
+	mw := multipart.NewWriter(attachResp.Conn)
+	tarStdinWriter, err := mw.CreatePart(textproto.MIMEHeader{})
+	if err != nil {
+		panic(err)
+	}
+	_, err = io.Copy(tarStdinWriter, openInputTar)
+	if err != nil {
+		panic(err)
+	}
+	containerRunnerParams := struct {
+		InputFile string `json:"input_file"`
+	}{
+		InputFile: "main.md",
+	}
+	paramsStdinWriter, err := mw.CreatePart(textproto.MIMEHeader{})
+	if err != nil {
+		panic(err)
+	}
+	enc := json.NewEncoder(paramsStdinWriter)
+	err = enc.Encode(containerRunnerParams)
+	if err != nil {
+		panic(err)
+	}
+	err = mw.Close()
 	if err != nil {
 		panic(err)
 	}
@@ -255,43 +280,87 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	if waitResp.Error != nil {
 		panic("waitResp.Error is not nil")
 	}
-	exitCode := int(waitResp.StatusCode)
+	if waitResp.StatusCode != 0 {
+		panic("waitResp.StatusCode is not 0") // TODO: Log stderr.
+	}
 
 	// TODO: Consider more container.LogOptions.
 	// TODO: Do we need to close multiplexedLogReadCloser?
-	logPipeReader, logPipeWriter := io.Pipe()
-	multiplexedLogReadCloser, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
+	stderrReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStderr: true})
 	if err != nil {
 		panic(err)
 	}
-	go func() {
-		// TODO: Can we use a single writer for both?
-		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
-		_, err = stdcopy.StdCopy(logPipeWriter, logPipeWriter, multiplexedLogReadCloser)
-		if err != nil {
-			panic(err)
-		}
-		err = logPipeWriter.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
+	stderrBytes, err := io.ReadAll(stderrReader) // TODO: stderr shouldn't be long but maybe some kind of limit should be in place.
+	if err != nil {
+		panic(err)
+	}
+	stderrString := string(stderrBytes)
+	if stderrString != "" {
+		slog.Warn("non-empty runner stderr", "stderr", stderrString)
+	}
+
+	stdoutReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStdout: true})
+	if err != nil {
+		panic(err)
+	}
+
+	// Peek and detect the multipart boundary.
+	// The boundary line should be less than 74 bytes:
+	// 2 bytes for "--", up to 70 bytes for user-defined boundary, and 2 bytes for "\r\n".
+	// See https://datatracker.ietf.org/doc/html/rfc1341.
+	bufstdoutReader := bufio.NewReader(stdoutReader)
+	peek, err := bufstdoutReader.Peek(74)
+	if err != nil && err != io.EOF {
+		panic(fmt.Errorf("invalid stdin boundary: %w", err))
+	}
+	boundary := string(peek)
+	if boundary[:2] != "--" {
+		panic(errors.New("invalid stdin boundary start"))
+	}
+	boundaryEnd := strings.Index(boundary, "\r\n")
+	if boundaryEnd == -1 {
+		panic(errors.New("invalid stdin boundary length or end"))
+	}
+	boundary = boundary[2:boundaryEnd]
+
+	mr := multipart.NewReader(bufstdoutReader, boundary)
 
 	// Upload log file from pipe to object storage.
-	err = uploadFileContent(ctx, r.S3, *b.LogFileKey, logPipeReader)
+	logFileReader, err := mr.NextPart()
+	if err != nil {
+		panic(err)
+	}
+	err = uploadFileContent(ctx, r.S3, *b.LogFileKey, logFileReader)
 	if err != nil {
 		panic(err)
 	}
 
-	// If run succeeded, upload PDF file from SOMEWHERE to object storage.
-	if exitCode == 0 {
-		// COPY OUTPUT FILES FROM CONTAINER HERE.
+	// Get container runner result.
+	var result struct {
+		ExitCode int `json:"exit_code"`
+	}
+	resultReader, err := mr.NextPart()
+	if err != nil {
+		panic(err)
+	}
+	dec := json.NewDecoder(resultReader)
+	dec.DisallowUnknownFields()
+	err = dec.Decode(&result)
+	if err != nil {
+		panic(err)
+	}
+	if dec.More() {
+		panic("multiple top-level elements")
+	}
 
-		// FIXME: Use real output file reader.
-		err = uploadFileContent(ctx, r.S3, *b.OutputFileKey, bytes.NewReader(nil))
-		if err != nil {
-			panic(err)
-		}
+	// Upload output file from pipe to object storage.
+	outputFileReader, err := mr.NextPart()
+	if err != nil {
+		panic(err)
+	}
+	err = uploadFileContent(ctx, r.S3, *b.OutputFileKey, outputFileReader)
+	if err != nil {
+		panic(err)
 	}
 
 	err = cli.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{}) // TODO: defer
@@ -300,14 +369,14 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	}
 
 	// Update build exit code.
-	b, err = updateBuildExitCode(ctx, r.DB, b.ID, exitCode)
+	b, err = updateBuildExitCode(ctx, r.DB, b.ID, result.ExitCode)
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Update build status to done.
 	var doneStatus Status
-	if exitCode == 0 {
+	if result.ExitCode == 0 {
 		doneStatus = StatusSucceeded
 	} else {
 		doneStatus = StatusFailed
