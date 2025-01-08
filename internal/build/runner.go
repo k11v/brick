@@ -20,6 +20,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -280,16 +281,26 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	if waitResp.Error != nil {
 		panic("waitResp.Error is not nil")
 	}
-	if waitResp.StatusCode != 0 {
-		panic("waitResp.StatusCode is not 0") // TODO: Log stderr.
-	}
 
 	// TODO: Consider more container.LogOptions.
 	// TODO: Do we need to close multiplexedLogReadCloser?
-	stderrReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStderr: true})
+	stderrReader, stderrPipeWriter := io.Pipe()
+	multiplexedStderrReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStderr: true})
 	if err != nil {
 		panic(err)
 	}
+	go func() {
+		// TODO: Can we use a single writer for both?
+		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
+		_, err = stdcopy.StdCopy(io.Discard, stderrPipeWriter, multiplexedStderrReader)
+		if err != nil {
+			panic(err)
+		}
+		err = stderrPipeWriter.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 	stderrBytes, err := io.ReadAll(stderrReader) // TODO: stderr shouldn't be long but maybe some kind of limit should be in place.
 	if err != nil {
 		panic(err)
@@ -298,11 +309,27 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	if stderrString != "" {
 		slog.Warn("non-empty runner stderr", "stderr", stderrString)
 	}
+	if waitResp.StatusCode != 0 {
+		panic("waitResp.StatusCode is not 0") // TODO: Log stderr.
+	}
 
-	stdoutReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStdout: true})
+	stdoutReader, stdoutPipeWriter := io.Pipe()
+	multiplexedStdoutReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStdout: true})
 	if err != nil {
 		panic(err)
 	}
+	go func() {
+		// TODO: Can we use a single writer for both?
+		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
+		_, err = stdcopy.StdCopy(stdoutPipeWriter, io.Discard, multiplexedStdoutReader)
+		if err != nil {
+			panic(err)
+		}
+		err = stdoutPipeWriter.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	// Peek and detect the multipart boundary.
 	// The boundary line should be less than 74 bytes:
