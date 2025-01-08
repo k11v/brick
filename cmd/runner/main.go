@@ -130,7 +130,7 @@ func main() {
 		}
 
 		// Run.
-		result, err := build.Run(&build.RunParams{
+		runResult, err := build.Run(&build.RunParams{
 			InputDir:  "input",
 			OutputDir: "output",
 		})
@@ -148,7 +148,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		openResultLogFile, err := os.Open(result.LogFile)
+		openResultLogFile, err := os.Open(runResult.LogFile)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return 1
@@ -162,11 +162,22 @@ func main() {
 			return 1
 		}
 
+		result := Result{ExitCode: runResult.ExitCode}
+		resultStdoutWriter, err := mw.CreatePart(textproto.MIMEHeader{})
+		if err != nil {
+			panic(err)
+		}
+		enc := json.NewEncoder(resultStdoutWriter)
+		err = enc.Encode(result)
+		if err != nil {
+			panic(err)
+		}
+
 		outputFileOut, err := mw.CreatePart(textproto.MIMEHeader{})
 		if err != nil {
 			panic(err)
 		}
-		openResultOutputFile, err := os.Open(result.PDFFile)
+		openResultOutputFile, err := os.Open(runResult.PDFFile)
 		if err != nil {
 			panic(err)
 		}
@@ -178,7 +189,7 @@ func main() {
 			panic(err)
 		}
 
-		return result.ExitCode
+		return 0
 	}
 	os.Exit(run())
 }
