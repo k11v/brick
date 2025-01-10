@@ -282,17 +282,22 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		panic("waitResp.Error is not nil")
 	}
 
+	// Collect stderr.
 	// TODO: Consider more container.LogOptions.
 	// TODO: Do we need to close multiplexedLogReadCloser?
 	stderrReader, stderrPipeWriter := io.Pipe()
-	multiplexedStderrReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStderr: true})
+	attachStderrResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
+		Stderr: true,
+		Logs:   true,
+	})
 	if err != nil {
 		panic(err)
 	}
+	defer attachStderrResp.Close()
 	go func() {
 		// TODO: Can we use a single writer for both?
 		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
-		_, err = stdcopy.StdCopy(io.Discard, stderrPipeWriter, multiplexedStderrReader)
+		_, err = stdcopy.StdCopy(io.Discard, stderrPipeWriter, attachStderrResp.Reader)
 		if err != nil {
 			panic(err)
 		}
@@ -314,14 +319,18 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	}
 
 	stdoutReader, stdoutPipeWriter := io.Pipe()
-	multiplexedStdoutReader, err := cli.ContainerLogs(ctx, createResp.ID, container.LogsOptions{ShowStdout: true})
+	attachStdoutResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
+		Stdout: true,
+		Logs:   true,
+	})
 	if err != nil {
 		panic(err)
 	}
+	defer attachStdoutResp.Close()
 	go func() {
 		// TODO: Can we use a single writer for both?
 		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
-		_, err = stdcopy.StdCopy(stdoutPipeWriter, io.Discard, multiplexedStdoutReader)
+		_, err = stdcopy.StdCopy(stdoutPipeWriter, io.Discard, attachStdoutResp.Reader)
 		if err != nil {
 			panic(err)
 		}
