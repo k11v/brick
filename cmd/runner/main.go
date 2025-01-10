@@ -20,6 +20,10 @@ type Params struct {
 	InputFile string `json:"input_file"`
 }
 
+type Result struct {
+	ExitCode int `json:"exit_code"`
+}
+
 func main() {
 	run := func() int {
 		// Peek stdin and detect the multipart boundary.
