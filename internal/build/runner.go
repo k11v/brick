@@ -54,17 +54,6 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
-	// FIXME:
-	//
-	// We probably want only one runner to be entering the next stage.
-	// Otherwise multiple runners may try to write output and log files
-	// and the result might be undetermined.
-	// So additionally we could check if build status is not "running".
-	// But if it is running it is not necessarily true, maybe we have set
-	// the status and crashed.
-	//
-	// Also if it fails (by simply returning an error), we are stuck in running.
-
 	// If build is running, return.
 	if strings.Split(string(b.Status), ".")[0] == "running" {
 		return nil, fmt.Errorf("build.Runner: %w", ErrAlreadyRunning)
@@ -92,37 +81,47 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
-	// Create temporary directory.
-	tempDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
-	}
-	defer func() {
-		_ = os.RemoveAll(tempDir)
-	}()
-
-	// Download input files from object storage to disk
-	inputDir := filepath.Join(tempDir, "input")
-	err = os.MkdirAll(inputDir, 0o777)
-	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
-	}
-	for _, buildInputFile := range buildInputFiles {
-		downloadFile := func(fileName string, objectKey string) error {
-			openFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
-			if err != nil {
-				return err
-			}
-			defer openFile.Close()
-
-			return downloadFileContent(ctx, r.S3, openFile, objectKey)
-		}
-		inputFile := filepath.Join(inputDir, buildInputFile.Name)
-		err = os.MkdirAll(filepath.Dir(inputFile), 0o777)
+	// Prepare reader with input tar.
+	// TODO: Implement real inputTarReader.
+	var inputTarReader io.Reader
+	{
+		// Create temporary directory.
+		tempDir, err := os.MkdirTemp("", "")
 		if err != nil {
 			return nil, fmt.Errorf("build.Runner: %w", err)
 		}
-		err = downloadFile(inputFile, *buildInputFile.ContentKey)
+		defer func() {
+			_ = os.RemoveAll(tempDir)
+		}()
+
+		// Download input files from object storage to disk
+		inputDir := filepath.Join(tempDir, "input")
+		err = os.MkdirAll(inputDir, 0o777)
+		if err != nil {
+			return nil, fmt.Errorf("build.Runner: %w", err)
+		}
+		for _, buildInputFile := range buildInputFiles {
+			downloadFile := func(fileName string, objectKey string) error {
+				openFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+				if err != nil {
+					return err
+				}
+				defer openFile.Close()
+
+				return downloadFileContent(ctx, r.S3, openFile, objectKey)
+			}
+			inputFile := filepath.Join(inputDir, buildInputFile.Name)
+			err = os.MkdirAll(filepath.Dir(inputFile), 0o777)
+			if err != nil {
+				return nil, fmt.Errorf("build.Runner: %w", err)
+			}
+			err = downloadFile(inputFile, *buildInputFile.ContentKey)
+			if err != nil {
+				return nil, fmt.Errorf("build.Runner: %w", err)
+			}
+		}
+
+		inputTarReader, err = os.Open(".run/main.tar")
 		if err != nil {
 			return nil, fmt.Errorf("build.Runner: %w", err)
 		}
@@ -212,11 +211,6 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		slog.Warn("", "warnings", createResp.Warnings)
 	}
 
-	openInputTar, err := os.Open(".run/main.tar")
-	if err != nil {
-		panic(err)
-	}
-
 	attachResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
 		Stream:     true,
 		Stdin:      true,
@@ -240,7 +234,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	if err != nil {
 		panic(err)
 	}
-	_, err = io.Copy(tarStdinWriter, openInputTar)
+	_, err = io.Copy(tarStdinWriter, inputTarReader)
 	if err != nil {
 		panic(err)
 	}
