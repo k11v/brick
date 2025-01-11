@@ -128,274 +128,281 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	}
 
 	// Run.
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		panic(err)
-	}
+	err = func() error {
+		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			panic(err)
+		}
 
-	createResp, err := cli.ContainerCreate(
-		ctx,
-		&container.Config{
-			Image:        "brick-runner",
-			Entrypoint:   strslice.StrSlice{"/bin/sh", "-c", `mkdir /user/mnt/input && cd /user/mnt/input && exec runner "$@"`, "_"},
-			Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/mnt/output/main.pdf", "-c", "/user/mnt/output/cache"},
-			AttachStdin:  true,
-			AttachStderr: true,
-			AttachStdout: true,
-			OpenStdin:    true,
-			StdinOnce:    true,
-		},
-		&container.HostConfig{
-			NetworkMode: "none",
-			CapDrop:     strslice.StrSlice{"ALL"},
-			CapAdd: strslice.StrSlice{ // https://github.com/moby/moby/blob/master/oci/caps/defaults.go#L6-L19
-				"CAP_CHOWN",
-				"CAP_DAC_OVERRIDE",
-				"CAP_FSETID",
-				"CAP_FOWNER",
-				"CAP_MKNOD",
-				"CAP_NET_RAW",
-				"CAP_SETGID",
-				"CAP_SETUID",
-				"CAP_SETFCAP",
-				"CAP_SETPCAP",
-				"CAP_NET_BIND_SERVICE",
-				"CAP_SYS_CHROOT",
-				"CAP_KILL",
-				"CAP_AUDIT_WRITE",
+		createResp, err := cli.ContainerCreate(
+			ctx,
+			&container.Config{
+				Image:        "brick-runner",
+				Entrypoint:   strslice.StrSlice{"/bin/sh", "-c", `mkdir /user/mnt/input && cd /user/mnt/input && exec runner "$@"`, "_"},
+				Cmd:          strslice.StrSlice{"-i", "main.md", "-o", "/user/mnt/output/main.pdf", "-c", "/user/mnt/output/cache"},
+				AttachStdin:  true,
+				AttachStderr: true,
+				AttachStdout: true,
+				OpenStdin:    true,
+				StdinOnce:    true,
 			},
-			ReadonlyRootfs: false, // TODO: Consider true.
-			Mounts: []mount.Mount{{
-				Type:   mount.TypeTmpfs,
-				Target: "/user/mnt",
-				TmpfsOptions: &mount.TmpfsOptions{
-					SizeBytes: 256 * 1024 * 1024, // 256MB
-					Mode:      0o1777,            // TODO: Check
+			&container.HostConfig{
+				NetworkMode: "none",
+				CapDrop:     strslice.StrSlice{"ALL"},
+				CapAdd: strslice.StrSlice{ // https://github.com/moby/moby/blob/master/oci/caps/defaults.go#L6-L19
+					"CAP_CHOWN",
+					"CAP_DAC_OVERRIDE",
+					"CAP_FSETID",
+					"CAP_FOWNER",
+					"CAP_MKNOD",
+					"CAP_NET_RAW",
+					"CAP_SETGID",
+					"CAP_SETUID",
+					"CAP_SETFCAP",
+					"CAP_SETPCAP",
+					"CAP_NET_BIND_SERVICE",
+					"CAP_SYS_CHROOT",
+					"CAP_KILL",
+					"CAP_AUDIT_WRITE",
 				},
-			}},
+				ReadonlyRootfs: false, // TODO: Consider true.
+				Mounts: []mount.Mount{{
+					Type:   mount.TypeTmpfs,
+					Target: "/user/mnt",
+					TmpfsOptions: &mount.TmpfsOptions{
+						SizeBytes: 256 * 1024 * 1024, // 256MB
+						Mode:      0o1777,            // TODO: Check
+					},
+				}},
 
-			// CgroupnsMode: container.CgroupnsModePrivate,                 // Likely keep. It is likely the default.
-			// IpcMode:      container.IPCModePrivate,                      // Likely keep. It is likely the default. Likely stricter IPCModeNone could be considered.
-			// OomScoreAdj:  500,                                           // Maybe keep. Maybe change value. It likely controls the likelyhood of this container getting killed in OOM scenario.
-			// PidMode:      "private",                                     // Likely keep. Maybe change. It is maybe the default.
-			// Privileged:   false,                                         // Likely keep. It is the default.
-			// SecurityOpt:  nil,                                           // Maybe keep but change value. It is related to SELinux.
-			// StorageOpt:   nil,                                           // Maybe keep. It is related to storage.
-			// Tmpfs:        map[string]string{"/user/mnt": "size=256m"}, // Maybe keep. Maybe change.
-			// UTSMode:      "private",                                     // Maybe keep. Likely change. The default is possibly "host".
-			// UsernsMode:   "private",                                     // Maybe keep. Possibly a more secure user namespace mode could be configured if we are tinkering with Docker Engine's daemon.json.
-			// ShmSize:      0,                                             // Maybe keep. Likely change.
-			// Sysctls:      nil,                                           // Maybe keep but change value. If it is about setting sysctl, the ones I saw weren't all that useful.
-			// Runtime:      "",                                            // Maybe keep. It is probably about Docker runtimes like Kata. Maybe could be used to tighten security further.
-			// Resources: container.Resources{
-			// 	CPUShares: 768,                    // Relative to other containers. The default is likely 1024. Maybe keep. Maybe change.
-			// 	Memory:    1 * 1024 * 1024 * 1024, // 1GB. Maybe keep. Maybe change.
-			// 	NanoCPUs:  1 * 1000000000,         // 1 CPU. Maybe keep. Maybe change.
+				// CgroupnsMode: container.CgroupnsModePrivate,                 // Likely keep. It is likely the default.
+				// IpcMode:      container.IPCModePrivate,                      // Likely keep. It is likely the default. Likely stricter IPCModeNone could be considered.
+				// OomScoreAdj:  500,                                           // Maybe keep. Maybe change value. It likely controls the likelyhood of this container getting killed in OOM scenario.
+				// PidMode:      "private",                                     // Likely keep. Maybe change. It is maybe the default.
+				// Privileged:   false,                                         // Likely keep. It is the default.
+				// SecurityOpt:  nil,                                           // Maybe keep but change value. It is related to SELinux.
+				// StorageOpt:   nil,                                           // Maybe keep. It is related to storage.
+				// Tmpfs:        map[string]string{"/user/mnt": "size=256m"}, // Maybe keep. Maybe change.
+				// UTSMode:      "private",                                     // Maybe keep. Likely change. The default is possibly "host".
+				// UsernsMode:   "private",                                     // Maybe keep. Possibly a more secure user namespace mode could be configured if we are tinkering with Docker Engine's daemon.json.
+				// ShmSize:      0,                                             // Maybe keep. Likely change.
+				// Sysctls:      nil,                                           // Maybe keep but change value. If it is about setting sysctl, the ones I saw weren't all that useful.
+				// Runtime:      "",                                            // Maybe keep. It is probably about Docker runtimes like Kata. Maybe could be used to tighten security further.
+				// Resources: container.Resources{
+				// 	CPUShares: 768,                    // Relative to other containers. The default is likely 1024. Maybe keep. Maybe change.
+				// 	Memory:    1 * 1024 * 1024 * 1024, // 1GB. Maybe keep. Maybe change.
+				// 	NanoCPUs:  1 * 1000000000,         // 1 CPU. Maybe keep. Maybe change.
 
-			// 	// Maybe add other.
-			// },
-			// MaskedPaths:   nil, // Maybe use.
-			// ReadonlyPaths: nil, // Maybe use. It seems useful but not sure if I need it.
-		},
-		nil, // Maybe use &network.NetworkingConfig.
-		nil, // Maybe use &v1.Platform.
-		"",
-	)
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		// TODO: Remove the container.
+				// 	// Maybe add other.
+				// },
+				// MaskedPaths:   nil, // Maybe use.
+				// ReadonlyPaths: nil, // Maybe use. It seems useful but not sure if I need it.
+			},
+			nil, // Maybe use &network.NetworkingConfig.
+			nil, // Maybe use &v1.Platform.
+			"",
+		)
+		if err != nil {
+			panic(err)
+		}
+		defer func() {
+			// TODO: Remove the container.
+		}()
+		if len(createResp.Warnings) > 0 {
+			slog.Warn("", "warnings", createResp.Warnings)
+		}
+
+		attachResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
+			Stream:     true,
+			Stdin:      true,
+			Stdout:     false, // TODO: Consider using instead of ContainerLogs.
+			Stderr:     false, // TODO: Consider using instead of ContainerLogs.
+			Logs:       false, // TODO: Consider using instead of ContainerLogs.
+			DetachKeys: "",    // TODO: Consider what happens when stdin I pass contains default detach keys.
+		})
+		if err != nil {
+			panic(err)
+		}
+		defer attachResp.Close()
+
+		err = cli.ContainerStart(ctx, createResp.ID, container.StartOptions{})
+		if err != nil {
+			panic(err)
+		}
+
+		mw := multipart.NewWriter(attachResp.Conn)
+		tarStdinWriter, err := mw.CreatePart(textproto.MIMEHeader{})
+		if err != nil {
+			panic(err)
+		}
+		_, err = io.Copy(tarStdinWriter, inputTarReader)
+		if err != nil {
+			panic(err)
+		}
+		containerRunnerParams := struct {
+			InputFile string `json:"input_file"`
+		}{
+			InputFile: "main.md",
+		}
+		paramsStdinWriter, err := mw.CreatePart(textproto.MIMEHeader{})
+		if err != nil {
+			panic(err)
+		}
+		enc := json.NewEncoder(paramsStdinWriter)
+		err = enc.Encode(containerRunnerParams)
+		if err != nil {
+			panic(err)
+		}
+		err = mw.Close()
+		if err != nil {
+			panic(err)
+		}
+		err = attachResp.CloseWrite()
+		if err != nil {
+			panic(err)
+		}
+
+		var waitResp container.WaitResponse
+		waitRespCh, errCh := cli.ContainerWait(ctx, createResp.ID, container.WaitConditionNotRunning)
+		select {
+		case err = <-errCh:
+			if err != nil {
+				panic(err)
+			}
+		case waitResp = <-waitRespCh:
+		case <-ctx.Done():
+			panic(ctx.Err())
+		}
+		if waitResp.Error != nil {
+			panic("waitResp.Error is not nil")
+		}
+
+		// Collect stderr.
+		// TODO: Consider more container.LogOptions.
+		// TODO: Do we need to close multiplexedLogReadCloser?
+		stderrReader, stderrPipeWriter := io.Pipe()
+		attachStderrResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
+			Stderr: true,
+			Logs:   true,
+		})
+		if err != nil {
+			panic(err)
+		}
+		defer attachStderrResp.Close()
+		go func() {
+			// TODO: Can we use a single writer for both?
+			// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
+			_, err = stdcopy.StdCopy(io.Discard, stderrPipeWriter, attachStderrResp.Reader)
+			if err != nil {
+				panic(err)
+			}
+			err = stderrPipeWriter.Close()
+			if err != nil {
+				panic(err)
+			}
+		}()
+		stderrBytes, err := io.ReadAll(stderrReader) // TODO: stderr shouldn't be long but maybe some kind of limit should be in place.
+		if err != nil {
+			panic(err)
+		}
+		stderrString := string(stderrBytes)
+		if stderrString != "" {
+			slog.Warn("non-empty runner stderr", "stderr", stderrString)
+		}
+		if waitResp.StatusCode != 0 {
+			panic("waitResp.StatusCode is not 0") // TODO: Log stderr.
+		}
+
+		stdoutReader, stdoutPipeWriter := io.Pipe()
+		attachStdoutResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
+			Stdout: true,
+			Logs:   true,
+		})
+		if err != nil {
+			panic(err)
+		}
+		defer attachStdoutResp.Close()
+		go func() {
+			// TODO: Can we use a single writer for both?
+			// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
+			_, err = stdcopy.StdCopy(stdoutPipeWriter, io.Discard, attachStdoutResp.Reader)
+			if err != nil {
+				panic(err)
+			}
+			err = stdoutPipeWriter.Close()
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		// Peek and detect the multipart boundary.
+		// The boundary line should be less than 74 bytes:
+		// 2 bytes for "--", up to 70 bytes for user-defined boundary, and 2 bytes for "\r\n".
+		// See https://datatracker.ietf.org/doc/html/rfc1341.
+		bufstdoutReader := bufio.NewReader(stdoutReader)
+		peek, err := bufstdoutReader.Peek(74)
+		if err != nil && err != io.EOF {
+			panic(fmt.Errorf("invalid stdin boundary: %w", err))
+		}
+		boundary := string(peek)
+		if boundary[:2] != "--" {
+			panic(errors.New("invalid stdin boundary start"))
+		}
+		boundaryEnd := strings.Index(boundary, "\r\n")
+		if boundaryEnd == -1 {
+			panic(errors.New("invalid stdin boundary length or end"))
+		}
+		boundary = boundary[2:boundaryEnd]
+
+		mr := multipart.NewReader(bufstdoutReader, boundary)
+
+		// Upload log file from pipe to object storage.
+		logFileReader, err := mr.NextPart()
+		if err != nil {
+			panic(err)
+		}
+		err = uploadFileContent(ctx, r.S3, *b.LogFileKey, logFileReader)
+		if err != nil {
+			panic(err)
+		}
+
+		// Get container runner result.
+		var result struct {
+			ExitCode int `json:"exit_code"`
+		}
+		resultReader, err := mr.NextPart()
+		if err != nil {
+			panic(err)
+		}
+		dec := json.NewDecoder(resultReader)
+		dec.DisallowUnknownFields()
+		err = dec.Decode(&result)
+		if err != nil {
+			panic(err)
+		}
+		if dec.More() {
+			panic("multiple top-level elements")
+		}
+
+		// Upload output file from pipe to object storage.
+		outputFileReader, err := mr.NextPart()
+		if err != nil {
+			panic(err)
+		}
+		err = uploadFileContent(ctx, r.S3, *b.OutputFileKey, outputFileReader)
+		if err != nil {
+			panic(err)
+		}
+
+		err = cli.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{}) // TODO: defer
+		if err != nil {
+			panic(err)
+		}
+
+		return nil
 	}()
-	if len(createResp.Warnings) > 0 {
-		slog.Warn("", "warnings", createResp.Warnings)
-	}
-
-	attachResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
-		Stream:     true,
-		Stdin:      true,
-		Stdout:     false, // TODO: Consider using instead of ContainerLogs.
-		Stderr:     false, // TODO: Consider using instead of ContainerLogs.
-		Logs:       false, // TODO: Consider using instead of ContainerLogs.
-		DetachKeys: "",    // TODO: Consider what happens when stdin I pass contains default detach keys.
-	})
 	if err != nil {
-		panic(err)
-	}
-	defer attachResp.Close()
-
-	err = cli.ContainerStart(ctx, createResp.ID, container.StartOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	mw := multipart.NewWriter(attachResp.Conn)
-	tarStdinWriter, err := mw.CreatePart(textproto.MIMEHeader{})
-	if err != nil {
-		panic(err)
-	}
-	_, err = io.Copy(tarStdinWriter, inputTarReader)
-	if err != nil {
-		panic(err)
-	}
-	containerRunnerParams := struct {
-		InputFile string `json:"input_file"`
-	}{
-		InputFile: "main.md",
-	}
-	paramsStdinWriter, err := mw.CreatePart(textproto.MIMEHeader{})
-	if err != nil {
-		panic(err)
-	}
-	enc := json.NewEncoder(paramsStdinWriter)
-	err = enc.Encode(containerRunnerParams)
-	if err != nil {
-		panic(err)
-	}
-	err = mw.Close()
-	if err != nil {
-		panic(err)
-	}
-	err = attachResp.CloseWrite()
-	if err != nil {
-		panic(err)
-	}
-
-	var waitResp container.WaitResponse
-	waitRespCh, errCh := cli.ContainerWait(ctx, createResp.ID, container.WaitConditionNotRunning)
-	select {
-	case err = <-errCh:
-		if err != nil {
-			panic(err)
-		}
-	case waitResp = <-waitRespCh:
-	case <-ctx.Done():
-		panic(ctx.Err())
-	}
-	if waitResp.Error != nil {
-		panic("waitResp.Error is not nil")
-	}
-
-	// Collect stderr.
-	// TODO: Consider more container.LogOptions.
-	// TODO: Do we need to close multiplexedLogReadCloser?
-	stderrReader, stderrPipeWriter := io.Pipe()
-	attachStderrResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
-		Stderr: true,
-		Logs:   true,
-	})
-	if err != nil {
-		panic(err)
-	}
-	defer attachStderrResp.Close()
-	go func() {
-		// TODO: Can we use a single writer for both?
-		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
-		_, err = stdcopy.StdCopy(io.Discard, stderrPipeWriter, attachStderrResp.Reader)
-		if err != nil {
-			panic(err)
-		}
-		err = stderrPipeWriter.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
-	stderrBytes, err := io.ReadAll(stderrReader) // TODO: stderr shouldn't be long but maybe some kind of limit should be in place.
-	if err != nil {
-		panic(err)
-	}
-	stderrString := string(stderrBytes)
-	if stderrString != "" {
-		slog.Warn("non-empty runner stderr", "stderr", stderrString)
-	}
-	if waitResp.StatusCode != 0 {
-		panic("waitResp.StatusCode is not 0") // TODO: Log stderr.
-	}
-
-	stdoutReader, stdoutPipeWriter := io.Pipe()
-	attachStdoutResp, err := cli.ContainerAttach(ctx, createResp.ID, container.AttachOptions{
-		Stdout: true,
-		Logs:   true,
-	})
-	if err != nil {
-		panic(err)
-	}
-	defer attachStdoutResp.Close()
-	go func() {
-		// TODO: Can we use a single writer for both?
-		// TODO: Panics here will crash the entire process because this is a goroutine and it doesn't have a recover.
-		_, err = stdcopy.StdCopy(stdoutPipeWriter, io.Discard, attachStdoutResp.Reader)
-		if err != nil {
-			panic(err)
-		}
-		err = stdoutPipeWriter.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	// Peek and detect the multipart boundary.
-	// The boundary line should be less than 74 bytes:
-	// 2 bytes for "--", up to 70 bytes for user-defined boundary, and 2 bytes for "\r\n".
-	// See https://datatracker.ietf.org/doc/html/rfc1341.
-	bufstdoutReader := bufio.NewReader(stdoutReader)
-	peek, err := bufstdoutReader.Peek(74)
-	if err != nil && err != io.EOF {
-		panic(fmt.Errorf("invalid stdin boundary: %w", err))
-	}
-	boundary := string(peek)
-	if boundary[:2] != "--" {
-		panic(errors.New("invalid stdin boundary start"))
-	}
-	boundaryEnd := strings.Index(boundary, "\r\n")
-	if boundaryEnd == -1 {
-		panic(errors.New("invalid stdin boundary length or end"))
-	}
-	boundary = boundary[2:boundaryEnd]
-
-	mr := multipart.NewReader(bufstdoutReader, boundary)
-
-	// Upload log file from pipe to object storage.
-	logFileReader, err := mr.NextPart()
-	if err != nil {
-		panic(err)
-	}
-	err = uploadFileContent(ctx, r.S3, *b.LogFileKey, logFileReader)
-	if err != nil {
-		panic(err)
-	}
-
-	// Get container runner result.
-	var result struct {
-		ExitCode int `json:"exit_code"`
-	}
-	resultReader, err := mr.NextPart()
-	if err != nil {
-		panic(err)
-	}
-	dec := json.NewDecoder(resultReader)
-	dec.DisallowUnknownFields()
-	err = dec.Decode(&result)
-	if err != nil {
-		panic(err)
-	}
-	if dec.More() {
-		panic("multiple top-level elements")
-	}
-
-	// Upload output file from pipe to object storage.
-	outputFileReader, err := mr.NextPart()
-	if err != nil {
-		panic(err)
-	}
-	err = uploadFileContent(ctx, r.S3, *b.OutputFileKey, outputFileReader)
-	if err != nil {
-		panic(err)
-	}
-
-	err = cli.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{}) // TODO: defer
-	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Update build exit code.
