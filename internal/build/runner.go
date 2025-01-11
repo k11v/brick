@@ -187,6 +187,8 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 		}()
 
+		_ = inputTarReader
+
 		return nil
 	}()
 	if err != nil {
