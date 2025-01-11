@@ -19,6 +19,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/strslice"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
@@ -131,8 +132,61 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	err = func() error {
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
-			panic(err)
+			return err
 		}
+
+		// Create volume.
+		vol, err := cli.VolumeCreate(ctx, volume.CreateOptions{})
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = cli.VolumeRemove(ctx, vol.Name, false)
+			if err != nil {
+				slog.Error("didn't remove volume", "id", vol.Name, "error", err)
+			}
+		}()
+
+		// Create input untar container.
+		inputUntarCont, err := cli.ContainerCreate(
+			ctx,
+			&container.Config{
+				Image:        "brick-build",
+				Entrypoint:   strslice.StrSlice{},
+				Cmd:          strslice.StrSlice{"sh", "-c", `mkdir /user/run/input && cd /user/run/input && exec tar -v -x`},
+				AttachStdin:  true,
+				AttachStdout: true,
+				AttachStderr: true,
+				OpenStdin:    true,
+				StdinOnce:    true,
+			},
+			&container.HostConfig{
+				NetworkMode:    "none",
+				CapDrop:        strslice.StrSlice{"ALL"},
+				CapAdd:         strslice.StrSlice{"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FSETID", "CAP_FOWNER", "CAP_MKNOD", "CAP_NET_RAW", "CAP_SETGID", "CAP_SETUID", "CAP_SETFCAP", "CAP_SETPCAP", "CAP_NET_BIND_SERVICE", "CAP_SYS_CHROOT", "CAP_KILL", "CAP_AUDIT_WRITE"},
+				ReadonlyRootfs: true,
+				Mounts: []mount.Mount{{
+					Type:   mount.TypeVolume,
+					Source: vol.Name,
+					Target: "/user/run",
+					VolumeOptions: &mount.VolumeOptions{
+						NoCopy: true,
+					},
+				}},
+			},
+			nil,
+			nil,
+			"",
+		)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = cli.ContainerRemove(ctx, inputUntarCont.ID, container.RemoveOptions{})
+			if err != nil {
+				slog.Error("didn't remove container", "id", inputUntarCont.ID, "error", err)
+			}
+		}()
 
 		createResp, err := cli.ContainerCreate(
 			ctx,
