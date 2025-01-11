@@ -173,6 +173,9 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 						NoCopy: true,
 					},
 				}},
+				LogConfig: container.LogConfig{
+					Type: "none",
+				},
 			},
 			nil,
 			nil,
