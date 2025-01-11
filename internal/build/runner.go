@@ -124,6 +124,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	}
 
 	// Run.
+	var result struct{ ExitCode int }
 	err = func() error {
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
