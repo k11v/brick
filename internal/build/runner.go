@@ -202,13 +202,12 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		}()
 
 		// Run untar input container: attach container streams.
-		// TODO: Consider DetachKeys.
 		untarInputContConn, err := cli.ContainerAttach(ctx, untarInputCont.ID, container.AttachOptions{
 			Stream:     true,
 			Stdin:      true,
 			Stdout:     true,
 			Stderr:     true,
-			DetachKeys: "",
+			DetachKeys: "", // TODO: Consider DetachKeys.
 		})
 		if err != nil {
 			return err
