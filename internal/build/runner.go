@@ -1,7 +1,6 @@
 package build
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -133,13 +132,29 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			return err
 		}
 
+		// Create log writer that uploads to object storage.
+		logReader, logWriter := io.Pipe()
+		defer func() {
+			err := logWriter.Close()
+			if err != nil {
+				slog.Error("didn't close logWriter", "error", err)
+			}
+		}()
+		go func() {
+			err := uploadFileContent(ctx, r.S3, *b.LogFileKey, logReader)
+			if err != nil {
+				_ = logReader.CloseWithError(err) // TODO: Check if used correctly.
+				return
+			}
+		}()
+
 		// Create volume.
 		vol, err := cli.VolumeCreate(ctx, volume.CreateOptions{})
 		if err != nil {
 			return err
 		}
 		defer func() {
-			err = cli.VolumeRemove(ctx, vol.Name, false)
+			err := cli.VolumeRemove(ctx, vol.Name, false)
 			if err != nil {
 				slog.Error("didn't remove volume", "id", vol.Name, "error", err)
 			}
@@ -219,8 +234,11 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 		}()
 
-		var stdoutBuffer, stderrBuffer bytes.Buffer
-		_, err = stdcopy.StdCopy(&stdoutBuffer, &stderrBuffer, untarInputContConn.Conn)
+		_, err = logWriter.Write([]byte("$ untar\n"))
+		if err != nil {
+			return err
+		}
+		_, err = stdcopy.StdCopy(logWriter, logWriter, untarInputContConn.Conn)
 		if err != nil {
 			return err
 		}
