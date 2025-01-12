@@ -167,9 +167,6 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 					Type:   mount.TypeVolume,
 					Source: vol.Name,
 					Target: "/user/run",
-					VolumeOptions: &mount.VolumeOptions{
-						NoCopy: true,
-					},
 				}},
 				LogConfig: container.LogConfig{
 					Type: "none",
