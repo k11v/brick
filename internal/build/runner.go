@@ -1,6 +1,7 @@
 package build
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -143,8 +145,8 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 		}()
 
-		// Create input untar container.
-		inputUntarCont, err := cli.ContainerCreate(
+		// Create untar input container.
+		untarInputCont, err := cli.ContainerCreate(
 			ctx,
 			&container.Config{
 				Image:        "brick-build",
@@ -181,13 +183,55 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			return err
 		}
 		defer func() {
-			err = cli.ContainerRemove(ctx, inputUntarCont.ID, container.RemoveOptions{})
+			err = cli.ContainerRemove(ctx, untarInputCont.ID, container.RemoveOptions{})
 			if err != nil {
-				slog.Error("didn't remove container", "id", inputUntarCont.ID, "error", err)
+				slog.Error("didn't remove container", "id", untarInputCont.ID, "error", err)
 			}
 		}()
 
-		_ = inputTarReader
+		// TODO: Consider DetachKeys.
+		untarInputContConn, err := cli.ContainerAttach(ctx, untarInputCont.ID, container.AttachOptions{
+			Stream:     true,
+			Stdin:      true,
+			Stdout:     true,
+			Stderr:     true,
+			DetachKeys: "",
+		})
+		if err != nil {
+			return err
+		}
+		defer untarInputContConn.Close()
+
+		err = cli.ContainerStart(ctx, untarInputCont.ID, container.StartOptions{})
+		if err != nil {
+			return err
+		}
+
+		stdinErrCh := make(chan error, 1)
+		go func() {
+			defer close(stdinErrCh)
+			_, err := io.Copy(untarInputContConn.Conn, inputTarReader)
+			if err != nil {
+				stdinErrCh <- err
+				return
+			}
+			err = untarInputContConn.CloseWrite()
+			if err != nil {
+				stdinErrCh <- err
+				return
+			}
+		}()
+
+		var stdoutBuffer, stderrBuffer bytes.Buffer
+		_, err = stdcopy.StdCopy(&stdoutBuffer, &stderrBuffer, untarInputContConn.Conn)
+		if err != nil {
+			return err
+		}
+
+		err = <-stdinErrCh
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}()
