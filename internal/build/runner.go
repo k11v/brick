@@ -126,7 +126,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 
 	// Run.
 	var result struct{ ExitCode int }
-	err = func() error {
+	err = func() (err error) {
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
 			return err
@@ -201,6 +201,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 		}()
 
+		// Run untar input container: attach container streams.
 		// TODO: Consider DetachKeys.
 		untarInputContConn, err := cli.ContainerAttach(ctx, untarInputCont.ID, container.AttachOptions{
 			Stream:     true,
@@ -214,11 +215,13 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		}
 		defer untarInputContConn.Close()
 
+		// Run untar input container: start container.
 		err = cli.ContainerStart(ctx, untarInputCont.ID, container.StartOptions{})
 		if err != nil {
 			return err
 		}
 
+		// Run untar input container: write container stdin.
 		stdinErrCh := make(chan error, 1)
 		go func() {
 			defer close(stdinErrCh)
@@ -233,17 +236,16 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 				return
 			}
 		}()
+		defer func() {
+			err = errors.Join(<-stdinErrCh, err) // TODO: Consider how it messes with errors.Is.
+		}()
 
+		// Run untar input container: read container stdout and stderr.
 		_, err = logWriter.Write([]byte("$ untar\n"))
 		if err != nil {
 			return err
 		}
 		_, err = stdcopy.StdCopy(logWriter, logWriter, untarInputContConn.Conn)
-		if err != nil {
-			return err
-		}
-
-		err = <-stdinErrCh
 		if err != nil {
 			return err
 		}
