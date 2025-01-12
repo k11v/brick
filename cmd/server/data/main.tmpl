@@ -27,6 +27,8 @@
       <div>to PDF</div>
     </div>
     <p>The PDF file is ready.</p>
+    <textarea disabled id="build-log-textarea"></textarea>
+    <button type="button" hx-target="#build-log-textarea" hx-swap="outerHTML" hx-get="/BuildLog" hx-vals="{{ jsonObject "id" .Build.ID }}" class="block">Load logs</button>
     <button type="button" hx-swap="none" hx-get="/BuildOutputFile" hx-vals="{{ jsonObject "id" .Build.ID }}" class="block">Download</button>
   {{else if eq .Build.Status "done.failed"}}
     <h2>Failed</h2>
