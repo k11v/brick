@@ -141,6 +141,10 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		}
 
 		// Create log writer that uploads to object storage.
+		uploadLogDone := make(chan struct{})
+		defer func() {
+			<-uploadLogDone
+		}()
 		logReader, logWriter := io.Pipe()
 		defer func() {
 			err := logWriter.Close()
@@ -149,6 +153,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 		}()
 		go func() {
+			defer close(uploadLogDone)
 			err := uploadFileContent(ctx, r.S3, *b.LogFileKey, logReader)
 			if err != nil {
 				_ = logReader.CloseWithError(err) // TODO: Check if used correctly.
@@ -369,6 +374,118 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 			if buildContInspect.State.ExitCode != 0 {
 				return &ExitError{ExitCode: buildContInspect.State.ExitCode}
+			}
+
+			return nil
+		}()
+		if err != nil {
+			return err
+		}
+
+		// Run tar output container.
+		err = func() error {
+			// Create tar output container.
+			tarOutputCont, err := cli.ContainerCreate(
+				ctx,
+				&container.Config{
+					Image:      "brick-build",
+					Entrypoint: strslice.StrSlice{},
+					Cmd: strslice.StrSlice{
+						"sh",
+						"-c",
+						`
+							set -e
+							cd /user/output
+							exec cat main.pdf
+						`,
+					},
+					AttachStdout: true,
+					AttachStderr: true,
+				},
+				&container.HostConfig{
+					NetworkMode:    "none",
+					CapDrop:        strslice.StrSlice{"ALL"},
+					CapAdd:         strslice.StrSlice{"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FSETID", "CAP_FOWNER", "CAP_MKNOD", "CAP_NET_RAW", "CAP_SETGID", "CAP_SETUID", "CAP_SETFCAP", "CAP_SETPCAP", "CAP_NET_BIND_SERVICE", "CAP_SYS_CHROOT", "CAP_KILL", "CAP_AUDIT_WRITE"},
+					ReadonlyRootfs: true,
+					Mounts: []mount.Mount{{
+						Type:   mount.TypeVolume,
+						Source: vol.Name,
+						Target: "/user",
+					}},
+					LogConfig: container.LogConfig{
+						Type: "none",
+					},
+				},
+				nil,
+				nil,
+				"",
+			)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				err = cli.ContainerRemove(ctx, tarOutputCont.ID, container.RemoveOptions{})
+				if err != nil {
+					slog.Error("didn't remove container", "id", tarOutputCont.ID, "error", err)
+				}
+			}()
+
+			// Attach tar output container streams.
+			tarOutputContConn, err := cli.ContainerAttach(ctx, tarOutputCont.ID, container.AttachOptions{
+				Stream:     true,
+				Stdout:     true,
+				Stderr:     true,
+				DetachKeys: "", // TODO: Consider DetachKeys.
+			})
+			if err != nil {
+				return err
+			}
+			defer tarOutputContConn.Close()
+
+			// Start tar output container.
+			err = cli.ContainerStart(ctx, tarOutputCont.ID, container.StartOptions{})
+			if err != nil {
+				return err
+			}
+
+			// Create output file writer that uploads to object storage.
+			uploadOutputFileDone := make(chan struct{})
+			defer func() {
+				<-uploadOutputFileDone
+			}()
+			outputFileReader, outputFileWriter := io.Pipe()
+			defer func() {
+				err := outputFileWriter.Close()
+				if err != nil {
+					slog.Error("didn't close outputFileWriter", "error", err)
+				}
+			}()
+			go func() {
+				defer close(uploadOutputFileDone)
+				err := uploadFileContent(ctx, r.S3, *b.OutputFileKey, outputFileReader)
+				if err != nil {
+					_ = outputFileReader.CloseWithError(err) // TODO: Check if used correctly.
+					return
+				}
+			}()
+
+			// Read tar output container stdout and stderr.
+			_, err = logWriter.Write([]byte("$ cat\n"))
+			if err != nil {
+				return err
+			}
+			_, err = stdcopy.StdCopy(outputFileWriter, logWriter, tarOutputContConn.Conn)
+			if err != nil {
+				return err
+			}
+
+			// Check tar output container exit code.
+			tarOutputContInspect, err := cli.ContainerInspect(ctx, tarOutputCont.ID)
+			if tarOutputContInspect.State.Status != "exited" {
+				return errors.New("didn't exit")
+			}
+			if tarOutputContInspect.State.ExitCode != 0 {
+				return &ExitError{ExitCode: tarOutputContInspect.State.ExitCode}
 			}
 
 			return nil
