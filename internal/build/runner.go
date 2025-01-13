@@ -381,10 +381,10 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			return err
 		}
 
-		// Run tar output container.
+		// Run cat output container.
 		err = func() error {
-			// Create tar output container.
-			tarOutputCont, err := cli.ContainerCreate(
+			// Create cat output container.
+			catOutputCont, err := cli.ContainerCreate(
 				ctx,
 				&container.Config{
 					Image:      "brick-build",
@@ -423,14 +423,14 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 				return err
 			}
 			defer func() {
-				err = cli.ContainerRemove(ctx, tarOutputCont.ID, container.RemoveOptions{})
+				err = cli.ContainerRemove(ctx, catOutputCont.ID, container.RemoveOptions{})
 				if err != nil {
-					slog.Error("didn't remove container", "id", tarOutputCont.ID, "error", err)
+					slog.Error("didn't remove container", "id", catOutputCont.ID, "error", err)
 				}
 			}()
 
-			// Attach tar output container streams.
-			tarOutputContConn, err := cli.ContainerAttach(ctx, tarOutputCont.ID, container.AttachOptions{
+			// Attach cat output container streams.
+			catOutputContConn, err := cli.ContainerAttach(ctx, catOutputCont.ID, container.AttachOptions{
 				Stream:     true,
 				Stdout:     true,
 				Stderr:     true,
@@ -439,10 +439,10 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			if err != nil {
 				return err
 			}
-			defer tarOutputContConn.Close()
+			defer catOutputContConn.Close()
 
-			// Start tar output container.
-			err = cli.ContainerStart(ctx, tarOutputCont.ID, container.StartOptions{})
+			// Start cat output container.
+			err = cli.ContainerStart(ctx, catOutputCont.ID, container.StartOptions{})
 			if err != nil {
 				return err
 			}
@@ -468,23 +468,23 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 				}
 			}()
 
-			// Read tar output container stdout and stderr.
+			// Read cat output container stdout and stderr.
 			_, err = logWriter.Write([]byte("$ cat\n"))
 			if err != nil {
 				return err
 			}
-			_, err = stdcopy.StdCopy(outputFileWriter, logWriter, tarOutputContConn.Conn)
+			_, err = stdcopy.StdCopy(outputFileWriter, logWriter, catOutputContConn.Conn)
 			if err != nil {
 				return err
 			}
 
-			// Check tar output container exit code.
-			tarOutputContInspect, err := cli.ContainerInspect(ctx, tarOutputCont.ID)
-			if tarOutputContInspect.State.Status != "exited" {
+			// Check cat output container exit code.
+			catOutputContInspect, err := cli.ContainerInspect(ctx, catOutputCont.ID)
+			if catOutputContInspect.State.Status != "exited" {
 				return errors.New("didn't exit")
 			}
-			if tarOutputContInspect.State.ExitCode != 0 {
-				return &ExitError{ExitCode: tarOutputContInspect.State.ExitCode}
+			if catOutputContInspect.State.ExitCode != 0 {
+				return &ExitError{ExitCode: catOutputContInspect.State.ExitCode}
 			}
 
 			return nil
