@@ -35,4 +35,4 @@ COPY --from=builder /opt/app/bin/build /opt/app/bin/
 
 USER user:user
 WORKDIR /user
-ENTRYPOINT []
+ENTRYPOINT ["build"]
