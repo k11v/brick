@@ -126,7 +126,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 
 	// Run.
 	var result struct{ ExitCode int }
-	err = func() (err error) {
+	err = func() error {
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
 			return err
@@ -160,91 +160,102 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 		}()
 
-		// Create untar input container.
-		untarInputCont, err := cli.ContainerCreate(
-			ctx,
-			&container.Config{
-				Image:        "brick-build",
-				Entrypoint:   strslice.StrSlice{},
-				Cmd:          strslice.StrSlice{"sh", "-c", `mkdir /user/run/input && cd /user/run/input && exec tar -v -x`},
-				AttachStdin:  true,
-				AttachStdout: true,
-				AttachStderr: true,
-				OpenStdin:    true,
-				StdinOnce:    true,
-			},
-			&container.HostConfig{
-				NetworkMode:    "none",
-				CapDrop:        strslice.StrSlice{"ALL"},
-				CapAdd:         strslice.StrSlice{"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FSETID", "CAP_FOWNER", "CAP_MKNOD", "CAP_NET_RAW", "CAP_SETGID", "CAP_SETUID", "CAP_SETFCAP", "CAP_SETPCAP", "CAP_NET_BIND_SERVICE", "CAP_SYS_CHROOT", "CAP_KILL", "CAP_AUDIT_WRITE"},
-				ReadonlyRootfs: true,
-				Mounts: []mount.Mount{{
-					Type:   mount.TypeVolume,
-					Source: vol.Name,
-					Target: "/user/run",
-				}},
-				LogConfig: container.LogConfig{
-					Type: "none",
+		// Run untar input container.
+		err = func() error {
+			// Create untar input container.
+			untarInputCont, err := cli.ContainerCreate(
+				ctx,
+				&container.Config{
+					Image:        "brick-build",
+					Entrypoint:   strslice.StrSlice{},
+					Cmd:          strslice.StrSlice{"sh", "-c", `mkdir /user/run/input && cd /user/run/input && exec tar -v -x`},
+					AttachStdin:  true,
+					AttachStdout: true,
+					AttachStderr: true,
+					OpenStdin:    true,
+					StdinOnce:    true,
 				},
-			},
-			nil,
-			nil,
-			"",
-		)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			err = cli.ContainerRemove(ctx, untarInputCont.ID, container.RemoveOptions{})
+				&container.HostConfig{
+					NetworkMode:    "none",
+					CapDrop:        strslice.StrSlice{"ALL"},
+					CapAdd:         strslice.StrSlice{"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FSETID", "CAP_FOWNER", "CAP_MKNOD", "CAP_NET_RAW", "CAP_SETGID", "CAP_SETUID", "CAP_SETFCAP", "CAP_SETPCAP", "CAP_NET_BIND_SERVICE", "CAP_SYS_CHROOT", "CAP_KILL", "CAP_AUDIT_WRITE"},
+					ReadonlyRootfs: true,
+					Mounts: []mount.Mount{{
+						Type:   mount.TypeVolume,
+						Source: vol.Name,
+						Target: "/user/run",
+					}},
+					LogConfig: container.LogConfig{
+						Type: "none",
+					},
+				},
+				nil,
+				nil,
+				"",
+			)
 			if err != nil {
-				slog.Error("didn't remove container", "id", untarInputCont.ID, "error", err)
+				return err
 			}
-		}()
+			defer func() {
+				err = cli.ContainerRemove(ctx, untarInputCont.ID, container.RemoveOptions{})
+				if err != nil {
+					slog.Error("didn't remove container", "id", untarInputCont.ID, "error", err)
+				}
+			}()
 
-		// Run untar input container: attach container streams.
-		untarInputContConn, err := cli.ContainerAttach(ctx, untarInputCont.ID, container.AttachOptions{
-			Stream:     true,
-			Stdin:      true,
-			Stdout:     true,
-			Stderr:     true,
-			DetachKeys: "", // TODO: Consider DetachKeys.
-		})
-		if err != nil {
-			return err
-		}
-		defer untarInputContConn.Close()
-
-		// Run untar input container: start container.
-		err = cli.ContainerStart(ctx, untarInputCont.ID, container.StartOptions{})
-		if err != nil {
-			return err
-		}
-
-		// Run untar input container: write container stdin.
-		stdinErrCh := make(chan error, 1)
-		go func() {
-			defer close(stdinErrCh)
-			_, err := io.Copy(untarInputContConn.Conn, inputTarReader)
+			// Attach untar input container streams.
+			untarInputContConn, err := cli.ContainerAttach(ctx, untarInputCont.ID, container.AttachOptions{
+				Stream:     true,
+				Stdin:      true,
+				Stdout:     true,
+				Stderr:     true,
+				DetachKeys: "", // TODO: Consider DetachKeys.
+			})
 			if err != nil {
-				stdinErrCh <- err
-				return
+				return err
 			}
-			err = untarInputContConn.CloseWrite()
-			if err != nil {
-				stdinErrCh <- err
-				return
-			}
-		}()
-		defer func() {
-			err = errors.Join(<-stdinErrCh, err) // TODO: Consider how it messes with errors.Is.
-		}()
+			defer untarInputContConn.Close()
 
-		// Run untar input container: read container stdout and stderr.
-		_, err = logWriter.Write([]byte("$ untar\n"))
-		if err != nil {
-			return err
-		}
-		_, err = stdcopy.StdCopy(logWriter, logWriter, untarInputContConn.Conn)
+			// Start untar input container.
+			err = cli.ContainerStart(ctx, untarInputCont.ID, container.StartOptions{})
+			if err != nil {
+				return err
+			}
+
+			// Write untar input container stdin.
+			stdinErrCh := make(chan error, 1)
+			go func() {
+				defer close(stdinErrCh)
+				_, err := io.Copy(untarInputContConn.Conn, inputTarReader)
+				if err != nil {
+					stdinErrCh <- err
+					return
+				}
+				err = untarInputContConn.CloseWrite()
+				if err != nil {
+					stdinErrCh <- err
+					return
+				}
+			}()
+
+			// Read untar input container stdout and stderr.
+			_, err = logWriter.Write([]byte("$ untar\n"))
+			if err != nil {
+				return err
+			}
+			_, err = stdcopy.StdCopy(logWriter, logWriter, untarInputContConn.Conn)
+			if err != nil {
+				return err
+			}
+
+			// Check untar input container stdin error.
+			err = <-stdinErrCh
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}()
 		if err != nil {
 			return err
 		}
