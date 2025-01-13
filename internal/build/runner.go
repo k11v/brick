@@ -133,7 +133,6 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 	}
 
 	// Run.
-	var result struct{ ExitCode int }
 	err = func() error {
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
@@ -496,22 +495,24 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 
 		return nil
 	}()
-	// if exitErr := (*ExitError)(nil); errors.As(err, &exitErr) {
-	// 	...
-	// }
+	exitCode := 0
+	if exitErr := (*ExitError)(nil); errors.As(err, &exitErr) {
+		exitCode = exitErr.ExitCode
+		err = nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Update build exit code.
-	b, err = updateBuildExitCode(ctx, r.DB, b.ID, result.ExitCode)
+	b, err = updateBuildExitCode(ctx, r.DB, b.ID, exitCode)
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
 
 	// Update build status to done.
 	var doneStatus Status
-	if result.ExitCode == 0 {
+	if exitCode == 0 {
 		doneStatus = StatusSucceeded
 	} else {
 		doneStatus = StatusFailed
