@@ -27,6 +27,14 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
+type ExitError struct {
+	ExitCode int
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("exit code is %d", e.ExitCode)
+}
+
 type Runner struct {
 	DB *pgxpool.Pool // required
 	S3 *s3.Client    // required
@@ -166,9 +174,18 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			untarInputCont, err := cli.ContainerCreate(
 				ctx,
 				&container.Config{
-					Image:        "brick-build",
-					Entrypoint:   strslice.StrSlice{},
-					Cmd:          strslice.StrSlice{"sh", "-c", `mkdir /user/run/input && cd /user/run/input && exec tar -v -x`},
+					Image:      "brick-build",
+					Entrypoint: strslice.StrSlice{},
+					Cmd: strslice.StrSlice{
+						"sh",
+						"-c",
+						`
+							set -e
+							mkdir /user/input
+							cd /user/input
+							exec tar -v -x
+						`,
+					},
 					AttachStdin:  true,
 					AttachStdout: true,
 					AttachStderr: true,
@@ -183,7 +200,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 					Mounts: []mount.Mount{{
 						Type:   mount.TypeVolume,
 						Source: vol.Name,
-						Target: "/user/run",
+						Target: "/user",
 					}},
 					LogConfig: container.LogConfig{
 						Type: "none",
@@ -254,6 +271,106 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 				return err
 			}
 
+			// Check untar input container exit code.
+			untarInputContInspect, err := cli.ContainerInspect(ctx, untarInputCont.ID)
+			if untarInputContInspect.State.Status != "exited" {
+				return errors.New("didn't exit")
+			}
+			if untarInputContInspect.State.ExitCode != 0 {
+				return &ExitError{ExitCode: untarInputContInspect.State.ExitCode}
+			}
+
+			return nil
+		}()
+		if err != nil {
+			return err
+		}
+
+		// Run build container.
+		err = func() error {
+			// Create build container.
+			buildCont, err := cli.ContainerCreate(
+				ctx,
+				&container.Config{
+					Image:      "brick-build",
+					Entrypoint: strslice.StrSlice{},
+					Cmd: strslice.StrSlice{
+						"sh",
+						"-c",
+						`
+							set -e
+							cd /user/input
+							mkdir /user/output
+							exec build -i main.md -o /user/output/main.pdf -c /user/cache
+						`,
+					},
+					AttachStdout: true,
+					AttachStderr: true,
+				},
+				&container.HostConfig{
+					NetworkMode:    "none",
+					CapDrop:        strslice.StrSlice{"ALL"},
+					CapAdd:         strslice.StrSlice{"CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FSETID", "CAP_FOWNER", "CAP_MKNOD", "CAP_NET_RAW", "CAP_SETGID", "CAP_SETUID", "CAP_SETFCAP", "CAP_SETPCAP", "CAP_NET_BIND_SERVICE", "CAP_SYS_CHROOT", "CAP_KILL", "CAP_AUDIT_WRITE"},
+					ReadonlyRootfs: true,
+					Mounts: []mount.Mount{{
+						Type:   mount.TypeVolume,
+						Source: vol.Name,
+						Target: "/user",
+					}},
+					LogConfig: container.LogConfig{
+						Type: "none",
+					},
+				},
+				nil,
+				nil,
+				"",
+			)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				err = cli.ContainerRemove(ctx, buildCont.ID, container.RemoveOptions{})
+				if err != nil {
+					slog.Error("didn't remove container", "id", buildCont.ID, "error", err)
+				}
+			}()
+
+			// Attach build container streams.
+			buildContConn, err := cli.ContainerAttach(ctx, buildCont.ID, container.AttachOptions{
+				Stream: true,
+				Stdout: true,
+				Stderr: true,
+			})
+			if err != nil {
+				return err
+			}
+			defer buildContConn.Close()
+
+			// Start build container.
+			err = cli.ContainerStart(ctx, buildCont.ID, container.StartOptions{})
+			if err != nil {
+				return err
+			}
+
+			// Read build container stdout and stderr.
+			_, err = logWriter.Write([]byte("$ build\n"))
+			if err != nil {
+				return err
+			}
+			_, err = stdcopy.StdCopy(logWriter, logWriter, buildContConn.Conn)
+			if err != nil {
+				return err
+			}
+
+			// Check build container exit code.
+			buildContInspect, err := cli.ContainerInspect(ctx, buildCont.ID)
+			if buildContInspect.State.Status != "exited" {
+				return errors.New("didn't exit")
+			}
+			if buildContInspect.State.ExitCode != 0 {
+				return &ExitError{ExitCode: buildContInspect.State.ExitCode}
+			}
+
 			return nil
 		}()
 		if err != nil {
@@ -262,6 +379,9 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 
 		return nil
 	}()
+	// if exitErr := (*ExitError)(nil); errors.As(err, &exitErr) {
+	// 	...
+	// }
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
