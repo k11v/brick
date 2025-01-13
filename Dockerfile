@@ -1,20 +1,17 @@
-FROM golang:1.23-alpine3.20 AS builder
+FROM golang:1.23-alpine AS builder
 
 USER root:root
-WORKDIR /root/src/
-
-# Install dependencies.
-COPY ./go.mod ./go.sum ./
-RUN go mod download
-
-# Copy sources.
-COPY ./cmd/ ./cmd/
-COPY ./internal/ ./internal/
-
-# Build application.
-RUN --mount=type=cache,target=/root/gocache \
-    GOCACHE=/root/gocache CGO_ENABLED=0 \
-    go build -o /root/bin/ ./cmd/...
+WORKDIR /opt/app/src
+COPY ./cmd ./cmd
+COPY ./internal ./internal
+COPY ./go.mod ./go.mod
+COPY ./go.sum ./go.sum
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/root/.cache/go-mod \
+    export GOCACHE=/root/.cache/go-build \
+ && export GOMODCACHE=/root/.cache/go-mod \
+ && export CGO_ENABLED=0 \
+ && go build -o /opt/app/bin/ ./cmd/...
 
 
 FROM alpine:3.20 AS runner
