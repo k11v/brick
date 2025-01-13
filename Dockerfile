@@ -14,25 +14,20 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
  && go build -o /opt/app/bin/ ./cmd/...
 
 
-FROM alpine:3.20 AS runner
+FROM alpine AS runner
 
-# Install dependencies.
+USER root:root
+RUN addgroup -g 2000 -S user \
+ && adduser -u 2000 -G user -h /user -H -s /bin/sh -S user \
+ && mkdir /user \
+ && chown 2000:2000 /user
+
 RUN apk add --no-cache curl
 
-# Prepare environment.
-ENV UID=2000 GID=2000 HOME=/user
-ENV PATH="$HOME/bin:$PATH"
-RUN addgroup -g "$GID" -S user \
- && adduser -u "$UID" -G user -h "$HOME" -H -s /bin/sh -S user \
- && mkdir "$HOME" \
- && mkdir "$HOME/bin" \
- && chown -R "$UID:$GID" "$HOME"
+ENV PATH="/opt/app/bin:$PATH"
+RUN mkdir /opt/app
+COPY --from=builder /opt/app/bin /opt/app/bin
 
-# Copy application.
-COPY --from=builder /root/bin/ /user/bin/
-
-# Run application.
-EXPOSE 8080
 USER user:user
-WORKDIR /user/
-ENTRYPOINT ["build"]
+WORKDIR /user
+ENTRYPOINT []
