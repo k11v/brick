@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="shortcut icon" href="/favicon.ico">
+    <meta charset="utf-8">
+    <meta name="description" content="Brick is a service that builds PDF files from Markdown files.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.3" integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq" crossorigin="anonymous"></script>
+    <title>Brick</title>
+  </head>
+  <body>
+    <header id="header">
+      <a href="/" class="block">Brick</a>
+      <div>
+        <div>John</div>
+        <button type="button" hx-target="#header" hx-post="/HeaderFromSignOut" class="block">Sign out</button>
+      </div>
+    </header>    
+    <main>
+      <p>Brick is a service that builds PDF files from Markdown files.</p>
+      <form hx-target="#result" hx-post="/BuildFromBuild" hx-encoding="multipart/form-data">
+        <input type="hidden" name="time_location" id="build-create-form-time-location-field" class="hidden" />
+        <script>
+          document.getElementById("build-create-form-time-location-field").value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        </script>
+        <section>
+          <h2>main.md</h2>
+          <input type="hidden" name="files/0/name" value="main.md" class="hidden" />
+          <textarea name="files/0/content" aria-label="main.md" class="block"></textarea>
+        </section>
+        <section>
+          <h2>pictures/landscape.png</h2>
+          <input type="hidden" name="files/1/name" value="pictures/landscape.png" class="hidden" />
+          <input type="file" name="files/1/content" aria-label="pictures/landscape.png" class="block" />
+        </section>
+        <section>
+          <h2>pictures/icon.svg</h2>
+          <input type="hidden" name="files/2/name" value="pictures/icon.svg" class="hidden" />
+          <textarea name="files/2/content" aria-label="pictures/icon.svg" class="block"></textarea>
+        </section>
+        <button type="submit" class="block">Build</button>
+      </form>
+      <div id="result"></div>
+    </main>
+    <footer>
+      <p><a href="https://k11v.cc/" target="_blank">k11v</a> built this service — brick by brick.</p>
+      <p>Source code is available on <a href="https://github.com/k11v/brick" target="_blank">GitHub</a>.</p>
+    <footer>
+  </body>
+</html>
