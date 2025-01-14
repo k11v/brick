@@ -14,18 +14,17 @@
     <title>Brick</title>
   </head>
   <body>
-    <header class="border-2 p-2">
+    <header class="border-2 p-2 flex gap-x-2 items-center">
       <a href="/" class="block">
         <span class="kanit-medium"><span class="text-red-700">B</span>rick</span>
       </a>
+      <button type="button" class="block">
+        Build
+      </button>
+      <button type="button" class="block">
+        <img src="https://picsum.photos/id/42/200" class="w-8 h-8 rounded-full">
+      </button>
     </header>
-    <header id="header">
-      <a href="/" class="block">Brick</a>
-      <div>
-        <div>John</div>
-        <button type="button" hx-target="#header" hx-post="/HeaderFromSignOut" class="block">Sign out</button>
-      </div>
-    </header>    
     <main>
       <p>Brick is a service that builds PDF files from Markdown files.</p>
       <form hx-target="#result" hx-post="/BuildFromBuild" hx-encoding="multipart/form-data">
