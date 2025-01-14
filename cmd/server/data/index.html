@@ -14,7 +14,7 @@
     <title>Brick</title>
   </head>
   <body>
-    <header class="border-2 p-2 flex gap-x-2 items-center">
+    <header class="border-b-2 px-4 py-2 flex gap-x-2 items-center">
       <a href="/" class="block">
         <span class="kanit-medium"><span class="text-red-700">B</span>rick</span>
       </a>
@@ -25,7 +25,20 @@
         <img src="https://picsum.photos/id/42/200" class="w-8 h-8 rounded-full">
       </button>
     </header>
-    <main>
+    <main class="container mx-auto">
+      <ul>
+        <li>
+          <div>pictures</div>
+          <ul>
+            <li>apple.png</li>
+            <li>banana.png</li>
+          </ul>
+        </li>
+        <li>main.md</li>
+      </ul>
+    </main>
+    
+    <main class="mt-8">
       <p>Brick is a service that builds PDF files from Markdown files.</p>
       <form hx-target="#result" hx-post="/BuildFromBuild" hx-encoding="multipart/form-data">
         <input type="hidden" name="time_location" id="build-create-form-time-location-field" class="hidden" />
