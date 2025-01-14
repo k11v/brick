@@ -1,13 +1,14 @@
 package build
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -88,49 +89,73 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 
 	// Prepare reader with input tar.
 	// TODO: Implement real inputTarReader.
-	var inputTarReader io.Reader
-	{
-		// Create temporary directory.
-		tempDir, err := os.MkdirTemp("", "")
-		if err != nil {
-			return nil, fmt.Errorf("build.Runner: %w", err)
-		}
+	inputTarReader, inputTarWriter := io.Pipe()
+	defer inputTarReader.Close()
+	inputTarErrCh := make(chan error, 1)
+	go func() {
+		defer close(inputTarErrCh)
 		defer func() {
-			_ = os.RemoveAll(tempDir)
+			err := inputTarWriter.Close()
+			if err != nil {
+				slog.Error("didn't close inputTarWriter", "error", err)
+			}
 		}()
 
-		// Download input files from object storage to disk
-		inputDir := filepath.Join(tempDir, "input")
-		err = os.MkdirAll(inputDir, 0o777)
-		if err != nil {
-			return nil, fmt.Errorf("build.Runner: %w", err)
-		}
+		tw := tar.NewWriter(inputTarWriter)
+		defer func() {
+			err := tw.Close()
+			if err != nil {
+				slog.Error("didn't close tar.Writer", "error", err)
+			}
+		}()
+		dirExist := make(map[string]struct{})
+
 		for _, buildInputFile := range buildInputFiles {
-			downloadFile := func(fileName string, objectKey string) error {
-				openFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
-				if err != nil {
-					return err
+			dir := buildInputFile.Name
+			for {
+				nextDir := path.Dir(dir)
+				if nextDir == dir {
+					break
 				}
-				defer openFile.Close()
+				dir = nextDir
 
-				return downloadFileContent(ctx, r.S3, openFile, objectKey)
+				if _, exist := dirExist[dir]; !exist {
+					err = tw.WriteHeader(&tar.Header{
+						Typeflag: tar.TypeDir,
+						Name:     dir,
+						Mode:     0o777, // TODO: Check mode.
+					})
+					if err != nil {
+						inputTarErrCh <- err
+						return
+					}
+					dirExist[dir] = struct{}{}
+				}
 			}
-			inputFile := filepath.Join(inputDir, buildInputFile.Name)
-			err = os.MkdirAll(filepath.Dir(inputFile), 0o777)
+
+			var buf bytes.Buffer
+			err = downloadFileContent(ctx, r.S3, &buf, *buildInputFile.ContentKey)
 			if err != nil {
-				return nil, fmt.Errorf("build.Runner: %w", err)
+				inputTarErrCh <- err
+				return
 			}
-			err = downloadFile(inputFile, *buildInputFile.ContentKey)
+			err = tw.WriteHeader(&tar.Header{
+				Typeflag: tar.TypeReg,
+				Name:     buildInputFile.Name,
+				Mode:     0o666, // TODO: Check mode.
+				Size:     int64(buf.Len()),
+			})
 			if err != nil {
-				return nil, fmt.Errorf("build.Runner: %w", err)
+				inputTarErrCh <- err
+				return
+			}
+			_, err = tw.Write(buf.Bytes())
+			if err != nil {
+				inputTarErrCh <- err
+				return
 			}
 		}
-
-		inputTarReader, err = os.Open(".run/main.tar")
-		if err != nil {
-			return nil, fmt.Errorf("build.Runner: %w", err)
-		}
-	}
+	}()
 
 	// Run.
 	err = func() error {
@@ -500,6 +525,11 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		exitCode = exitErr.ExitCode
 		err = nil
 	}
+	if err != nil {
+		return nil, fmt.Errorf("build.Runner: %w", err)
+	}
+
+	err = <-inputTarErrCh
 	if err != nil {
 		return nil, fmt.Errorf("build.Runner: %w", err)
 	}
