@@ -4,3 +4,4 @@
 
 !/.gitignore
 !/.golangci.yaml
+!/.prettierrc.json
