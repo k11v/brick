@@ -1,0 +1,9 @@
+{
+    "name": "brick",
+    "type": "module",
+    "private": true,
+    "devDependencies": {
+        "prettier": "^3.4.2",
+        "prettier-plugin-tailwindcss": "^0.6.10"
+    }
+}

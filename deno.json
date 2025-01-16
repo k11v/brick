@@ -1,6 +1,0 @@
-{
-  "imports": {
-    "prettier": "npm:prettier@^3.4.2",
-    "prettier-plugin-tailwindcss": "npm:prettier-plugin-tailwindcss@^0.6.10"
-  }
-}
