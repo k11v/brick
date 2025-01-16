@@ -50,8 +50,8 @@ func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 	mux := &http.ServeMux{}
 	mux.HandleFunc("GET /", h.NotFoundPage)
 	mux.HandleFunc("GET /static/", h.StaticFile)
-	mux.HandleFunc("GET /{$}", h.MainPage)
-	mux.HandleFunc("GET /Build", h.Build)
+	mux.HandleFunc("GET /{$}", h.Build)
+	mux.HandleFunc("GET /Build", h.BuildV1)
 	mux.HandleFunc("GET /BuildOutputFile", h.BuildOutputFile)
 	mux.HandleFunc("GET /BuildLog", h.BuildLog)
 	mux.HandleFunc("POST /BuildFromBuild", h.BuildFromBuild)

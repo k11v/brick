@@ -28,6 +28,10 @@ import (
 	"github.com/k11v/brick/internal/build"
 )
 
+type ExecuteErrorParams struct {
+	StatusCode int
+}
+
 type Handler struct {
 	db                 *pgxpool.Pool
 	mq                 *amqp091.Connection
@@ -56,15 +60,15 @@ func NewHandler(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, f
 	h.staticHandler = http.StripPrefix("/static/", http.FileServerFS(fsys))
 
 	var err error
-	h.badRequestPage, err = h.execute("error.tmpl", http.StatusBadRequest)
+	h.badRequestPage, err = h.execute("error.html.tmpl", &ExecuteErrorParams{StatusCode: http.StatusBadRequest})
 	if err != nil {
 		panic(err)
 	}
-	h.notFoundPage, err = h.execute("error.tmpl", http.StatusNotFound)
+	h.notFoundPage, err = h.execute("error.html.tmpl", &ExecuteErrorParams{StatusCode: http.StatusNotFound})
 	if err != nil {
 		panic(err)
 	}
-	h.internalServerErrorPage, err = h.execute("error.tmpl", http.StatusInternalServerError)
+	h.internalServerErrorPage, err = h.execute("error.html.tmpl", &ExecuteErrorParams{StatusCode: http.StatusInternalServerError})
 	if err != nil {
 		panic(err)
 	}
@@ -100,7 +104,7 @@ func (h *Handler) execute(name string, data any) ([]byte, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	tmpl := template.Must(template.New("").Funcs(funcs).ParseFS(h.fs, "main.tmpl", "error.tmpl"))
+	tmpl := template.Must(template.New("").Funcs(funcs).ParseFS(h.fs, "*.html.tmpl"))
 	err := tmpl.ExecuteTemplate(buf, name, data)
 	if err != nil {
 		return nil, err
@@ -118,12 +122,25 @@ func (h *Handler) NotFoundPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(h.notFoundPage)
 }
 
-type ExecuteMainPageParams struct {
+type ExecuteBuildParams struct{}
+
+func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
+	page, err := h.execute("build.html.tmpl", &ExecuteBuildParams{})
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(page)
+}
+
+type ExecuteMainPageV1Params struct {
 	Header *ExecuteHeaderParams
 }
 
-func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
-	page, err := h.execute("main.tmpl", &ExecuteMainPageParams{
+func (h *Handler) MainPageV1(w http.ResponseWriter, r *http.Request) {
+	page, err := h.execute("main.html.tmpl", &ExecuteMainPageV1Params{
 		Header: &ExecuteHeaderParams{
 			User: nil,
 		},
@@ -138,12 +155,12 @@ func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(page)
 }
 
-type ExecuteBuildParams struct {
+type ExecuteBuildV1Params struct {
 	TimeLocation *time.Location
 	Build        *build.Build
 }
 
-func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) BuildV1(w http.ResponseWriter, r *http.Request) {
 	// Cookie token.
 	const cookieToken = "token"
 	tokenCookie, err := r.Cookie(cookieToken)
@@ -188,7 +205,7 @@ func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buildHTML, err := h.execute("Build", &ExecuteBuildParams{TimeLocation: timeLocation, Build: b})
+	buildHTML, err := h.execute("Build", &ExecuteBuildV1Params{TimeLocation: timeLocation, Build: b})
 	if err != nil {
 		h.serveServerError(w, r, err)
 		return
@@ -435,7 +452,7 @@ func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buildHTML, err := h.execute("Build", &ExecuteBuildParams{TimeLocation: timeLocation, Build: b})
+	buildHTML, err := h.execute("Build", &ExecuteBuildV1Params{TimeLocation: timeLocation, Build: b})
 	if err != nil {
 		h.serveServerError(w, r, err)
 		return
@@ -491,7 +508,7 @@ func (h *Handler) BuildFromCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buildHTML, err := h.execute("Build", &ExecuteBuildParams{TimeLocation: timeLocation, Build: b})
+	buildHTML, err := h.execute("Build", &ExecuteBuildV1Params{TimeLocation: timeLocation, Build: b})
 	if err != nil {
 		h.serveServerError(w, r, err)
 		return
