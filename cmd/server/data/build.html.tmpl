@@ -17,7 +17,29 @@
     class="flex min-h-screen flex-col bg-white text-stone-700 dark:bg-stone-900 dark:text-stone-300"
   >
     {{template "app-header.html.tmpl"}}
-    <main></main>
+    <main class="mb-auto px-2 py-4">
+      <div class="container mx-auto">
+        <h1
+          class="mb-3.5 mt-3.5 text-4xl font-extrabold text-stone-900 dark:text-white"
+        >
+          New
+        </h1>
+        <p class="my-5">
+          Upload input files and press the build button to start a new build.
+        </p>
+        <div
+          class="rounded-lg border-2 border-dashed border-stone-200 px-2 py-16 dark:border-stone-700"
+        >
+          <p class="text-center">Drag and drop files</p>
+        </div>
+        <button
+          type="button"
+          class="my-5 rounded-lg border-2 border-stone-200 px-4 py-2 font-semibold dark:border-stone-700"
+        >
+          Build
+        </button>
+      </div>
+    </main>
     {{template "app-footer.html.tmpl"}}
   </body>
 </html>
