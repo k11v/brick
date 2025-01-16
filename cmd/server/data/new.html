@@ -35,7 +35,7 @@
         <div id="build" class="px-2 py-8 border-2 border-dashed rounded-lg border-stone-200 dark:border-stone-700">
           <p class="text-center">Drag and drop files</p>
         </div>
-        <button type="button" class="px-4 py-2 my-5 font-semibold border-2 rounded-lg border-stone-200 dark:border-stone-700">
+        <button id="build-button" type="button" class="px-4 py-2 my-5 font-semibold border-2 rounded-lg border-stone-200 dark:border-stone-700">
           Build
         </button>
       </div>
@@ -46,79 +46,95 @@
       </div>
     </footer>
     <script type="module">
-    /**
-     * @param {DirectoryReader} directoryReader
-     * @returns {Promise<FileSystemEntry[]>}
-     */
-    async function readEntries(directoryReader) {
-      return new Promise((resolve, reject) => {
-        directoryReader.readEntries(resolve, reject);
+      window.dataFromElement = new WeakMap()
+    </script>
+    <script type="module">
+      /**
+       * @param {DirectoryReader} directoryReader
+       * @returns {Promise<FileSystemEntry[]>}
+       */
+      async function readEntries(directoryReader) {
+        return new Promise((resolve, reject) => {
+          directoryReader.readEntries(resolve, reject);
+        });
+      }
+
+      /**
+       * @param {DirectoryReader} directoryReader
+       * @returns {Promise<FileSystemEntry[]>}
+       */
+      async function readAllEntries(directoryReader) {
+        let entries = [];
+        let currEntries = await readEntries(directoryReader);
+        while (currEntries.length > 0) {
+          entries.push(...currEntries);
+          currEntries = await readEntries(directoryReader);
+        }
+        return entries;
+      }
+
+      /**
+       * @param {DataTransferItemList} dataTransferItems
+       * @returns {Promise<FileSystemEntry[]>}
+       */
+      async function entriesFromDataTransferItems(dataTransferItems) {
+        /** @type {FileSystemEntry[]} */
+        let entries = [];
+        /** @type {FileSystemEntry[]} */
+        let queue = [];
+        for (let i = 0; i < dataTransferItems.length; i++) {
+          let entry = dataTransferItems[i].webkitGetAsEntry()
+          if (entry === null) {
+            throw new Error("item is not FileSystemEntry")
+          }
+          queue.push(entry);
+        }
+        while (queue.length > 0) {
+          let entry = queue.shift();
+          entries.push(entry);
+          if (entry.isDirectory) {
+            /** @type {FileSystemDirectoryEntry} */
+            let directoryEntry = entry
+            let directoryReader = directoryEntry.createReader();
+            queue.push(...await readAllEntries(directoryReader));
+          }
+        }
+        return entries;
+      }
+
+      let build = document.getElementById("build");
+      if (build === null) {
+        throw new Error("#build not found");
+      }
+
+      let buildData = {}
+      window.dataFromElement.set(build, buildData)
+
+      build.addEventListener("dragover", function(event) {
+        event.preventDefault();
       });
-    }
 
-    /**
-     * @param {DirectoryReader} directoryReader
-     * @returns {Promise<FileSystemEntry[]>}
-     */
-    async function readAllEntries(directoryReader) {
-      let entries = [];
-      let currEntries = await readEntries(directoryReader);
-      while (currEntries.length > 0) {
-        entries.push(...currEntries);
-        currEntries = await readEntries(directoryReader);
-      }
-      return entries;
-    }
+      build.addEventListener("drop", async function(event) {
+        event.preventDefault();
 
-    /**
-     * @param {DataTransferItemList} dataTransferItems
-     * @returns {Promise<FileSystemEntry[]>}
-     */
-    async function entriesFromDataTransferItems(dataTransferItems) {
-      /** @type {FileSystemEntry[]} */
-      let entries = [];
-      /** @type {FileSystemEntry[]} */
-      let queue = [];
-      for (let i = 0; i < dataTransferItems.length; i++) {
-        let entry = dataTransferItems[i].webkitGetAsEntry()
-        if (entry === null) {
-          throw new Error("item is not FileSystemEntry")
+        let dataTransfer = event.dataTransfer
+        if (dataTransfer === null) {
+          throw new Error("dataTransfer is null")
         }
-        queue.push(entry);
-      }
-      while (queue.length > 0) {
-        let entry = queue.shift();
-        entries.push(entry);
-        if (entry.isDirectory) {
-          /** @type {FileSystemDirectoryEntry} */
-          let directoryEntry = entry
-          let directoryReader = directoryEntry.createReader();
-          queue.push(...await readAllEntries(directoryReader));
-        }
-      }
-      return entries;
-    }
 
-    let build = document.getElementById("build");
-    if (build === null) {
-      throw new Error("#build not found");
-    }
+        let entries = await entriesFromDataTransferItems(dataTransfer.items);
+        buildData.newEntries = entries
+        console.log(entries)
+      });
 
-    build.addEventListener("dragover", function (event) {
-      event.preventDefault();
-    });
-
-    build.addEventListener("drop", async function (event) {
-      event.preventDefault();
-
-      let dataTransfer = event.dataTransfer
-      if (dataTransfer === null) {
-        throw new Error("dataTransfer is null")
+      let buildButton = document.getElementById("build-button");
+      if (build === null) {
+        throw new Error("#build-button not found");
       }
 
-      let entries = await entriesFromDataTransferItems(dataTransfer.items);
-      console.log(entries)
-    });
+      buildButton.addEventListener("click", function(event) {
+        event.preventDefault();
+      });
     </script>
   </body>
 </html>
