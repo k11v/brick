@@ -32,7 +32,7 @@
         <p class="my-5">
           Upload input files and press the build button to start a new build.
         </p>
-        <div class="px-2 py-8 border-2 border-dashed rounded-lg border-stone-200 dark:border-stone-700">
+        <div id="build" class="px-2 py-8 border-2 border-dashed rounded-lg border-stone-200 dark:border-stone-700">
           <p class="text-center">Drag and drop files</p>
         </div>
         <button type="button" class="px-4 py-2 my-5 font-semibold border-2 rounded-lg border-stone-200 dark:border-stone-700">
@@ -45,5 +45,80 @@
         <p class="text-center">Created by <a href="https://k11v.cc/" target="_blank" class="text-stone-900 dark:text-white underline font-medium">k11v</a>. Open-sourced on <a href="https://github.com/k11v/brick" target="_blank" class="text-stone-900 dark:text-white underline font-medium">GitHub</a>.</p>
       </div>
     </footer>
+    <script type="module">
+    /**
+     * @param {DirectoryReader} directoryReader
+     * @returns {Promise<FileSystemEntry[]>}
+     */
+    async function readEntries(directoryReader) {
+      return new Promise((resolve, reject) => {
+        directoryReader.readEntries(resolve, reject);
+      });
+    }
+
+    /**
+     * @param {DirectoryReader} directoryReader
+     * @returns {Promise<FileSystemEntry[]>}
+     */
+    async function readAllEntries(directoryReader) {
+      let entries = [];
+      let currEntries = await readEntries(directoryReader);
+      while (currEntries.length > 0) {
+        entries.push(...currEntries);
+        currEntries = await readEntries(directoryReader);
+      }
+      return entries;
+    }
+
+    /**
+     * @param {DataTransferItemList} dataTransferItems
+     * @returns {Promise<FileSystemEntry[]>}
+     */
+    async function entriesFromDataTransferItems(dataTransferItems) {
+      /** @type {FileSystemEntry[]} */
+      let entries = [];
+      /** @type {FileSystemEntry[]} */
+      let queue = [];
+      for (let i = 0; i < dataTransferItems.length; i++) {
+        let entry = dataTransferItems[i].webkitGetAsEntry()
+        if (entry === null) {
+          throw new Error("item is not FileSystemEntry")
+        }
+        queue.push(entry);
+      }
+      while (queue.length > 0) {
+        let entry = queue.shift();
+        entries.push(entry);
+        if (entry.isDirectory) {
+          /** @type {FileSystemDirectoryEntry} */
+          let directoryEntry = entry
+          let directoryReader = directoryEntry.createReader();
+          queue.push(...await readAllEntries(directoryReader));
+        }
+      }
+      return entries;
+    }
+
+    let build = document.getElementById("build");
+    if (build === null) {
+      throw new Error("#build not found");
+    }
+
+    build.addEventListener("dragover", function (event) {
+      event.preventDefault();
+    });
+
+    build.addEventListener("drop", async function (event) {
+      event.preventDefault();
+
+      let dataTransfer = event.dataTransfer
+      if (dataTransfer === null) {
+        throw new Error("dataTransfer is null")
+      }
+
+      let entries = await entriesFromDataTransferItems(dataTransfer.items);
+      console.log(entries)
+    });
+    </script>
   </body>
 </html>
