@@ -24,17 +24,17 @@
     <title>PDF from Markdown | Brick</title>
   </head>
   <body
-    class="bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 flex flex-col min-h-screen"
+    class="flex min-h-screen flex-col bg-white text-stone-700 dark:bg-stone-900 dark:text-stone-300"
   >
-    <header class="px-2 py-4 border-b-2 border-stone-200 dark:border-stone-700">
-      <div class="container mx-auto flex gap-x-2 items-baseline">
+    <header class="border-b-2 border-stone-200 px-2 py-4 dark:border-stone-700">
+      <div class="container mx-auto flex items-baseline gap-x-2">
         <a href="/" class="block">
           <span
-            class="text-2xl font-bold kanit-medium text-stone-900 dark:text-white"
+            class="kanit-medium text-2xl font-bold text-stone-900 dark:text-white"
             >B<span class="text-red-700 dark:text-red-600">rick</span></span
           >
         </a>
-        <button type="button" class="block self-center ml-auto">
+        <button type="button" class="ml-auto block self-center">
           <img
             src="https://picsum.photos/id/42/200"
             class="size-8 rounded-full"
@@ -45,14 +45,14 @@
     <main class="px-2 py-4">
       <div class="container mx-auto">
         <h1
-          class="mt-3.5 mb-3.5 text-4xl font-extrabold text-stone-900 dark:text-white"
+          class="mb-3.5 mt-3.5 text-4xl font-extrabold text-stone-900 dark:text-white"
         >
           Running
         </h1>
         <p class="my-5">
           The build is running. Your PDF file will be ready soon.
         </p>
-        <div class="border-2 border-stone-200 dark:border-stone-700 rounded-lg">
+        <div class="rounded-lg border-2 border-stone-200 dark:border-stone-700">
           <ul class="p-2">
             <li>
               <div>
@@ -61,7 +61,7 @@
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 20 20"
                     fill="currentColor"
-                    class="size-5 self-center mx-1"
+                    class="mx-1 size-5 self-center"
                   >
                     <path
                       d="M4.75 3A1.75 1.75 0 0 0 3 4.75v2.752l.104-.002h13.792c.035 0 .07 0 .104.002V6.75A1.75 1.75 0 0 0 15.25 5h-3.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H4.75ZM3.104 9a1.75 1.75 0 0 0-1.673 2.265l1.385 4.5A1.75 1.75 0 0 0 4.488 17h11.023a1.75 1.75 0 0 0 1.673-1.235l1.384-4.5A1.75 1.75 0 0 0 16.896 9H3.104Z"
@@ -78,7 +78,7 @@
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 20 20"
                       fill="currentColor"
-                      class="size-5 self-center mx-1"
+                      class="mx-1 size-5 self-center"
                     >
                       <path
                         d="M3 3.5A1.5 1.5 0 0 1 4.5 2h6.879a1.5 1.5 0 0 1 1.06.44l4.122 4.12A1.5 1.5 0 0 1 17 7.622V16.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 16.5v-13Z"
@@ -93,7 +93,7 @@
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 20 20"
                       fill="currentColor"
-                      class="size-5 self-center mx-1"
+                      class="mx-1 size-5 self-center"
                     >
                       <path
                         d="M3 3.5A1.5 1.5 0 0 1 4.5 2h6.879a1.5 1.5 0 0 1 1.06.44l4.122 4.12A1.5 1.5 0 0 1 17 7.622V16.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 16.5v-13Z"
@@ -110,7 +110,7 @@
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
-                  class="size-5 self-center mx-1"
+                  class="mx-1 size-5 self-center"
                 >
                   <path
                     d="M3 3.5A1.5 1.5 0 0 1 4.5 2h6.879a1.5 1.5 0 0 1 1.06.44l4.122 4.12A1.5 1.5 0 0 1 17 7.622V16.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 16.5v-13Z"
@@ -121,7 +121,7 @@
             </li>
           </ul>
           <div
-            class="p-2 text-sm font-mono border-t-2 border-stone-200 dark:border-stone-700"
+            class="border-t-2 border-stone-200 p-2 font-mono text-sm dark:border-stone-700"
           >
             Lorem ipsum dolor sit, amet consectetur adipisicing elit. Modi
             numquam, dolor minima harum dicta eum tempore minus quaerat fugit ut
@@ -131,14 +131,14 @@
         </div>
         <button
           type="button"
-          class="px-4 py-2 my-5 font-semibold border-2 rounded-lg border-stone-200 dark:border-stone-700"
+          class="my-5 rounded-lg border-2 border-stone-200 px-4 py-2 font-semibold dark:border-stone-700"
         >
           Cancel
         </button>
       </div>
     </main>
     <footer
-      class="px-2 py-4 mt-auto border-t-2 border-stone-200 dark:border-stone-700"
+      class="mt-auto border-t-2 border-stone-200 px-2 py-4 dark:border-stone-700"
     >
       <div class="container mx-auto">
         <p class="text-center">
@@ -146,13 +146,13 @@
           <a
             href="https://k11v.cc/"
             target="_blank"
-            class="text-stone-900 dark:text-white underline font-medium"
+            class="font-medium text-stone-900 underline dark:text-white"
             >k11v</a
           >. Open-sourced on
           <a
             href="https://github.com/k11v/brick"
             target="_blank"
-            class="text-stone-900 dark:text-white underline font-medium"
+            class="font-medium text-stone-900 underline dark:text-white"
             >GitHub</a
           >.
         </p>
