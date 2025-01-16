@@ -132,8 +132,28 @@
         throw new Error("#build-button not found");
       }
 
-      buildButton.addEventListener("click", function(event) {
+      /**
+       * @param {FileSystemFileEntry} fileEntry
+       * @returns {Promise<File>}
+       */
+       async function file(fileEntry) {
+        return new Promise((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+      }
+
+      buildButton.addEventListener("click", async function(event) {
         event.preventDefault();
+        /** @type {File[]} */
+        let files = []
+        for (let e of buildData.newEntries) {
+          if (e.isFile) {
+            /** @type {FileSystemFileEntry} */
+            let fileEntry = e
+            files.push(await file(fileEntry))
+          }
+        }
+        console.log(files)
       });
     </script>
   </body>
