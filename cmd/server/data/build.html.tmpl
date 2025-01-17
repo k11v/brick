@@ -32,12 +32,20 @@
         >
           <p class="text-center">Drag and drop files</p>
         </div>
-        <button
-          type="button"
-          class="my-5 rounded-lg border-2 border-stone-200 px-4 py-2 font-semibold dark:border-stone-700"
-        >
-          Build
-        </button>
+        <div class="flex gap-x-2.5">
+          <button
+            type="button"
+            class="my-5 rounded-lg border-2 border-black bg-black px-4 py-2 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
+          >
+            Build
+          </button>
+          <button
+            type="button"
+            class="my-5 rounded-lg border-2 border-stone-200 bg-white px-4 py-2 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
+          >
+            Clear
+          </button>
+        </div>
       </div>
     </main>
     {{template "app-footer.html.tmpl"}}
