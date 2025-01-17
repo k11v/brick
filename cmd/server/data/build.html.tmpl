@@ -139,11 +139,6 @@
         dataFromElement.get(event.target).newEntries = entries;
       });
 
-      let buildButton = document.getElementById("build_buildButton");
-      if (buildDocument === null) {
-        throw new Error("#build_buildButton not found");
-      }
-
       /**
        * @param {FileSystemFileEntry} fileEntry
        * @returns {Promise<File>}
@@ -154,11 +149,32 @@
         });
       }
 
+      // build_buildButton.
+      let buildButton = document.getElementById("build_buildButton");
+      if (buildButton === null) {
+        throw new Error("#build_buildButton not found");
+      }
       buildButton.addEventListener("click", async function (event) {
         event.preventDefault();
+
+        let buildDocument = document.getElementById("build_document");
+        if (buildDocument === null) {
+          throw new Error("#build_document not found");
+        }
+
+        let buildDocumentData = dataFromElement.get(buildDocument);
+        if (buildDocumentData === undefined) {
+          throw new Error("#build_document data not found");
+        }
+
+        let newEntries = buildDocumentData.newEntries;
+        if (newEntries === undefined || newEntries.length === 0) {
+          throw new Error("#build_document has no new entries");
+        }
+
         /** @type {File[]} */
         let files = [];
-        for (let e of dataFromElement.get(event.target).newEntries) {
+        for (let e of newEntries) {
           if (e.isFile) {
             /** @type {FileSystemFileEntry} */
             let fileEntry = e;
