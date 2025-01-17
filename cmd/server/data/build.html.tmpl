@@ -30,9 +30,16 @@
           class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-5 py-20 dark:border-stone-700"
         >
           <p class="text-center">
+            <input
+              type="file"
+              multiple
+              id="build_documentInput"
+              class="hidden"
+            />
             Drag and drop or
             <button
               type="button"
+              id="build_documentInputButton"
               class="font-medium text-stone-900 underline dark:text-white"
             >
               choose files
@@ -182,6 +189,32 @@
           }
         }
         console.log(files);
+      });
+
+      // build_documentInput.
+      let documentInput = document.getElementById("build_documentInput");
+      if (documentInput === null) {
+        throw new Error("#build_documentInput not found");
+      }
+      documentInput.addEventListener("change", async function (event) {
+        event.preventDefault();
+        console.log("<input>", event.target.files);
+      });
+
+      // build_documentInputButton.
+      let documentInputButton = document.getElementById(
+        "build_documentInputButton",
+      );
+      if (documentInputButton === null) {
+        throw new Error("#build_documentInputButton not found");
+      }
+      documentInputButton.addEventListener("click", async function (event) {
+        event.preventDefault();
+        let documentInput = document.getElementById("build_documentInput");
+        if (documentInput === null) {
+          throw new Error("#build_documentInput not found");
+        }
+        documentInput.click();
       });
     </script>
     {{template "app-footer.html.tmpl"}}
