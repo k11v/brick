@@ -17,11 +17,9 @@
     class="flex min-h-screen flex-col bg-white text-stone-700 dark:bg-stone-900 dark:text-stone-300"
   >
     {{template "app-header.html.tmpl"}}
-    <main class="mb-auto px-2 py-4">
+    <main class="mb-auto p-5">
       <div class="container mx-auto">
-        <h1
-          class="mb-3.5 mt-3.5 text-4xl font-extrabold text-stone-900 dark:text-white"
-        >
+        <h1 class="text-4xl font-extrabold text-stone-900 dark:text-white">
           New
         </h1>
         <p class="my-5">
@@ -29,21 +27,21 @@
         </p>
         <div
           id="build_document"
-          class="rounded-lg border-2 border-dashed border-stone-200 px-2 py-16 dark:border-stone-700"
+          class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-5 py-20 dark:border-stone-700"
         >
           <p class="text-center">Drag and drop files</p>
         </div>
-        <div class="flex gap-x-2.5">
+        <div class="my-5 flex gap-x-2.5">
           <button
             type="button"
             id="build_buildButton"
-            class="my-5 rounded-lg border-2 border-black bg-black px-4 py-2 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
+            class="rounded-lg border-2 border-black bg-black px-5 py-2.5 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
           >
             Build
           </button>
           <button
             type="button"
-            class="my-5 rounded-lg border-2 border-stone-200 bg-white px-4 py-2 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
+            class="rounded-lg border-2 border-stone-200 bg-white px-5 py-2.5 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
           >
             Clear
           </button>
