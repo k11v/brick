@@ -25,27 +25,30 @@
         <p class="my-5">
           Upload input files and press the build button to start a new build.
         </p>
-        <div
-          id="build_document"
-          class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-5 py-20 dark:border-stone-700"
-        >
-          <p class="text-center">
+        <form id="build_form">
+          <div
+            id="build_formDocument"
+            class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-5 py-20 dark:border-stone-700"
+          >
+            <p class="text-center">
+              Drag and drop or
+              <button
+                type="button"
+                id="build_documentInputButton"
+                class="font-medium text-stone-900 underline dark:text-white"
+              >
+                choose files
+              </button>
+            </p>
             <input
               type="file"
               multiple
               id="build_documentInput"
               class="hidden"
             />
-            Drag and drop or
-            <button
-              type="button"
-              id="build_documentInputButton"
-              class="font-medium text-stone-900 underline dark:text-white"
-            >
-              choose files
-            </button>
-          </p>
-        </div>
+          </div>
+          <div id="build_formDocumentData" class="hidden"></div>
+        </form>
         <div class="my-5 flex gap-x-2.5">
           <button
             type="button"
