@@ -28,6 +28,7 @@
           Upload input files and press the build button to start a new build.
         </p>
         <div
+          id="build_document"
           class="rounded-lg border-2 border-dashed border-stone-200 px-2 py-16 dark:border-stone-700"
         >
           <p class="text-center">Drag and drop files</p>
@@ -35,6 +36,7 @@
         <div class="flex gap-x-2.5">
           <button
             type="button"
+            id="build_buildButton"
             class="my-5 rounded-lg border-2 border-black bg-black px-4 py-2 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
           >
             Build
@@ -48,6 +50,118 @@
         </div>
       </div>
     </main>
+    <script type="module">
+      /**
+       * @param {DirectoryReader} directoryReader
+       * @returns {Promise<FileSystemEntry[]>}
+       */
+      async function readEntries(directoryReader) {
+        return new Promise((resolve, reject) => {
+          directoryReader.readEntries(resolve, reject);
+        });
+      }
+
+      /**
+       * @param {DirectoryReader} directoryReader
+       * @returns {Promise<FileSystemEntry[]>}
+       */
+      async function readAllEntries(directoryReader) {
+        let entries = [];
+        let currEntries = await readEntries(directoryReader);
+        while (currEntries.length > 0) {
+          entries.push(...currEntries);
+          currEntries = await readEntries(directoryReader);
+        }
+        return entries;
+      }
+
+      /**
+       * @param {DataTransferItemList} dataTransferItems
+       * @returns {Promise<FileSystemEntry[]>}
+       */
+      async function entriesFromDataTransferItems(dataTransferItems) {
+        /** @type {FileSystemEntry[]} */
+        let entries = [];
+        /** @type {FileSystemEntry[]} */
+        let queue = [];
+        for (let i = 0; i < dataTransferItems.length; i++) {
+          let entry = dataTransferItems[i].webkitGetAsEntry();
+          if (entry === null) {
+            throw new Error("item is not FileSystemEntry");
+          }
+          queue.push(entry);
+        }
+        while (queue.length > 0) {
+          let entry = queue.shift();
+          entries.push(entry);
+          if (entry.isDirectory) {
+            /** @type {FileSystemDirectoryEntry} */
+            let directoryEntry = entry;
+            let directoryReader = directoryEntry.createReader();
+            queue.push(...(await readAllEntries(directoryReader)));
+          }
+        }
+        return entries;
+      }
+
+      let buildDocument = document.getElementById("build_document");
+      if (buildDocument === null) {
+        throw new Error("#build_document not found");
+      }
+
+      let dataFromElement = new WeakMap();
+      dataFromElement.set(buildDocument, {});
+
+      buildDocument.addEventListener("dragover", function (event) {
+        event.preventDefault();
+      });
+
+      buildDocument.addEventListener("drop", async function (event) {
+        event.preventDefault();
+
+        let dataTransfer = event.dataTransfer;
+        if (dataTransfer === null) {
+          throw new Error("dataTransfer is null");
+        }
+
+        let entries = await entriesFromDataTransferItems(dataTransfer.items);
+        console.log(entries);
+
+        if (!dataFromElement.has(event.target)) {
+          dataFromElement.set(event.target, {});
+        }
+        dataFromElement.get(event.target).newEntries = entries;
+      });
+
+      let buildButton = document.getElementById("build_buildButton");
+      if (buildDocument === null) {
+        throw new Error("#build_buildButton not found");
+      }
+
+      /**
+       * @param {FileSystemFileEntry} fileEntry
+       * @returns {Promise<File>}
+       */
+      async function file(fileEntry) {
+        return new Promise((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+      }
+
+      buildButton.addEventListener("click", async function (event) {
+        event.preventDefault();
+        /** @type {File[]} */
+        let files = [];
+        for (let e of dataFromElement.get(event.target).newEntries) {
+          if (e.isFile) {
+            /** @type {FileSystemFileEntry} */
+            let fileEntry = e;
+            files.push(await file(fileEntry));
+          }
+        }
+        console.log(files);
+      });
+    </script>
     {{template "app-footer.html.tmpl"}}
   </body>
 </html>
