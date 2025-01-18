@@ -122,6 +122,17 @@ func (h *Handler) NotFoundPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(h.notFoundPage)
 }
 
+func (h *Handler) DragdropOrChooseToDocument(w http.ResponseWriter, r *http.Request) {
+	comp, err := h.execute("build_document", nil)
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(comp)
+}
+
 type ExecuteBuildParams struct{}
 
 func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
