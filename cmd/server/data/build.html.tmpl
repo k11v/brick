@@ -47,11 +47,7 @@
               class="hidden"
             />
           </div>
-          <div id="build_documentFormData" class="hidden">
-            <input type="text" name="files/0/name" value="{name}" />
-            <input type="text" name="files/0/type" value="{type}" />
-            <input type="file" name="files/0/data" />
-          </div>
+          <div id="build_documentFormData" class="hidden"></div>
         </form>
         <div class="my-5 flex gap-x-2.5">
           <button
@@ -124,6 +120,16 @@
         return entries;
       }
 
+      /**
+       * @param {File} f
+       * @returns {FileList}
+       */
+      function fileListFromFile(f) {
+        let dataTransfer = new DataTransfer();
+        dataTransfer.items.add(f);
+        return dataTransfer.files;
+      }
+
       let buildDocument = document.getElementById("build_document");
       if (buildDocument === null) {
         throw new Error("#build_document not found");
@@ -144,13 +150,37 @@
           throw new Error("dataTransfer is null");
         }
 
+        let inputs = [];
         let entries = await entriesFromDataTransferItems(dataTransfer.items);
-        console.log(entries);
+        for (let [i, entry] of entries.entries()) {
+          let nameInput = document.createElement("input");
+          nameInput.type = "text";
+          nameInput.name = `files/${i}/name`;
+          nameInput.value = entry.fullPath;
+          inputs.push(nameInput);
 
-        if (!dataFromElement.has(event.target)) {
-          dataFromElement.set(event.target, {});
+          let typeInput = document.createElement("input");
+          typeInput.type = "text";
+          typeInput.name = `files/${i}/type`;
+          typeInput.value = entry.isFile ? "file" : "directory";
+          inputs.push(typeInput);
+
+          if (entry.isFile) {
+            let dataInput = document.createElement("input");
+            dataInput.type = "file";
+            dataInput.name = `files/${i}/data`;
+            dataInput.files = fileListFromFile(await file(entry));
+            inputs.push(dataInput);
+          }
         }
-        dataFromElement.get(event.target).newEntries = entries;
+
+        let documentFormDataEl = document.getElementById(
+          "build_documentFormData",
+        );
+        if (documentFormDataEl === null) {
+          throw new Error("#build_documentFormData not found");
+        }
+        documentFormDataEl.replaceChildren(...inputs);
       });
 
       /**
@@ -205,7 +235,36 @@
       }
       documentInput.addEventListener("change", async function (event) {
         event.preventDefault();
-        console.log("<input>", event.target.files);
+
+        let inputs = [];
+        let files = event.target.files;
+        for (let i = 0; i < files.length; i++) {
+          let nameInput = document.createElement("input");
+          nameInput.type = "text";
+          nameInput.name = `files/${i}/name`;
+          nameInput.value = files[i].name;
+          inputs.push(nameInput);
+
+          let typeInput = document.createElement("input");
+          typeInput.type = "text";
+          typeInput.name = `files/${i}/type`;
+          typeInput.value = "file";
+          inputs.push(typeInput);
+
+          let dataInput = document.createElement("input");
+          dataInput.type = "file";
+          dataInput.name = `files/${i}/data`;
+          dataInput.files = fileListFromFile(files[i]);
+          inputs.push(dataInput);
+        }
+
+        let documentFormDataEl = document.getElementById(
+          "build_documentFormData",
+        );
+        if (documentFormDataEl === null) {
+          throw new Error("#build_documentFormData not found");
+        }
+        documentFormDataEl.replaceChildren(...inputs);
       });
 
       // build_documentInputButton.
