@@ -279,3 +279,20 @@
     </p>
   </div>
 {{end}}
+
+{{define "build_emptyDocument"}}
+  <div
+    class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-5 py-20 dark:border-stone-700"
+  >
+    <p class="text-center">
+      [{{now}}] Drag and drop or
+      <button
+        id="build_documentChooseButton"
+        class="font-medium text-stone-900 underline dark:text-white"
+        type="button"
+      >
+        choose files
+      </button>
+    </p>
+  </div>
+{{end}}
