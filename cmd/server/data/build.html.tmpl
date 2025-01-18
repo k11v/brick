@@ -21,239 +21,248 @@
   <body
     class="flex min-h-screen flex-col bg-white text-stone-700 dark:bg-stone-900 dark:text-stone-300"
   >
-    {{template "app-header.html.tmpl"}}
-    <main class="mb-auto p-5">
-      <div class="container mx-auto">
-        <h1 class="text-4xl font-extrabold text-stone-900 dark:text-white">
-          New
-        </h1>
-        <p class="my-5">
-          Upload input files and press the build button to start a new build.
-        </p>
-        <div>
-          <div
-            id="build_documentDragdrop"
-            hx-target="#build_document"
-            hx-post="/build_dragdropOrChooseToDocument"
-            hx-encoding="multipart/form-data"
-            hx-trigger="app_script"
-            hx-include="#build_documentData > :not(.build_documentDataFileData)"
-          >
-            <div id="build_document">{{template "build_document"}}</div>
-          </div>
-          <input
-            id="build_documentChoose"
-            class="hidden"
-            type="file"
-            multiple
-            hx-target="#build_document"
-            hx-post="/build_dragdropOrChooseToDocument"
-            hx-encoding="multipart/form-data"
-            hx-trigger="app_script"
-            hx-include="#build_documentData > :not(.build_documentDataFileData)"
-          />
-          <div id="build_documentData" class="hidden"></div>
-        </div>
-        <div class="my-5 flex gap-x-2.5">
-          <button
-            id="build_buildButton"
-            class="rounded-lg border-2 border-black bg-black px-5 py-2.5 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
-            type="button"
-          >
-            Build
-          </button>
-          <button
-            class="rounded-lg border-2 border-stone-200 bg-white px-5 py-2.5 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
-            type="button"
-          >
-            Clear
-          </button>
-        </div>
-      </div>
-    </main>
-    <script type="module">
-      /**
-       * @param {DirectoryReader} directoryReader
-       * @returns {Promise<FileSystemEntry[]>}
-       */
-      async function readEntries(directoryReader) {
-        return new Promise((resolve, reject) => {
-          directoryReader.readEntries(resolve, reject);
-        });
-      }
-
-      /**
-       * @param {DirectoryReader} directoryReader
-       * @returns {Promise<FileSystemEntry[]>}
-       */
-      async function readAllEntries(directoryReader) {
-        let entries = [];
-        let currEntries = await readEntries(directoryReader);
-        while (currEntries.length > 0) {
-          entries.push(...currEntries);
-          currEntries = await readEntries(directoryReader);
-        }
-        return entries;
-      }
-
-      /**
-       * @param {DataTransferItemList} dataTransferItems
-       * @returns {Promise<FileSystemEntry[]>}
-       */
-      async function entriesFromDataTransferItems(dataTransferItems) {
-        /** @type {FileSystemEntry[]} */
-        let entries = [];
-        /** @type {FileSystemEntry[]} */
-        let queue = [];
-        for (let i = 0; i < dataTransferItems.length; i++) {
-          let entry = dataTransferItems[i].webkitGetAsEntry();
-          if (entry === null) {
-            throw new Error("item is not FileSystemEntry");
-          }
-          queue.push(entry);
-        }
-        while (queue.length > 0) {
-          let entry = queue.shift();
-          entries.push(entry);
-          if (entry.isDirectory) {
-            /** @type {FileSystemDirectoryEntry} */
-            let directoryEntry = entry;
-            let directoryReader = directoryEntry.createReader();
-            queue.push(...(await readAllEntries(directoryReader)));
-          }
-        }
-        return entries;
-      }
-
-      /**
-       * @param {FileSystemFileEntry} fileEntry
-       * @returns {Promise<File>}
-       */
-      async function file(fileEntry) {
-        return new Promise((resolve, reject) => {
-          fileEntry.file(resolve, reject);
-        });
-      }
-
-      /**
-       * @param {File} f
-       * @returns {FileList}
-       */
-      function fileListFromFile(f) {
-        let dataTransfer = new DataTransfer();
-        dataTransfer.items.add(f);
-        return dataTransfer.files;
-      }
-
-      // build_documentDragdrop.
-      let documentDragdrop = document.getElementById("build_documentDragdrop");
-      if (documentDragdrop === null) {
-        throw new Error("#build_documentDragdrop not found");
-      }
-      documentDragdrop.addEventListener("dragover", function (event) {
-        event.preventDefault();
-      });
-      documentDragdrop.addEventListener("drop", async function (event) {
-        event.preventDefault();
-
-        let dataTransfer = event.dataTransfer;
-        if (dataTransfer === null) {
-          throw new Error("dataTransfer is null");
-        }
-
-        let inputs = [];
-        let entries = await entriesFromDataTransferItems(dataTransfer.items);
-        for (let [i, entry] of entries.entries()) {
-          let nameInput = document.createElement("input");
-          nameInput.type = "text";
-          nameInput.name = `files/${i}/name`;
-          nameInput.value = entry.fullPath;
-          inputs.push(nameInput);
-
-          let typeInput = document.createElement("input");
-          typeInput.type = "text";
-          typeInput.name = `files/${i}/type`;
-          typeInput.value = entry.isFile ? "file" : "directory";
-          inputs.push(typeInput);
-
-          if (entry.isFile) {
-            let dataInput = document.createElement("input");
-            dataInput.classList.add("build_documentDataFileData");
-            dataInput.type = "file";
-            dataInput.name = `files/${i}/data`;
-            dataInput.files = fileListFromFile(await file(entry));
-            inputs.push(dataInput);
-          }
-        }
-
-        let documentFormDataEl = document.getElementById("build_documentData");
-        if (documentFormDataEl === null) {
-          throw new Error("#build_documentData not found");
-        }
-        documentFormDataEl.replaceChildren(...inputs);
-
-        window.htmx.trigger(event.target, "app_script");
-      });
-
-      // build_documentChoose.
-      let documentChoose = document.getElementById("build_documentChoose");
-      if (documentChoose === null) {
-        throw new Error("#build_documentChoose not found");
-      }
-      documentChoose.addEventListener("change", async function (event) {
-        event.preventDefault();
-
-        let inputs = [];
-        let files = event.target.files;
-        for (let i = 0; i < files.length; i++) {
-          let nameInput = document.createElement("input");
-          nameInput.type = "text";
-          nameInput.name = `files/${i}/name`;
-          nameInput.value = files[i].name;
-          inputs.push(nameInput);
-
-          let typeInput = document.createElement("input");
-          typeInput.type = "text";
-          typeInput.name = `files/${i}/type`;
-          typeInput.value = "file";
-          inputs.push(typeInput);
-
-          let dataInput = document.createElement("input");
-          dataInput.classList.add("build_documentDataFileData");
-          dataInput.type = "file";
-          dataInput.name = `files/${i}/data`;
-          dataInput.files = fileListFromFile(files[i]);
-          inputs.push(dataInput);
-        }
-
-        let documentFormDataEl = document.getElementById("build_documentData");
-        if (documentFormDataEl === null) {
-          throw new Error("#build_documentData not found");
-        }
-        documentFormDataEl.replaceChildren(...inputs);
-
-        window.htmx.trigger(event.target, "app_script");
-      });
-
-      // build_documentChooseButton.
-      let documentInputButton = document.getElementById(
-        "build_documentChooseButton",
-      );
-      if (documentInputButton === null) {
-        throw new Error("#build_documentChooseButton not found");
-      }
-      documentInputButton.addEventListener("click", async function (event) {
-        event.preventDefault();
-        let documentChoose = document.getElementById("build_documentChoose");
-        if (documentChoose === null) {
-          throw new Error("#build_documentChoose not found");
-        }
-        documentChoose.click();
-      });
-    </script>
-    {{template "app-footer.html.tmpl"}}
+    {{template "app-header.html.tmpl"}} {{template "build_main"}} {{template
+    "app-footer.html.tmpl"}}
   </body>
 </html>
+
+<!-- -->
+
+{{define "build_main"}}
+<main id="build_main" class="mb-auto p-5">
+  <div class="container mx-auto">
+    <h1 class="text-4xl font-extrabold text-stone-900 dark:text-white">New</h1>
+    <p class="my-5">
+      Upload input files and press the build button to start a new build.
+    </p>
+    <div>
+      <div
+        id="build_documentDragdrop"
+        hx-target="#build_document"
+        hx-post="/build_dragdropOrChooseToDocument"
+        hx-encoding="multipart/form-data"
+        hx-trigger="app_script"
+        hx-include="#build_documentData > :not(.build_documentDataFileData)"
+      >
+        <div id="build_document">{{template "build_document"}}</div>
+      </div>
+      <input
+        id="build_documentChoose"
+        class="hidden"
+        type="file"
+        multiple
+        hx-target="#build_document"
+        hx-post="/build_dragdropOrChooseToDocument"
+        hx-encoding="multipart/form-data"
+        hx-trigger="app_script"
+        hx-include="#build_documentData > :not(.build_documentDataFileData)"
+      />
+      <div id="build_documentData" class="hidden"></div>
+    </div>
+    <div class="my-5 flex gap-x-2.5">
+      <button
+        class="rounded-lg border-2 border-black bg-black px-5 py-2.5 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
+        type="button"
+        hx-target="#build_main"
+        hx-swap="outerHTML"
+        hx-post="/build_mainFromBuildDocument"
+        hx-encoding="multipart/form-data"
+        hx-include="#build_documentData"
+      >
+        Build
+      </button>
+      <button
+        class="rounded-lg border-2 border-stone-200 bg-white px-5 py-2.5 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
+        type="button"
+      >
+        Clear
+      </button>
+    </div>
+  </div>
+</main>
+<script type="module">
+  /**
+   * @param {DirectoryReader} directoryReader
+   * @returns {Promise<FileSystemEntry[]>}
+   */
+  async function readEntries(directoryReader) {
+    return new Promise((resolve, reject) => {
+      directoryReader.readEntries(resolve, reject);
+    });
+  }
+
+  /**
+   * @param {DirectoryReader} directoryReader
+   * @returns {Promise<FileSystemEntry[]>}
+   */
+  async function readAllEntries(directoryReader) {
+    let entries = [];
+    let currEntries = await readEntries(directoryReader);
+    while (currEntries.length > 0) {
+      entries.push(...currEntries);
+      currEntries = await readEntries(directoryReader);
+    }
+    return entries;
+  }
+
+  /**
+   * @param {DataTransferItemList} dataTransferItems
+   * @returns {Promise<FileSystemEntry[]>}
+   */
+  async function entriesFromDataTransferItems(dataTransferItems) {
+    /** @type {FileSystemEntry[]} */
+    let entries = [];
+    /** @type {FileSystemEntry[]} */
+    let queue = [];
+    for (let i = 0; i < dataTransferItems.length; i++) {
+      let entry = dataTransferItems[i].webkitGetAsEntry();
+      if (entry === null) {
+        throw new Error("item is not FileSystemEntry");
+      }
+      queue.push(entry);
+    }
+    while (queue.length > 0) {
+      let entry = queue.shift();
+      entries.push(entry);
+      if (entry.isDirectory) {
+        /** @type {FileSystemDirectoryEntry} */
+        let directoryEntry = entry;
+        let directoryReader = directoryEntry.createReader();
+        queue.push(...(await readAllEntries(directoryReader)));
+      }
+    }
+    return entries;
+  }
+
+  /**
+   * @param {FileSystemFileEntry} fileEntry
+   * @returns {Promise<File>}
+   */
+  async function file(fileEntry) {
+    return new Promise((resolve, reject) => {
+      fileEntry.file(resolve, reject);
+    });
+  }
+
+  /**
+   * @param {File} f
+   * @returns {FileList}
+   */
+  function fileListFromFile(f) {
+    let dataTransfer = new DataTransfer();
+    dataTransfer.items.add(f);
+    return dataTransfer.files;
+  }
+
+  // build_documentDragdrop.
+  let documentDragdrop = document.getElementById("build_documentDragdrop");
+  if (documentDragdrop === null) {
+    throw new Error("#build_documentDragdrop not found");
+  }
+  documentDragdrop.addEventListener("dragover", function (event) {
+    event.preventDefault();
+  });
+  documentDragdrop.addEventListener("drop", async function (event) {
+    event.preventDefault();
+
+    let dataTransfer = event.dataTransfer;
+    if (dataTransfer === null) {
+      throw new Error("dataTransfer is null");
+    }
+
+    let inputs = [];
+    let entries = await entriesFromDataTransferItems(dataTransfer.items);
+    for (let [i, entry] of entries.entries()) {
+      let nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.name = `files/${i}/name`;
+      nameInput.value = entry.fullPath;
+      inputs.push(nameInput);
+
+      let typeInput = document.createElement("input");
+      typeInput.type = "text";
+      typeInput.name = `files/${i}/type`;
+      typeInput.value = entry.isFile ? "file" : "directory";
+      inputs.push(typeInput);
+
+      if (entry.isFile) {
+        let dataInput = document.createElement("input");
+        dataInput.classList.add("build_documentDataFileData");
+        dataInput.type = "file";
+        dataInput.name = `files/${i}/data`;
+        dataInput.files = fileListFromFile(await file(entry));
+        inputs.push(dataInput);
+      }
+    }
+
+    let documentFormDataEl = document.getElementById("build_documentData");
+    if (documentFormDataEl === null) {
+      throw new Error("#build_documentData not found");
+    }
+    documentFormDataEl.replaceChildren(...inputs);
+
+    window.htmx.trigger(event.target, "app_script");
+  });
+
+  // build_documentChoose.
+  let documentChoose = document.getElementById("build_documentChoose");
+  if (documentChoose === null) {
+    throw new Error("#build_documentChoose not found");
+  }
+  documentChoose.addEventListener("change", async function (event) {
+    event.preventDefault();
+
+    let inputs = [];
+    let files = event.target.files;
+    for (let i = 0; i < files.length; i++) {
+      let nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.name = `files/${i}/name`;
+      nameInput.value = files[i].name;
+      inputs.push(nameInput);
+
+      let typeInput = document.createElement("input");
+      typeInput.type = "text";
+      typeInput.name = `files/${i}/type`;
+      typeInput.value = "file";
+      inputs.push(typeInput);
+
+      let dataInput = document.createElement("input");
+      dataInput.classList.add("build_documentDataFileData");
+      dataInput.type = "file";
+      dataInput.name = `files/${i}/data`;
+      dataInput.files = fileListFromFile(files[i]);
+      inputs.push(dataInput);
+    }
+
+    let documentFormDataEl = document.getElementById("build_documentData");
+    if (documentFormDataEl === null) {
+      throw new Error("#build_documentData not found");
+    }
+    documentFormDataEl.replaceChildren(...inputs);
+
+    window.htmx.trigger(event.target, "app_script");
+  });
+
+  // build_documentChooseButton.
+  let documentInputButton = document.getElementById(
+    "build_documentChooseButton",
+  );
+  if (documentInputButton === null) {
+    throw new Error("#build_documentChooseButton not found");
+  }
+  documentInputButton.addEventListener("click", async function (event) {
+    event.preventDefault();
+    let documentChoose = document.getElementById("build_documentChoose");
+    if (documentChoose === null) {
+      throw new Error("#build_documentChoose not found");
+    }
+    documentChoose.click();
+  });
+</script>
+{{end}}
+
+<!-- -->
 
 {{define "build_document"}}
 <div
