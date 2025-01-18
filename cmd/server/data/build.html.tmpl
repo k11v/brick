@@ -32,35 +32,35 @@
         </p>
         <form id="build_form">
           <div
+            id="build_documentDragdrop"
             hx-target="#build_document"
             hx-get="/build_dragdropOrChooseToDocument"
             hx-trigger="app_javascript"
-            id="build_documentDragdrop"
           >
             <div id="build_document">{{template "build_document"}}</div>
           </div>
           <input
+            id="build_documentChoose"
+            class="hidden"
             type="file"
             multiple
             hx-target="#build_document"
             hx-get="/build_dragdropOrChooseToDocument"
             hx-trigger="app_javascript"
-            id="build_documentChoose"
-            class="hidden"
           />
           <div id="build_documentData" class="hidden"></div>
         </form>
         <div class="my-5 flex gap-x-2.5">
           <button
-            type="button"
             id="build_buildButton"
             class="rounded-lg border-2 border-black bg-black px-5 py-2.5 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
+            type="button"
           >
             Build
           </button>
           <button
-            type="button"
             class="rounded-lg border-2 border-stone-200 bg-white px-5 py-2.5 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
+            type="button"
           >
             Clear
           </button>
@@ -256,9 +256,9 @@
   <p class="text-center">
     Drag and drop or
     <button
-      type="button"
       id="build_documentChooseButton"
       class="font-medium text-stone-900 underline dark:text-white"
+      type="button"
     >
       choose files
     </button>
