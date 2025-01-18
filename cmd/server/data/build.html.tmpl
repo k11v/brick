@@ -40,7 +40,7 @@
         <div
           id="build_documentDragdrop"
           hx-target="#build_document"
-          hx-post="/build_dragdropOrChooseToDocument"
+          hx-post="/build_documentFromDragAndDropOrChooseFiles"
           hx-encoding="multipart/form-data"
           hx-trigger="app_script"
           hx-include="#build_documentData > :not(.build_documentDataFileData)"
@@ -53,7 +53,7 @@
           type="file"
           multiple
           hx-target="#build_document"
-          hx-post="/build_dragdropOrChooseToDocument"
+          hx-post="/build_documentFromDragAndDropOrChooseFiles"
           hx-encoding="multipart/form-data"
           hx-trigger="app_script"
           hx-include="#build_documentData > :not(.build_documentDataFileData)"

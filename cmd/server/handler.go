@@ -142,7 +142,7 @@ func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) 
 	_, _ = w.Write(comp)
 }
 
-func (h *Handler) DragdropOrChooseToDocument(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r *http.Request) {
 	_, err := io.Copy(io.Discard, r.Body)
 	if err != nil {
 		h.serveServerError(w, r, err)
