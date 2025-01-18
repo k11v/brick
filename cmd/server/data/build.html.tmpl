@@ -35,7 +35,7 @@
             id="build_documentDragdrop"
             hx-target="#build_document"
             hx-get="/build_dragdropOrChooseToDocument"
-            hx-trigger="app_javascript"
+            hx-trigger="app_script"
           >
             <div id="build_document">{{template "build_document"}}</div>
           </div>
@@ -46,7 +46,7 @@
             multiple
             hx-target="#build_document"
             hx-get="/build_dragdropOrChooseToDocument"
-            hx-trigger="app_javascript"
+            hx-trigger="app_script"
           />
           <div id="build_documentData" class="hidden"></div>
         </form>
@@ -187,7 +187,7 @@
         }
         documentFormDataEl.replaceChildren(...inputs);
 
-        window.htmx.trigger(event.target, "app_javascript");
+        window.htmx.trigger(event.target, "app_script");
       });
 
       // build_documentChoose.
@@ -226,7 +226,7 @@
         }
         documentFormDataEl.replaceChildren(...inputs);
 
-        window.htmx.trigger(event.target, "app_javascript");
+        window.htmx.trigger(event.target, "app_script");
       });
 
       // build_documentChooseButton.
