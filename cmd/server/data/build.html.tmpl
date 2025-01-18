@@ -30,13 +30,14 @@
         <p class="my-5">
           Upload input files and press the build button to start a new build.
         </p>
-        <form id="build_form">
+        <div>
           <div
             id="build_documentDragdrop"
             hx-target="#build_document"
             hx-post="/build_dragdropOrChooseToDocument"
             hx-encoding="multipart/form-data"
             hx-trigger="app_script"
+            hx-include="#build_documentData > :not(.build_documentDataFileData)"
           >
             <div id="build_document">{{template "build_document"}}</div>
           </div>
@@ -49,9 +50,10 @@
             hx-post="/build_dragdropOrChooseToDocument"
             hx-encoding="multipart/form-data"
             hx-trigger="app_script"
+            hx-include="#build_documentData > :not(.build_documentDataFileData)"
           />
           <div id="build_documentData" class="hidden"></div>
-        </form>
+        </div>
         <div class="my-5 flex gap-x-2.5">
           <button
             id="build_buildButton"
@@ -176,6 +178,7 @@
 
           if (entry.isFile) {
             let dataInput = document.createElement("input");
+            dataInput.classList.add("build_documentDataFileData");
             dataInput.type = "file";
             dataInput.name = `files/${i}/data`;
             dataInput.files = fileListFromFile(await file(entry));
@@ -216,6 +219,7 @@
           inputs.push(typeInput);
 
           let dataInput = document.createElement("input");
+          dataInput.classList.add("build_documentDataFileData");
           dataInput.type = "file";
           dataInput.name = `files/${i}/data`;
           dataInput.files = fileListFromFile(files[i]);
