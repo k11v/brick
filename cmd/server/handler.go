@@ -78,6 +78,9 @@ func NewHandler(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, f
 
 func (h *Handler) execute(name string, data any) ([]byte, error) {
 	funcs := template.FuncMap{
+		"now": func() string { // TODO: Remove.
+			return time.Now().Format("2006-01-02 15:04:05")
+		},
 		"time": func(loc *time.Location, t *time.Time) string {
 			return t.In(loc).Format("2006-01-02 15:04")
 		},
