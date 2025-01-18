@@ -126,6 +126,12 @@ func (h *Handler) NotFoundPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DragdropOrChooseToDocument(w http.ResponseWriter, r *http.Request) {
+	_, err := io.Copy(io.Discard, r.Body)
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
 	comp, err := h.execute("build_document", nil)
 	if err != nil {
 		h.serveServerError(w, r, err)
