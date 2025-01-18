@@ -125,6 +125,23 @@ func (h *Handler) NotFoundPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(h.notFoundPage)
 }
 
+func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) {
+	_, err := io.Copy(io.Discard, r.Body)
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+
+	comp, err := h.execute("build_main", nil)
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(comp)
+}
+
 func (h *Handler) DragdropOrChooseToDocument(w http.ResponseWriter, r *http.Request) {
 	_, err := io.Copy(io.Discard, r.Body)
 	if err != nil {
