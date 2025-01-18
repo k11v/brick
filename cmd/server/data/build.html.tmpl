@@ -12,6 +12,11 @@
     <link rel="shortcut icon" href="/static/images/favicon.ico" />
     <link rel="stylesheet" href="/static/styles/kanit.css" />
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script
+      src="https://unpkg.com/htmx.org@2.0.3"
+      integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body
     class="flex min-h-screen flex-col bg-white text-stone-700 dark:bg-stone-900 dark:text-stone-300"
@@ -27,27 +32,23 @@
         </p>
         <form id="build_form">
           <div
-            id="build_document"
-            class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-5 py-20 dark:border-stone-700"
+            hx-target="#build_document"
+            hx-get="/build_dragdropOrChooseToDocument"
+            hx-trigger="app_javascript"
+            id="build_documentDragdrop"
           >
-            <p class="text-center">
-              Drag and drop or
-              <button
-                type="button"
-                id="build_documentInputButton"
-                class="font-medium text-stone-900 underline dark:text-white"
-              >
-                choose files
-              </button>
-            </p>
-            <input
-              type="file"
-              multiple
-              id="build_documentInput"
-              class="hidden"
-            />
+            <div id="build_document">{{template "build_document"}}</div>
           </div>
-          <div id="build_documentFormData" class="hidden"></div>
+          <input
+            type="file"
+            multiple
+            hx-target="#build_document"
+            hx-get="/build_dragdropOrChooseToDocument"
+            hx-trigger="app_javascript"
+            id="build_documentChoose"
+            class="hidden"
+          />
+          <div id="build_documentData" class="hidden"></div>
         </form>
         <div class="my-5 flex gap-x-2.5">
           <button
@@ -121,6 +122,16 @@
       }
 
       /**
+       * @param {FileSystemFileEntry} fileEntry
+       * @returns {Promise<File>}
+       */
+      async function file(fileEntry) {
+        return new Promise((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+      }
+
+      /**
        * @param {File} f
        * @returns {FileList}
        */
@@ -130,19 +141,15 @@
         return dataTransfer.files;
       }
 
-      let buildDocument = document.getElementById("build_document");
-      if (buildDocument === null) {
-        throw new Error("#build_document not found");
+      // build_documentDragdrop.
+      let documentDragdrop = document.getElementById("build_documentDragdrop");
+      if (documentDragdrop === null) {
+        throw new Error("#build_documentDragdrop not found");
       }
-
-      let dataFromElement = new WeakMap();
-      dataFromElement.set(buildDocument, {});
-
-      buildDocument.addEventListener("dragover", function (event) {
+      documentDragdrop.addEventListener("dragover", function (event) {
         event.preventDefault();
       });
-
-      buildDocument.addEventListener("drop", async function (event) {
+      documentDragdrop.addEventListener("drop", async function (event) {
         event.preventDefault();
 
         let dataTransfer = event.dataTransfer;
@@ -174,66 +181,21 @@
           }
         }
 
-        let documentFormDataEl = document.getElementById(
-          "build_documentFormData",
-        );
+        let documentFormDataEl = document.getElementById("build_documentData");
         if (documentFormDataEl === null) {
-          throw new Error("#build_documentFormData not found");
+          throw new Error("#build_documentData not found");
         }
         documentFormDataEl.replaceChildren(...inputs);
+
+        window.htmx.trigger(event.target, "app_javascript");
       });
 
-      /**
-       * @param {FileSystemFileEntry} fileEntry
-       * @returns {Promise<File>}
-       */
-      async function file(fileEntry) {
-        return new Promise((resolve, reject) => {
-          fileEntry.file(resolve, reject);
-        });
+      // build_documentChoose.
+      let documentChoose = document.getElementById("build_documentChoose");
+      if (documentChoose === null) {
+        throw new Error("#build_documentChoose not found");
       }
-
-      // build_buildButton.
-      let buildButton = document.getElementById("build_buildButton");
-      if (buildButton === null) {
-        throw new Error("#build_buildButton not found");
-      }
-      buildButton.addEventListener("click", async function (event) {
-        event.preventDefault();
-
-        let buildDocument = document.getElementById("build_document");
-        if (buildDocument === null) {
-          throw new Error("#build_document not found");
-        }
-
-        let buildDocumentData = dataFromElement.get(buildDocument);
-        if (buildDocumentData === undefined) {
-          throw new Error("#build_document data not found");
-        }
-
-        let newEntries = buildDocumentData.newEntries;
-        if (newEntries === undefined || newEntries.length === 0) {
-          throw new Error("#build_document has no new entries");
-        }
-
-        /** @type {File[]} */
-        let files = [];
-        for (let e of newEntries) {
-          if (e.isFile) {
-            /** @type {FileSystemFileEntry} */
-            let fileEntry = e;
-            files.push(await file(fileEntry));
-          }
-        }
-        console.log(files);
-      });
-
-      // build_documentInput.
-      let documentInput = document.getElementById("build_documentInput");
-      if (documentInput === null) {
-        throw new Error("#build_documentInput not found");
-      }
-      documentInput.addEventListener("change", async function (event) {
+      documentChoose.addEventListener("change", async function (event) {
         event.preventDefault();
 
         let inputs = [];
@@ -258,31 +220,48 @@
           inputs.push(dataInput);
         }
 
-        let documentFormDataEl = document.getElementById(
-          "build_documentFormData",
-        );
+        let documentFormDataEl = document.getElementById("build_documentData");
         if (documentFormDataEl === null) {
-          throw new Error("#build_documentFormData not found");
+          throw new Error("#build_documentData not found");
         }
         documentFormDataEl.replaceChildren(...inputs);
+
+        window.htmx.trigger(event.target, "app_javascript");
       });
 
-      // build_documentInputButton.
+      // build_documentChooseButton.
       let documentInputButton = document.getElementById(
-        "build_documentInputButton",
+        "build_documentChooseButton",
       );
       if (documentInputButton === null) {
-        throw new Error("#build_documentInputButton not found");
+        throw new Error("#build_documentChooseButton not found");
       }
       documentInputButton.addEventListener("click", async function (event) {
         event.preventDefault();
-        let documentInput = document.getElementById("build_documentInput");
-        if (documentInput === null) {
-          throw new Error("#build_documentInput not found");
+        let documentChoose = document.getElementById("build_documentChoose");
+        if (documentChoose === null) {
+          throw new Error("#build_documentChoose not found");
         }
-        documentInput.click();
+        documentChoose.click();
       });
     </script>
     {{template "app-footer.html.tmpl"}}
   </body>
 </html>
+
+{{define "build_document"}}
+<div
+  class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-5 py-20 dark:border-stone-700"
+>
+  <p class="text-center">
+    Drag and drop or
+    <button
+      type="button"
+      id="build_documentChooseButton"
+      class="font-medium text-stone-900 underline dark:text-white"
+    >
+      choose files
+    </button>
+  </p>
+</div>
+{{end}}
