@@ -34,7 +34,8 @@
           <div
             id="build_documentDragdrop"
             hx-target="#build_document"
-            hx-get="/build_dragdropOrChooseToDocument"
+            hx-post="/build_dragdropOrChooseToDocument"
+            hx-encoding="multipart/form-data"
             hx-trigger="app_script"
           >
             <div id="build_document">{{template "build_document"}}</div>
@@ -45,7 +46,8 @@
             type="file"
             multiple
             hx-target="#build_document"
-            hx-get="/build_dragdropOrChooseToDocument"
+            hx-post="/build_dragdropOrChooseToDocument"
+            hx-encoding="multipart/form-data"
             hx-trigger="app_script"
           />
           <div id="build_documentData" class="hidden"></div>
