@@ -147,7 +147,7 @@ func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r *http.Request) {
 	mr, err := r.MultipartReader()
 	if err != nil {
-		h.serveError(w, r, err)
+		h.serveError(w, r, fmt.Errorf("request body: %w", err))
 		return
 	}
 
@@ -166,7 +166,7 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 			if err == io.EOF {
 				break
 			}
-			h.serveError(w, r, err)
+			h.serveError(w, r, fmt.Errorf("request body: %w", err))
 			return
 		}
 
@@ -175,7 +175,7 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 		case name == "time_location":
 			valueBytes, err := io.ReadAll(part)
 			if err != nil {
-				h.serveError(w, r, err)
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
 			req.TimeLocation = new(string)
@@ -183,12 +183,12 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 		case mustMatch("files/*/name", name):
 			key := strings.Split(name, "/")[1]
 			if req.Files[key].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
+				h.serveError(w, r, fmt.Errorf("request body parameter %q not before data", name))
 				return
 			}
 			valueBytes, err := io.ReadAll(part)
 			if err != nil {
-				h.serveError(w, r, err)
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
 			file := req.Files[key]
@@ -198,12 +198,12 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 		case mustMatch("files/*/type", name):
 			key := strings.Split(name, "/")[1]
 			if req.Files[key].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
+				h.serveError(w, r, fmt.Errorf("request body parameter %q not before data", name))
 				return
 			}
 			valueBytes, err := io.ReadAll(part)
 			if err != nil {
-				h.serveError(w, r, err)
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
 			file := req.Files[key]
@@ -213,14 +213,14 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 		case mustMatch("files/*/data", name):
 			key := strings.Split(name, "/")[1]
 			if req.Files[key].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
+				h.serveError(w, r, fmt.Errorf("request body parameter %q not before data", name))
 				return
 			}
 			file := req.Files[key]
 			file.Data = new(struct{})
 			req.Files[key] = file
 		default:
-			h.serveError(w, r, fmt.Errorf("unknown request body parameter %q", name))
+			h.serveError(w, r, fmt.Errorf("request body parameter %q unknown", name))
 			return
 		}
 	}
