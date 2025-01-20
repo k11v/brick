@@ -48,9 +48,14 @@ func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 	h := NewHandler(db, mq, s3Client, dataFS, jwtSignatureKey, jwtVerificationKey)
 
 	mux := &http.ServeMux{}
+
 	mux.HandleFunc("GET /", h.NotFoundPage)
 	mux.HandleFunc("GET /static/", h.StaticFile)
-	mux.HandleFunc("GET /{$}", h.Build)
+
+	mux.HandleFunc("GET /{$}", h.Page)
+	mux.HandleFunc("POST /build_documentFromChange", h.DocumentFromChange)
+	mux.HandleFunc("POST /build_mainFromBuildButtonClick", h.MainFromBuildButtonClick)
+
 	mux.HandleFunc("GET /Build", h.BuildV1)
 	mux.HandleFunc("GET /BuildOutputFile", h.BuildOutputFile)
 	mux.HandleFunc("GET /BuildLog", h.BuildLog)
@@ -58,8 +63,6 @@ func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 	mux.HandleFunc("POST /BuildFromCancel", h.BuildFromCancel)
 	mux.HandleFunc("POST /HeaderFromSignIn", h.HeaderFromSignIn)
 	mux.HandleFunc("POST /HeaderFromSignOut", h.HeaderFromSignOut)
-	mux.HandleFunc("POST /build_documentFromChange", h.DocumentFromChange)
-	mux.HandleFunc("POST /build_mainFromBuildButtonClick", h.MainFromBuildButtonClick)
 
 	server := &http.Server{
 		Addr:              addr,

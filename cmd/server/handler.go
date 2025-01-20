@@ -127,6 +127,17 @@ func (h *Handler) NotFoundPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(h.notFoundPage)
 }
 
+func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
+	page, err := h.execute("build.html.tmpl", nil)
+	if err != nil {
+		h.serveServerError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(page)
+}
+
 func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Request) {
 	mr, err := r.MultipartReader()
 	if err != nil {
@@ -422,19 +433,6 @@ func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(comp)
-}
-
-type ExecuteBuildParams struct{}
-
-func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
-	page, err := h.execute("build.html.tmpl", &ExecuteBuildParams{})
-	if err != nil {
-		h.serveServerError(w, r, err)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(page)
 }
 
 type ExecuteMainPageV1Params struct {
