@@ -135,8 +135,7 @@ func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) 
 	}
 
 	req := struct {
-		TimeLocation *string
-		Files        map[string]struct {
+		Files []struct {
 			Name *string
 			Type *string
 			Data *struct{}
@@ -155,18 +154,29 @@ func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) 
 
 		name := part.FormName()
 		switch {
-		case name == "time_location":
-			valueBytes, err := io.ReadAll(part)
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
-				return
-			}
-			req.TimeLocation = new(string)
-			*req.TimeLocation = string(valueBytes)
 		case mustMatch("files/*/name", name):
-			key := strings.Split(name, "/")[1]
-			if req.Files[key].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q not before data", name))
+			index, err := strconv.Atoi(strings.Split(name, "/")[1])
+			if err != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				return
+			}
+
+			lastIndex := len(req.Files) - 1
+			switch index {
+			case lastIndex:
+			case lastIndex + 1:
+				req.Files = append(req.Files, struct {
+					Name *string
+					Type *string
+					Data *struct{}
+				}{})
+			default:
+				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				return
+			}
+
+			if req.Files[index].Data != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q after data", name))
 				return
 			}
 			valueBytes, err := io.ReadAll(part)
@@ -174,14 +184,31 @@ func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) 
 				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
-			file := req.Files[key]
-			file.Name = new(string)
-			*file.Name = string(valueBytes)
-			req.Files[key] = file
+			req.Files[index].Name = new(string)
+			*req.Files[index].Name = string(valueBytes)
 		case mustMatch("files/*/type", name):
-			key := strings.Split(name, "/")[1]
-			if req.Files[key].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q not before data", name))
+			index, err := strconv.Atoi(strings.Split(name, "/")[1])
+			if err != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				return
+			}
+
+			lastIndex := len(req.Files) - 1
+			switch index {
+			case lastIndex:
+			case lastIndex + 1:
+				req.Files = append(req.Files, struct {
+					Name *string
+					Type *string
+					Data *struct{}
+				}{})
+			default:
+				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				return
+			}
+
+			if req.Files[index].Data != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q after data", name))
 				return
 			}
 			valueBytes, err := io.ReadAll(part)
@@ -189,19 +216,34 @@ func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) 
 				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
-			file := req.Files[key]
-			file.Type = new(string)
-			*file.Type = string(valueBytes)
-			req.Files[key] = file
+			req.Files[index].Type = new(string)
+			*req.Files[index].Type = string(valueBytes)
 		case mustMatch("files/*/data", name):
-			key := strings.Split(name, "/")[1]
-			if req.Files[key].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q not before data", name))
+			index, err := strconv.Atoi(strings.Split(name, "/")[1])
+			if err != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
-			file := req.Files[key]
-			file.Data = new(struct{})
-			req.Files[key] = file
+
+			lastIndex := len(req.Files) - 1
+			switch index {
+			case lastIndex:
+			case lastIndex + 1:
+				req.Files = append(req.Files, struct {
+					Name *string
+					Type *string
+					Data *struct{}
+				}{})
+			default:
+				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				return
+			}
+
+			if req.Files[index].Data != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q after data", name))
+				return
+			}
+			req.Files[index].Data = new(struct{})
 		default:
 			h.serveError(w, r, fmt.Errorf("request body parameter %q unknown", name))
 			return
@@ -226,16 +268,11 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 	}
 
 	req := struct {
-		Files map[string]struct {
+		Files []struct {
 			Name *string
 			Type *string
 		}
-	}{
-		Files: make(map[string]struct {
-			Name *string
-			Type *string
-		}),
-	}
+	}{}
 
 	for {
 		part, err := mr.NextPart()
@@ -250,27 +287,59 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 		name := part.FormName()
 		switch {
 		case mustMatch("files/*/name", name):
-			key := strings.Split(name, "/")[1]
+			index, err := strconv.Atoi(strings.Split(name, "/")[1])
+			if err != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				return
+			}
+
+			lastIndex := len(req.Files) - 1
+			switch index {
+			case lastIndex:
+			case lastIndex + 1:
+				req.Files = append(req.Files, struct {
+					Name *string
+					Type *string
+				}{})
+			default:
+				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				return
+			}
+
 			valueBytes, err := io.ReadAll(part)
 			if err != nil {
 				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
-			file := req.Files[key]
-			file.Name = new(string)
-			*file.Name = string(valueBytes)
-			req.Files[key] = file
+			req.Files[index].Name = new(string)
+			*req.Files[index].Name = string(valueBytes)
 		case mustMatch("files/*/type", name):
-			key := strings.Split(name, "/")[1]
+			index, err := strconv.Atoi(strings.Split(name, "/")[1])
+			if err != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				return
+			}
+
+			lastIndex := len(req.Files) - 1
+			switch index {
+			case lastIndex:
+			case lastIndex + 1:
+				req.Files = append(req.Files, struct {
+					Name *string
+					Type *string
+				}{})
+			default:
+				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				return
+			}
+
 			valueBytes, err := io.ReadAll(part)
 			if err != nil {
 				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
 				return
 			}
-			file := req.Files[key]
-			file.Type = new(string)
-			*file.Type = string(valueBytes)
-			req.Files[key] = file
+			req.Files[index].Type = new(string)
+			*req.Files[index].Type = string(valueBytes)
 		default:
 			h.serveError(w, r, fmt.Errorf("request body parameter %q unknown", name))
 			return
@@ -289,35 +358,35 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 		DirEntries: nil,
 	}
 
-	for key, file := range req.Files {
+	for index, file := range req.Files {
 		if file.Name == nil {
-			paramName := fmt.Sprintf("files/%s/name", key)
+			paramName := fmt.Sprintf("files/%d/name", index)
 			h.serveError(w, r, fmt.Errorf("request body parameter %q missing", paramName))
 			return
 		}
 		if *file.Name == "" {
-			paramName := fmt.Sprintf("files/%s/name", key)
+			paramName := fmt.Sprintf("files/%d/name", index)
 			h.serveError(w, r, fmt.Errorf("request body parameter %q empty", paramName))
 			return
 		}
 		name := path.Join("/", *file.Name)
 
 		if file.Type == nil {
-			paramName := fmt.Sprintf("files/%s/type", key)
+			paramName := fmt.Sprintf("files/%d/type", index)
 			h.serveError(w, r, fmt.Errorf("request body parameter %q missing", paramName))
 			return
 		}
 		switch *file.Type {
 		case "file", "directory":
 		default:
-			paramName := fmt.Sprintf("files/%s/type", key)
+			paramName := fmt.Sprintf("files/%d/type", index)
 			h.serveError(w, r, fmt.Errorf("request body parameter %q value %q unknown", paramName, *file.Type))
 			return
 		}
 		typ := *file.Type
 
 		if dirEntryFromName[name] != nil {
-			paramName := fmt.Sprintf("files/%s/name", key)
+			paramName := fmt.Sprintf("files/%d/name", index)
 			h.serveError(w, r, fmt.Errorf("request body parameter %q already exists", paramName))
 			return
 		}
@@ -329,13 +398,13 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 
 		parentName := path.Dir(name)
 		if dirEntryFromName[parentName] == nil {
-			paramName := fmt.Sprintf("files/%s/name", key)
+			paramName := fmt.Sprintf("files/%d/name", index)
 			slog.Info("", "", parentName)
 			h.serveError(w, r, fmt.Errorf("request body parameter %q not found", paramName))
 			return
 		}
 		if dirEntryFromName[parentName].Type != "directory" {
-			paramName := fmt.Sprintf("files/%s/type", key)
+			paramName := fmt.Sprintf("files/%d/type", index)
 			h.serveError(w, r, fmt.Errorf("request body parameter %q not a directory", paramName))
 			return
 		}
