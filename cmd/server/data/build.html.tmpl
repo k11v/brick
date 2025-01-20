@@ -273,9 +273,8 @@
 
 {{define "build_documentWithoutFiles"}}
   <div
-    class="relative my-5 rounded-lg border-2 border-dashed border-stone-200 px-2.5 py-20 dark:border-stone-700"
+    class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-2.5 py-20 dark:border-stone-700"
   >
-    <div class="absolute right-0 top-0">{{now}}</div>
     <p class="text-center">
       Drag and drop or
       <button
@@ -291,9 +290,8 @@
 
 {{define "build_documentWithFiles"}}
   <div
-    class="relative my-5 rounded-lg border-2 border-stone-200 p-2.5 dark:border-stone-700"
+    class="my-5 rounded-lg border-2 border-stone-200 p-2.5 dark:border-stone-700"
   >
-    <div class="absolute right-0 top-0">{{now}}</div>
     <ul>
       {{range .DirEntries}}
         <li>{{template "build_documentDirEntry" .}}</li>
