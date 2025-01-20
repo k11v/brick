@@ -58,8 +58,8 @@ func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 	mux.HandleFunc("POST /BuildFromCancel", h.BuildFromCancel)
 	mux.HandleFunc("POST /HeaderFromSignIn", h.HeaderFromSignIn)
 	mux.HandleFunc("POST /HeaderFromSignOut", h.HeaderFromSignOut)
-	mux.HandleFunc("POST /build_documentFromDragAndDropOrChooseFiles", h.DocumentFromDragAndDropOrChooseFiles)
-	mux.HandleFunc("POST /build_mainFromBuildDocument", h.MainFromBuildDocument)
+	mux.HandleFunc("POST /build_documentFromChange", h.DocumentFromChange)
+	mux.HandleFunc("POST /build_mainFromBuildButtonClick", h.MainFromBuildButtonClick)
 
 	server := &http.Server{
 		Addr:              addr,

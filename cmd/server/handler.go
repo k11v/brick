@@ -127,7 +127,7 @@ func (h *Handler) NotFoundPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(h.notFoundPage)
 }
 
-func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Request) {
 	mr, err := r.MultipartReader()
 	if err != nil {
 		h.serveError(w, r, fmt.Errorf("request: %w", err))
@@ -260,7 +260,7 @@ func (h *Handler) MainFromBuildDocument(w http.ResponseWriter, r *http.Request) 
 	_, _ = w.Write(comp)
 }
 
-func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 	mr, err := r.MultipartReader()
 	if err != nil {
 		h.serveError(w, r, fmt.Errorf("request: %w", err))
