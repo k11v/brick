@@ -15,6 +15,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -152,7 +153,7 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 
 	req := struct {
 		TimeLocation *string
-		Files        map[int]struct {
+		Files        map[string]struct {
 			Name *string
 			Type *string
 			Data *struct{}
@@ -179,54 +180,45 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 			}
 			req.TimeLocation = new(string)
 			*req.TimeLocation = string(valueBytes)
-		case strings.HasPrefix(name, "files/"):
-			key, err := strconv.Atoi(strings.SplitN(name, "/", 3)[1])
+		case mustMatch("files/*/name", name):
+			key := strings.Split(name, "/")[1]
+			if req.Files[key].Data != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
+				return
+			}
+			valueBytes, err := io.ReadAll(part)
 			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				h.serveError(w, r, err)
 				return
 			}
-
-			switch name {
-			case fmt.Sprintf("files/%d/name", key):
-				if req.Files[key].Data != nil {
-					h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
-					return
-				}
-				valueBytes, err := io.ReadAll(part)
-				if err != nil {
-					h.serveError(w, r, err)
-					return
-				}
-				file := req.Files[key]
-				file.Name = new(string)
-				*file.Name = string(valueBytes)
-				req.Files[key] = file
-			case fmt.Sprintf("files/%d/type", key):
-				if req.Files[key].Data != nil {
-					h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
-					return
-				}
-				valueBytes, err := io.ReadAll(part)
-				if err != nil {
-					h.serveError(w, r, err)
-					return
-				}
-				file := req.Files[key]
-				file.Type = new(string)
-				*file.Type = string(valueBytes)
-				req.Files[key] = file
-			case fmt.Sprintf("files/%d/data", key):
-				if req.Files[key].Data != nil {
-					h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
-					return
-				}
-				file := req.Files[key]
-				file.Data = new(struct{})
-				req.Files[key] = file
-			default:
-				h.serveError(w, r, fmt.Errorf("unknown request body parameter %q", name))
+			file := req.Files[key]
+			file.Name = new(string)
+			*file.Name = string(valueBytes)
+			req.Files[key] = file
+		case mustMatch("files/*/type", name):
+			key := strings.Split(name, "/")[1]
+			if req.Files[key].Data != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
 				return
 			}
+			valueBytes, err := io.ReadAll(part)
+			if err != nil {
+				h.serveError(w, r, err)
+				return
+			}
+			file := req.Files[key]
+			file.Type = new(string)
+			*file.Type = string(valueBytes)
+			req.Files[key] = file
+		case mustMatch("files/*/data", name):
+			key := strings.Split(name, "/")[1]
+			if req.Files[key].Data != nil {
+				h.serveError(w, r, fmt.Errorf("request body parameter %q after .../data", name))
+				return
+			}
+			file := req.Files[key]
+			file.Data = new(struct{})
+			req.Files[key] = file
 		default:
 			h.serveError(w, r, fmt.Errorf("unknown request body parameter %q", name))
 			return
@@ -842,4 +834,12 @@ func (h *Handler) serveServerError(w http.ResponseWriter, _ *http.Request, err e
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusInternalServerError)
 	_, _ = w.Write(h.internalServerErrorPage)
+}
+
+func mustMatch(pattern string, name string) (matched bool) {
+	matched, err := path.Match(pattern, name)
+	if err != nil {
+		panic(err)
+	}
+	return matched
 }
