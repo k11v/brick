@@ -264,7 +264,11 @@
 {{end}}
 
 {{define "build_document"}}
-  {{template "build_documentWithFiles"}}
+  {{if .DirEntries}}
+    {{template "build_documentWithFiles" .}}
+  {{else}}
+    {{template "build_documentWithoutFiles" .}}
+  {{end}}
 {{end}}
 
 {{define "build_documentWithoutFiles"}}
@@ -299,7 +303,7 @@
 {{define "build_documentDirEntry"}}
   <div>
     <div class="inline-flex items-baseline">
-      {{if eq .IsDir}}
+      {{if eq .Type "directory"}}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"

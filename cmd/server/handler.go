@@ -230,7 +230,12 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 			Name *string
 			Type *string
 		}
-	}{}
+	}{
+		Files: make(map[string]struct {
+			Name *string
+			Type *string
+		}),
+	}
 
 	for {
 		part, err := mr.NextPart()
@@ -272,7 +277,75 @@ func (h *Handler) DocumentFromDragAndDropOrChooseFiles(w http.ResponseWriter, r 
 		}
 	}
 
-	comp, err := h.execute("build_document", nil)
+	type DirEntry struct {
+		Name       string
+		Type       string
+		DirEntries []*DirEntry
+	}
+	dirEntryFromName := make(map[string]*DirEntry)
+	dirEntryFromName["/"] = &DirEntry{
+		Name:       path.Base("/"),
+		Type:       "directory",
+		DirEntries: nil,
+	}
+
+	for key, file := range req.Files {
+		if file.Name == nil {
+			paramName := fmt.Sprintf("files/%s/name", key)
+			h.serveError(w, r, fmt.Errorf("request body parameter %q missing", paramName))
+			return
+		}
+		if *file.Name == "" {
+			paramName := fmt.Sprintf("files/%s/name", key)
+			h.serveError(w, r, fmt.Errorf("request body parameter %q empty", paramName))
+			return
+		}
+		name := path.Join("/", *file.Name)
+
+		if file.Type == nil {
+			paramName := fmt.Sprintf("files/%s/type", key)
+			h.serveError(w, r, fmt.Errorf("request body parameter %q missing", paramName))
+			return
+		}
+		switch *file.Type {
+		case "file", "directory":
+		default:
+			paramName := fmt.Sprintf("files/%s/type", key)
+			h.serveError(w, r, fmt.Errorf("request body parameter %q value %q unknown", paramName, *file.Type))
+			return
+		}
+		typ := *file.Type
+
+		if dirEntryFromName[name] != nil {
+			paramName := fmt.Sprintf("files/%s/name", key)
+			h.serveError(w, r, fmt.Errorf("request body parameter %q already exists", paramName))
+			return
+		}
+		dirEntryFromName[name] = &DirEntry{
+			Name:       path.Base(name),
+			Type:       typ,
+			DirEntries: nil,
+		}
+
+		parentName := path.Dir(name)
+		if dirEntryFromName[parentName] == nil {
+			paramName := fmt.Sprintf("files/%s/name", key)
+			slog.Info("", "", parentName)
+			h.serveError(w, r, fmt.Errorf("request body parameter %q not found", paramName))
+			return
+		}
+		if dirEntryFromName[parentName].Type != "directory" {
+			paramName := fmt.Sprintf("files/%s/type", key)
+			h.serveError(w, r, fmt.Errorf("request body parameter %q not a directory", paramName))
+			return
+		}
+		dirEntryFromName[parentName].DirEntries = append(
+			dirEntryFromName[parentName].DirEntries,
+			dirEntryFromName[name],
+		)
+	}
+
+	comp, err := h.execute("build_document", dirEntryFromName["/"])
 	if err != nil {
 		h.serveError(w, r, err)
 		return
