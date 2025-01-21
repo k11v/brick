@@ -124,6 +124,11 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(page)
 }
 
+type ExecuteMainParams struct {
+	Build *build.Build
+	Files []*build.InputFile
+}
+
 func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -249,7 +254,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 	}
 
 	creator := &build.Creator{DB: h.db, MQ: h.mq, S3: h.s3, BuildsAllowed: 10}
-	b, err := creator.Create(r.Context(), &build.CreatorCreateParams{
+	createdBuild, err := creator.Create(ctx, &build.CreatorCreateParams{
 		UserID:         userID,
 		Files:          files,
 		IdempotencyKey: idempotencyKey,
@@ -259,7 +264,20 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	comp, err := h.execute("build_main", b)
+	getter := &build.Getter{DB: h.db, S3: h.s3}
+	gotFiles, err := getter.GetInputFiles(ctx, &build.GetterGetParams{
+		ID:     createdBuild.ID,
+		UserID: userID,
+	})
+	if err != nil {
+		h.serveError(w, r, err)
+		return
+	}
+
+	comp, err := h.execute("build_main", &ExecuteMainParams{
+		Build: createdBuild,
+		Files: gotFiles,
+	})
 	if err != nil {
 		h.serveError(w, r, err)
 		return
