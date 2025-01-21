@@ -580,6 +580,7 @@ func getBuildInputFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]
 		SELECT id, build_id, name, content_key
 		FROM build_input_files
 		WHERE build_id = $1
+		ORDER BY name, build_id
 	`
 	args := []any{buildID}
 
