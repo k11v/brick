@@ -65,6 +65,7 @@ type CreatorCreateParams struct {
 
 type File struct {
 	Name string
+	Type string
 	Data io.Reader
 }
 
