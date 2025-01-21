@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 
@@ -126,6 +127,19 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// Header X-Idempotency-Key.
+	const headerIdempotencyKey = "X-Idempotency-Key"
+	idempotencyKeyHeader := r.Header.Get(headerIdempotencyKey)
+	if idempotencyKeyHeader == "" {
+		h.serveError(w, r, fmt.Errorf("%s header empty or missing", headerIdempotencyKey))
+		return
+	}
+	idempotencyKey, err := uuid.Parse(idempotencyKeyHeader)
+	if err != nil {
+		h.serveError(w, r, fmt.Errorf("%s header: %w", headerIdempotencyKey, err))
+		return
+	}
+
 	// Cookie access_token.
 	const cookieAccessToken = "access_token"
 	accessTokenCookie, err := r.Cookie(cookieAccessToken)
@@ -194,7 +208,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 				case formName == fmt.Sprintf("files/%d/name", i):
 					valueBytes, err := io.ReadAll(part)
 					if err != nil {
-						_ = yield(nil, fmt.Errorf("%s form value: %w", formName))
+						_ = yield(nil, fmt.Errorf("%s form value: %w", formName, err))
 						return
 					}
 					name = string(valueBytes)
@@ -202,7 +216,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 				case formName == fmt.Sprintf("files/%d/type", i):
 					valueBytes, err := io.ReadAll(part)
 					if err != nil {
-						_ = yield(nil, fmt.Errorf("%s form value: %w", formName))
+						_ = yield(nil, fmt.Errorf("%s form value: %w", formName, err))
 						return
 					}
 					typ = string(valueBytes)
@@ -234,7 +248,18 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	comp, err := h.execute("build_main", nil)
+	creator := &build.Creator{DB: h.db, MQ: h.mq, S3: h.s3, BuildsAllowed: 10}
+	b, err := creator.Create(r.Context(), &build.CreatorCreateParams{
+		UserID:         userID,
+		Files:          files,
+		IdempotencyKey: idempotencyKey,
+	})
+	if err != nil {
+		h.serveError(w, r, err)
+		return
+	}
+
+	comp, err := h.execute("build_main", b)
 	if err != nil {
 		h.serveError(w, r, err)
 		return
