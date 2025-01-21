@@ -39,6 +39,18 @@ func (g *Getter) Get(ctx context.Context, params *GetterGetParams) (*Build, erro
 	return b, nil
 }
 
+func (g *Getter) GetInputFiles(ctx context.Context, params *GetterGetParams) ([]*InputFile, error) {
+	b, err := g.Get(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	inputFiles, err := getBuildInputFiles(ctx, g.DB, b.ID)
+	if err != nil {
+		return nil, fmt.Errorf("build.Getter: %w", err)
+	}
+	return inputFiles, nil
+}
+
 func (g *Getter) GetOutputFile(ctx context.Context, w io.Writer, params *GetterGetParams) error {
 	b, err := g.Get(ctx, params)
 	if err != nil {
