@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"path"
 	"strconv"
@@ -148,6 +149,28 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		h.serveError(w, r, fmt.Errorf("request: %w", err))
 		return
+	}
+
+	var (
+		bufRead, bufWritten bool
+		bufPart             *multipart.Part
+		bufErr              error
+	)
+	nextPart := func() (*multipart.Part, error) {
+		if bufWritten && !bufRead {
+			bufRead = true
+			return bufPart, bufErr
+		}
+		bufPart, bufErr = mr.NextPart()
+		bufRead, bufWritten = true, true
+		return bufPart, bufErr
+	}
+	unnextPart := func() error {
+		if !bufRead || !bufWritten {
+			return errors.New("unnextPart buf not read or written")
+		}
+		bufRead = false
+		return nil
 	}
 
 	for {
