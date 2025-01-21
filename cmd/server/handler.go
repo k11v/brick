@@ -120,11 +120,21 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Request) {
-	mr, err := r.MultipartReader()
+	ctx := r.Context()
+
+	// Cookie access_token.
+	const cookieAccessToken = "access_token"
+	accessTokenCookie, err := r.Cookie(cookieAccessToken)
 	if err != nil {
-		h.serveError(w, r, fmt.Errorf("request: %w", err))
+		h.serveError(w, r, fmt.Errorf("%s cookie: %w", cookieAccessToken, err))
 		return
 	}
+	accessToken, err := parseAndValidateTokenFromCookie(ctx, h.db, h.jwtVerificationKey, accessTokenCookie)
+	if err != nil {
+		h.serveError(w, r, fmt.Errorf("%s cookie: %w", cookieAccessToken, err))
+		return
+	}
+	userID := accessToken.UserID
 
 	req := struct {
 		Files []struct {
@@ -134,22 +144,30 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 		}
 	}{}
 
+	mr, err := r.MultipartReader()
+	if err != nil {
+		h.serveError(w, r, fmt.Errorf("request: %w", err))
+		return
+	}
+
 	for {
 		part, err := mr.NextPart()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			h.serveError(w, r, fmt.Errorf("request body: %w", err))
+			h.serveError(w, r, fmt.Errorf("request: %w", err))
 			return
 		}
 
 		name := part.FormName()
 		switch {
+
+		// Body value files/*/name.
 		case mustMatch("files/*/name", name):
 			index, err := strconv.Atoi(strings.Split(name, "/")[1])
 			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
 				return
 			}
 
@@ -163,25 +181,27 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 					Data *struct{}
 				}{})
 			default:
-				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				h.serveError(w, r, fmt.Errorf("%s body value out of order", name))
 				return
 			}
 
 			if req.Files[index].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q after data", name))
+				h.serveError(w, r, fmt.Errorf("%s body value after data", name))
 				return
 			}
 			valueBytes, err := io.ReadAll(part)
 			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
 				return
 			}
 			req.Files[index].Name = new(string)
 			*req.Files[index].Name = string(valueBytes)
+
+		// Body value files/*/type.
 		case mustMatch("files/*/type", name):
 			index, err := strconv.Atoi(strings.Split(name, "/")[1])
 			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
 				return
 			}
 
@@ -195,25 +215,27 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 					Data *struct{}
 				}{})
 			default:
-				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				h.serveError(w, r, fmt.Errorf("%s body value out of order", name))
 				return
 			}
 
 			if req.Files[index].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q after data", name))
+				h.serveError(w, r, fmt.Errorf("%s body value after data", name))
 				return
 			}
 			valueBytes, err := io.ReadAll(part)
 			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
 				return
 			}
 			req.Files[index].Type = new(string)
 			*req.Files[index].Type = string(valueBytes)
+
+		// Body value files/*/data.
 		case mustMatch("files/*/data", name):
 			index, err := strconv.Atoi(strings.Split(name, "/")[1])
 			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
+				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
 				return
 			}
 
@@ -227,17 +249,18 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 					Data *struct{}
 				}{})
 			default:
-				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
+				h.serveError(w, r, fmt.Errorf("%s body value out of order", name))
 				return
 			}
 
 			if req.Files[index].Data != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q after data", name))
+				h.serveError(w, r, fmt.Errorf("%s body value after data", name))
 				return
 			}
 			req.Files[index].Data = new(struct{})
+
 		default:
-			h.serveError(w, r, fmt.Errorf("request body parameter %q unknown", name))
+			h.serveError(w, r, fmt.Errorf("%s body value unknown", name))
 			return
 		}
 	}
