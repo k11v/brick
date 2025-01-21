@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -20,6 +21,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
+
+	"github.com/k11v/brick/internal/build"
 )
 
 type ExecuteErrorParams struct {
@@ -137,14 +140,6 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 	}
 	userID := accessToken.UserID
 
-	req := struct {
-		Files []struct {
-			Name *string
-			Type *string
-			Data *struct{}
-		}
-	}{}
-
 	mr, err := r.MultipartReader()
 	if err != nil {
 		h.serveError(w, r, fmt.Errorf("request: %w", err))
@@ -152,139 +147,90 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 	}
 
 	var (
-		bufRead, bufWritten bool
-		bufPart             *multipart.Part
-		bufErr              error
+		bufPart  *multipart.Part
+		bufErr   error
+		bufNext  = false
+		bufEmpty = true
 	)
 	nextPart := func() (*multipart.Part, error) {
-		if bufWritten && !bufRead {
-			bufRead = true
+		if bufNext {
+			bufNext = false
 			return bufPart, bufErr
 		}
 		bufPart, bufErr = mr.NextPart()
-		bufRead, bufWritten = true, true
+		bufEmpty = false
 		return bufPart, bufErr
 	}
 	unnextPart := func() error {
-		if !bufRead || !bufWritten {
-			return errors.New("unnextPart buf not read or written")
+		if bufNext || bufEmpty {
+			return errors.New("unnextPart buf next or empty")
 		}
-		bufRead = false
+		bufNext = true
 		return nil
 	}
 
-	for {
-		part, err := mr.NextPart()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			h.serveError(w, r, fmt.Errorf("request: %w", err))
-			return
-		}
+	var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
+		for i := 0; ; i++ {
+			var (
+				name string
+				typ  string
+				data io.Reader
+			)
 
-		name := part.FormName()
-		switch {
+		PartLoop:
+			for {
+				part, err := nextPart()
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					_ = yield(nil, err)
+					return
+				}
 
-		// Body value files/*/name.
-		case mustMatch("files/*/name", name):
-			index, err := strconv.Atoi(strings.Split(name, "/")[1])
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
-				return
-			}
-
-			lastIndex := len(req.Files) - 1
-			switch index {
-			case lastIndex:
-			case lastIndex + 1:
-				req.Files = append(req.Files, struct {
-					Name *string
-					Type *string
-					Data *struct{}
-				}{})
-			default:
-				h.serveError(w, r, fmt.Errorf("%s body value out of order", name))
-				return
-			}
-
-			if req.Files[index].Data != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value after data", name))
-				return
-			}
-			valueBytes, err := io.ReadAll(part)
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
-				return
-			}
-			req.Files[index].Name = new(string)
-			*req.Files[index].Name = string(valueBytes)
-
-		// Body value files/*/type.
-		case mustMatch("files/*/type", name):
-			index, err := strconv.Atoi(strings.Split(name, "/")[1])
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
-				return
-			}
-
-			lastIndex := len(req.Files) - 1
-			switch index {
-			case lastIndex:
-			case lastIndex + 1:
-				req.Files = append(req.Files, struct {
-					Name *string
-					Type *string
-					Data *struct{}
-				}{})
-			default:
-				h.serveError(w, r, fmt.Errorf("%s body value out of order", name))
-				return
+				formName := part.FormName()
+				switch {
+				// Form value files/*/name.
+				case formName == fmt.Sprintf("files/%d/name", i):
+					valueBytes, err := io.ReadAll(part)
+					if err != nil {
+						_ = yield(nil, fmt.Errorf("%s form value: %w", formName))
+						return
+					}
+					name = string(valueBytes)
+				// Form value files/*/type.
+				case formName == fmt.Sprintf("files/%d/type", i):
+					valueBytes, err := io.ReadAll(part)
+					if err != nil {
+						_ = yield(nil, fmt.Errorf("%s form value: %w", formName))
+						return
+					}
+					typ = string(valueBytes)
+				// Form value files/*/data.
+				case formName == fmt.Sprintf("files/%d/data", i):
+					data = part
+					break PartLoop
+				case strings.HasPrefix(formName, fmt.Sprintf("files/%d/", i+1)):
+					err := unnextPart()
+					if err != nil {
+						_ = yield(nil, err)
+						return
+					}
+					break PartLoop
+				default:
+					_ = yield(nil, fmt.Errorf("%s form value unknown or misplaced", formName))
+					return
+				}
 			}
 
-			if req.Files[index].Data != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value after data", name))
+			file := &build.File{
+				Name: name,
+				Type: typ,
+				Data: data,
+			}
+			if !yield(file, nil) {
 				return
 			}
-			valueBytes, err := io.ReadAll(part)
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
-				return
-			}
-			req.Files[index].Type = new(string)
-			*req.Files[index].Type = string(valueBytes)
-
-		// Body value files/*/data.
-		case mustMatch("files/*/data", name):
-			index, err := strconv.Atoi(strings.Split(name, "/")[1])
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value: %w", name, err))
-				return
-			}
-
-			lastIndex := len(req.Files) - 1
-			switch index {
-			case lastIndex:
-			case lastIndex + 1:
-				req.Files = append(req.Files, struct {
-					Name *string
-					Type *string
-					Data *struct{}
-				}{})
-			default:
-				h.serveError(w, r, fmt.Errorf("%s body value out of order", name))
-				return
-			}
-
-			if req.Files[index].Data != nil {
-				h.serveError(w, r, fmt.Errorf("%s body value after data", name))
-				return
-			}
-			req.Files[index].Data = new(struct{})
-
-		default:
-			h.serveError(w, r, fmt.Errorf("%s body value unknown", name))
-			return
 		}
 	}
 
