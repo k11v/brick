@@ -22,13 +22,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 
-	"github.com/k11v/brick/internal/buildtask"
 	"github.com/k11v/brick/internal/run/runs3"
 )
 
 var (
 	ErrLimitExceeded             = errors.New("limit exceeded")
 	ErrIdempotencyKeyAlreadyUsed = errors.New("idempotency key already used")
+	ErrFileTooLarge              = errors.New("file too large")
 )
 
 type Build struct {
@@ -292,7 +292,7 @@ func uploadFileContent(ctx context.Context, s3Client *s3.Client, key string, con
 	})
 	if err != nil {
 		if apiErr := smithy.APIError(nil); errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
-			err = errors.Join(buildtask.FileTooLarge, err)
+			err = errors.Join(ErrFileTooLarge, err)
 		}
 		return err
 	}
