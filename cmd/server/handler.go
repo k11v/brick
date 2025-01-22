@@ -14,7 +14,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -124,6 +123,16 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(page)
 }
 
+type ExecuteDocumentParams struct {
+	DirEntries []*DirEntry
+}
+
+type DirEntry struct {
+	Name       string
+	Type       string
+	DirEntries []*DirEntry
+}
+
 func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 	mr, err := r.MultipartReader()
 	if err != nil {
@@ -131,90 +140,87 @@ func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := struct {
-		Files []struct {
-			Name *string
-			Type *string
+	var (
+		bufPart  *multipart.Part
+		bufErr   error
+		bufNext  = false
+		bufEmpty = true
+	)
+	nextPart := func() (*multipart.Part, error) {
+		if bufNext {
+			bufNext = false
+			return bufPart, bufErr
 		}
-	}{}
-
-	for {
-		part, err := mr.NextPart()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			h.serveError(w, r, fmt.Errorf("request body: %w", err))
-			return
+		bufPart, bufErr = mr.NextPart()
+		bufEmpty = false
+		return bufPart, bufErr
+	}
+	unnextPart := func() error {
+		if bufNext || bufEmpty {
+			return errors.New("unnextPart buf already next or empty")
 		}
-
-		name := part.FormName()
-		switch {
-		case mustMatch("files/*/name", name):
-			index, err := strconv.Atoi(strings.Split(name, "/")[1])
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
-				return
-			}
-
-			lastIndex := len(req.Files) - 1
-			switch index {
-			case lastIndex:
-			case lastIndex + 1:
-				req.Files = append(req.Files, struct {
-					Name *string
-					Type *string
-				}{})
-			default:
-				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
-				return
-			}
-
-			valueBytes, err := io.ReadAll(part)
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
-				return
-			}
-			req.Files[index].Name = new(string)
-			*req.Files[index].Name = string(valueBytes)
-		case mustMatch("files/*/type", name):
-			index, err := strconv.Atoi(strings.Split(name, "/")[1])
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
-				return
-			}
-
-			lastIndex := len(req.Files) - 1
-			switch index {
-			case lastIndex:
-			case lastIndex + 1:
-				req.Files = append(req.Files, struct {
-					Name *string
-					Type *string
-				}{})
-			default:
-				h.serveError(w, r, fmt.Errorf("request body parameter %q out of order", name))
-				return
-			}
-
-			valueBytes, err := io.ReadAll(part)
-			if err != nil {
-				h.serveError(w, r, fmt.Errorf("request body parameter %q: %w", name, err))
-				return
-			}
-			req.Files[index].Type = new(string)
-			*req.Files[index].Type = string(valueBytes)
-		default:
-			h.serveError(w, r, fmt.Errorf("request body parameter %q unknown", name))
-			return
-		}
+		bufNext = true
+		return nil
 	}
 
-	type DirEntry struct {
-		Name       string
-		Type       string
-		DirEntries []*DirEntry
+	files := make([]*build.FileWithoutData, 0)
+
+FileLoop:
+	for i := 0; ; i++ {
+		var (
+			name string
+			typ  string
+		)
+
+	PartLoop:
+		for {
+			part, err := nextPart()
+			if err != nil {
+				if err == io.EOF {
+					break FileLoop
+				}
+				h.serveError(w, r, fmt.Errorf("body: %w", err))
+				return
+			}
+
+			formName := part.FormName()
+			switch {
+			// Form value files/*/name.
+			case formName == fmt.Sprintf("files/%d/name", i):
+				valueBytes, err := io.ReadAll(part)
+				if err != nil {
+					h.serveError(w, r, fmt.Errorf("%s form value: %w", formName, err))
+					return
+				}
+				name = string(valueBytes)
+			// Form value files/*/type.
+			case formName == fmt.Sprintf("files/%d/type", i):
+				valueBytes, err := io.ReadAll(part)
+				if err != nil {
+					h.serveError(w, r, fmt.Errorf("%s form value: %w", formName, err))
+					return
+				}
+				typ = string(valueBytes)
+			case strings.HasPrefix(formName, fmt.Sprintf("files/%d/", i+1)):
+				err := unnextPart()
+				if err != nil {
+					h.serveError(w, r, err)
+					return
+				}
+				break PartLoop
+			default:
+				h.serveError(w, r, fmt.Errorf("%s form name unknown or misplaced", formName))
+				return
+			}
+		}
+
+		file := &build.FileWithoutData{
+			Name: name,
+			Type: typ,
+		}
+		files = append(files, file)
 	}
+
 	dirEntryFromName := make(map[string]*DirEntry)
 	dirEntryFromName["/"] = &DirEntry{
 		Name:       path.Base("/"),
@@ -222,36 +228,31 @@ func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 		DirEntries: nil,
 	}
 
-	for index, file := range req.Files {
-		if file.Name == nil {
-			paramName := fmt.Sprintf("files/%d/name", index)
-			h.serveError(w, r, fmt.Errorf("request body parameter %q missing", paramName))
+	for i, file := range files {
+		if file.Name == "" {
+			formName := fmt.Sprintf("files/%d/name", i)
+			h.serveError(w, r, fmt.Errorf("%s form value empty or missing", formName))
 			return
 		}
-		if *file.Name == "" {
-			paramName := fmt.Sprintf("files/%d/name", index)
-			h.serveError(w, r, fmt.Errorf("request body parameter %q empty", paramName))
-			return
-		}
-		name := path.Join("/", *file.Name)
+		name := path.Join("/", file.Name)
 
-		if file.Type == nil {
-			paramName := fmt.Sprintf("files/%d/type", index)
-			h.serveError(w, r, fmt.Errorf("request body parameter %q missing", paramName))
+		if file.Type == "" {
+			formName := fmt.Sprintf("files/%d/type", i)
+			h.serveError(w, r, fmt.Errorf("%s form value empty or missing", formName))
 			return
 		}
-		switch *file.Type {
+		switch file.Type {
 		case "file", "directory":
 		default:
-			paramName := fmt.Sprintf("files/%d/type", index)
-			h.serveError(w, r, fmt.Errorf("request body parameter %q value %q unknown", paramName, *file.Type))
+			formName := fmt.Sprintf("files/%d/type", i)
+			h.serveError(w, r, fmt.Errorf("%s form value unknown", formName))
 			return
 		}
-		typ := *file.Type
+		typ := file.Type
 
 		if dirEntryFromName[name] != nil {
-			paramName := fmt.Sprintf("files/%d/name", index)
-			h.serveError(w, r, fmt.Errorf("request body parameter %q already exists", paramName))
+			formName := fmt.Sprintf("files/%d/name", i)
+			h.serveError(w, r, fmt.Errorf("%s form value already exists", formName))
 			return
 		}
 		dirEntryFromName[name] = &DirEntry{
@@ -262,14 +263,13 @@ func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 
 		parentName := path.Dir(name)
 		if dirEntryFromName[parentName] == nil {
-			paramName := fmt.Sprintf("files/%d/name", index)
-			slog.Info("", "", parentName)
-			h.serveError(w, r, fmt.Errorf("request body parameter %q not found", paramName))
+			formName := fmt.Sprintf("files/%d/name", i)
+			h.serveError(w, r, fmt.Errorf("%s form value not found", formName))
 			return
 		}
 		if dirEntryFromName[parentName].Type != "directory" {
-			paramName := fmt.Sprintf("files/%d/type", index)
-			h.serveError(w, r, fmt.Errorf("request body parameter %q not a directory", paramName))
+			formName := fmt.Sprintf("files/%d/type", i)
+			h.serveError(w, r, fmt.Errorf("%s form value not directory", formName))
 			return
 		}
 		dirEntryFromName[parentName].DirEntries = append(
@@ -278,7 +278,9 @@ func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	comp, err := h.execute("build_document", dirEntryFromName["/"])
+	comp, err := h.execute("build_document", &ExecuteDocumentParams{
+		DirEntries: dirEntryFromName["/"].DirEntries,
+	})
 	if err != nil {
 		h.serveError(w, r, err)
 		return
@@ -348,13 +350,14 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 	}
 	unnextPart := func() error {
 		if bufNext || bufEmpty {
-			return errors.New("unnextPart buf next or empty")
+			return errors.New("unnextPart buf already next or empty")
 		}
 		bufNext = true
 		return nil
 	}
 
 	var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
+	FileLoop:
 		for i := 0; ; i++ {
 			var (
 				name string
@@ -367,9 +370,9 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 				part, err := nextPart()
 				if err != nil {
 					if err == io.EOF {
-						break
+						break FileLoop
 					}
-					_ = yield(nil, err)
+					_ = yield(nil, fmt.Errorf("body: %w", err))
 					return
 				}
 
@@ -403,7 +406,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 					}
 					break PartLoop
 				default:
-					_ = yield(nil, fmt.Errorf("%s form value unknown or misplaced", formName))
+					_ = yield(nil, fmt.Errorf("%s form name unknown or misplaced", formName))
 					return
 				}
 			}

@@ -69,6 +69,11 @@ type File struct {
 	Data io.Reader
 }
 
+type FileWithoutData struct {
+	Name string
+	Type string
+}
+
 func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Build, error) {
 	tx, err := c.DB.Begin(ctx)
 	if err != nil {
