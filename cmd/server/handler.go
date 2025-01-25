@@ -112,6 +112,43 @@ func (h *Handler) execute(name string, data any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func (h *Handler) AccessTokenCookieSetter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		const cookieAccessToken = "access_token"
+		accessTokenCookieExistsAndValid := false
+		accessTokenCookie, err := r.Cookie(cookieAccessToken)
+		if err == nil {
+			_, err = parseAndValidateTokenFromCookie(ctx, h.db, h.jwtVerificationKey, accessTokenCookie)
+			if err == nil {
+				accessTokenCookieExistsAndValid = true
+			}
+		}
+
+		if !accessTokenCookieExistsAndValid {
+			newUserID := uuid.New()
+			newToken, err := createToken(h.jwtSignatureKey, newUserID)
+			if err != nil {
+				h.serveServerError(w, r, err)
+				return
+			}
+			http.SetCookie(w, &http.Cookie{
+				Name:     cookieAccessToken,
+				Value:    newToken,
+				Path:     "/",
+				Domain:   "localhost",
+				MaxAge:   int(14 * 24 * time.Hour / time.Second),
+				Secure:   true,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+			})
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	page, err := h.execute("build.html.tmpl", nil)
 	if err != nil {
