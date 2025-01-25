@@ -64,10 +64,12 @@ func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 	mux.HandleFunc("POST /HeaderFromSignIn", h.HeaderFromSignIn)
 	mux.HandleFunc("POST /HeaderFromSignOut", h.HeaderFromSignOut)
 
+	muxWithMiddlewares := h.AccessTokenCookieSetter(mux)
+
 	server := &http.Server{
 		Addr:              addr,
 		ErrorLog:          subLogLogger,
-		Handler:           mux,
+		Handler:           muxWithMiddlewares,
 		ReadHeaderTimeout: conf.ReadHeaderTimeout,
 	}
 	return server, nil
