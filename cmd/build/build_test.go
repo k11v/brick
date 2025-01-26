@@ -58,7 +58,7 @@ Text with кириллица.
 		}
 
 		outputDir := filepath.Join(tempDir, "output")
-		result, err := Run(&RunParams{InputDir: inputDir, OutputDir: outputDir})
+		result, err := Build(&BuildParams{InputDir: inputDir, OutputDir: outputDir})
 		if err != nil {
 			t.Fatalf("got %q err", err)
 		}
