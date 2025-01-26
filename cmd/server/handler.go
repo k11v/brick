@@ -81,7 +81,10 @@ func (h *Handler) execute(name string, data any) ([]byte, error) {
 		"time": func(loc *time.Location, t *time.Time) string {
 			return t.In(loc).Format("2006-01-02 15:04")
 		},
-		"jsonObject": func(args ...any) (string, error) {
+		"uuid": func() string {
+			return uuid.New().String()
+		},
+		"json": func(args ...any) (string, error) {
 			o := make(map[string]any)
 			if len(args)%2 != 0 {
 				return "", errors.New("args length is not even")
@@ -149,8 +152,14 @@ func (h *Handler) AccessTokenCookieSetter(next http.Handler) http.Handler {
 	})
 }
 
+type ExecutePageParams struct {
+	mainParams *ExecuteMainParams
+}
+
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	page, err := h.execute("build.html.tmpl", nil)
+	page, err := h.execute("build.html.tmpl", &ExecutePageParams{
+		mainParams: &ExecuteMainParams{},
+	})
 	if err != nil {
 		h.serveError(w, r, err)
 		return
