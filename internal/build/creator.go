@@ -118,7 +118,9 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 
 	// Create input files and upload their content to object storage.
 	inputDirKey := path.Join(buildDirKey, "input")
+	filesLen := 0
 	for file, err := range params.Files {
+		filesLen++
 		if err != nil {
 			slog.Error("range params.Files", "err", err)
 			panic("unimplemented")
@@ -140,6 +142,10 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 			slog.Error("uploadFileContent", "err", err)
 			panic("unimplemented")
 		}
+	}
+	if filesLen == 0 {
+		err = errors.New("files missing")
+		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 
 	// Send build created event to workers.
