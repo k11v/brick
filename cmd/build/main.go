@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-
-	"github.com/k11v/brick/internal/build"
 )
 
 var (
@@ -24,7 +22,7 @@ func main() {
 			_, _ = fmt.Fprintf(os.Stderr, "error: missing %s flag\n", flagInputFile)
 			return 2
 		}
-		if *inputFile != "main.md" { // build.Run can only build main.md for now.
+		if *inputFile != "main.md" { // [Run] can only build main.md for now.
 			_, _ = fmt.Fprintf(os.Stderr, "error: %s flag is not %q\n", flagInputFile, "main.md")
 			return 2
 		}
@@ -41,7 +39,7 @@ func main() {
 			return 2
 		}
 
-		result, err := build.Run(&build.RunParams{
+		result, err := Run(&RunParams{
 			InputDir:  ".",
 			OutputDir: *cacheDir,
 		})
