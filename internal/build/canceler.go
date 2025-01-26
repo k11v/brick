@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
@@ -13,20 +12,28 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
+var (
+	ErrAlreadyDoing = errors.New("already doing")
+	ErrAlreadyDone  = errors.New("already done")
+)
+
 type Status string
 
 const (
-	StatusPending   Status = "pending"
-	StatusRunning   Status = "running"
-	StatusSucceeded Status = "done.succeeded"
-	StatusFailed    Status = "done.failed"
-	StatusCanceled  Status = "done.canceled"
+	StatusTodo  Status = "todo"
+	StatusDoing Status = "doing"
+	StatusDone  Status = "done"
 )
 
-var (
-	ErrAlreadyDone    = errors.New("already done")
-	ErrAlreadyRunning = errors.New("already running")
-)
+func ParseStatus(s string) (status Status, known bool) {
+	status = Status(s)
+	switch status {
+	case StatusTodo, StatusDoing, StatusDone:
+		return status, true
+	default:
+		return status, false
+	}
+}
 
 type Canceler struct {
 	DB *pgxpool.Pool       // required
@@ -48,7 +55,7 @@ func (c *Canceler) Cancel(ctx context.Context, params *CancelerCancelParams) (*B
 		_ = tx.Rollback(ctx)
 	}()
 
-	b, err := getBuildForUpdate(ctx, tx, params.ID)
+	b, err := getForUpdate(ctx, tx, params.ID)
 	if err != nil {
 		return nil, fmt.Errorf("build.Canceler: %w", err)
 	}
@@ -56,14 +63,14 @@ func (c *Canceler) Cancel(ctx context.Context, params *CancelerCancelParams) (*B
 		return nil, fmt.Errorf("build.Canceler: %w", ErrAccessDenied)
 	}
 
-	if strings.Split(string(b.Status), ".")[0] == "running" {
-		return nil, fmt.Errorf("build.Canceler: %w", ErrAlreadyRunning)
+	if b.Status == StatusDoing {
+		return nil, fmt.Errorf("build.Canceler: %w", ErrAlreadyDoing)
 	}
-	if strings.Split(string(b.Status), ".")[0] == "done" {
+	if b.Status == StatusDone {
 		return nil, fmt.Errorf("build.Canceler: %w", ErrAlreadyDone)
 	}
 
-	b, err = updateBuildStatus(ctx, tx, params.ID, StatusCanceled)
+	b, err = updateStatus(ctx, tx, params.ID, StatusDone, ErrorCanceled)
 	if err != nil {
 		return nil, fmt.Errorf("build.Canceler: %w", err)
 	}
@@ -76,7 +83,7 @@ func (c *Canceler) Cancel(ctx context.Context, params *CancelerCancelParams) (*B
 	return b, nil
 }
 
-func getBuildForUpdate(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
+func getForUpdate(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 	query := `
 		SELECT id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
 		FROM builds
@@ -97,14 +104,14 @@ func getBuildForUpdate(ctx context.Context, db executor, id uuid.UUID) (*Build, 
 	return b, nil
 }
 
-func updateBuildStatus(ctx context.Context, db executor, id uuid.UUID, status Status) (*Build, error) {
+func updateStatus(ctx context.Context, db executor, id uuid.UUID, status Status, errorValue Error) (*Build, error) {
 	query := `
 		UPDATE builds
-		SET status = $1
-		WHERE id = $2
+		SET status = $2, error = $3
+		WHERE id = $1
 		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
 	`
-	args := []any{string(status), id}
+	args := []any{id, string(status), string(errorValue)}
 
 	rows, _ := db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)

@@ -122,13 +122,7 @@ var templateFuncs = template.FuncMap{
 		return t.In(loc).Format("2006-01-02 15:04")
 	},
 	"status": func(operation *build.Build) string {
-		if operation.ExitCode == nil {
-			return "Queued"
-		}
-		if *operation.ExitCode == 0 {
-			return "Completed"
-		}
-		return "Failed"
+		return "..."
 	},
 	"jsonObject": func(args ...any) (string, error) {
 		o := make(map[string]any)
@@ -223,7 +217,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 			w.WriteHeader(http.StatusUnprocessableEntity)
 		}
 
-		var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
+		var files iter.Seq2[*build.CreatorCreateFileParams, error] = func(yield func(*build.CreatorCreateFileParams, error) bool) {
 			for fileIndex := 0; ; fileIndex++ {
 				namePart, err := nextPart()
 				if err != nil {
@@ -247,7 +241,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 				nameOrContentPart, err := peekPart()
 				if err == nil {
 					if nameOrContentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
-						file := &build.File{Name: name, Data: bytes.NewReader(nil)}
+						file := &build.CreatorCreateFileParams{Name: name, DataReader: bytes.NewReader(nil)}
 						_ = yield(file, nil)
 						continue
 					}
@@ -255,7 +249,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 				contentPart, err := nextPart()
 				if err != nil {
 					if errors.Is(err, io.EOF) {
-						file := &build.File{Name: name, Data: bytes.NewReader(nil)}
+						file := &build.CreatorCreateFileParams{Name: name, DataReader: bytes.NewReader(nil)}
 						_ = yield(file, nil)
 						return
 					}
@@ -263,7 +257,7 @@ func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, co
 					return
 				}
 
-				file := &build.File{Name: name, Data: contentPart}
+				file := &build.CreatorCreateFileParams{Name: name, DataReader: contentPart}
 				if !yield(file, nil) {
 					return
 				}

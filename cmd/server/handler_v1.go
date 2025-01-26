@@ -141,7 +141,7 @@ func (h *Handler) BuildOutputFile(w http.ResponseWriter, r *http.Request) {
 
 	buf := new(bytes.Buffer) // TODO: Avoid loading entire output file into memory.
 	getter := &build.Getter{DB: h.db, S3: h.s3}
-	err = getter.GetOutputFile(r.Context(), buf, &build.GetterGetParams{
+	err = getter.CopyOutputData(r.Context(), buf, &build.GetterGetParams{
 		ID:     id,
 		UserID: userID,
 	})
@@ -189,7 +189,7 @@ func (h *Handler) BuildLog(w http.ResponseWriter, r *http.Request) {
 
 	buf := new(bytes.Buffer) // TODO: Avoid loading entire output file into memory.
 	getter := &build.Getter{DB: h.db, S3: h.s3}
-	err = getter.GetLogFile(r.Context(), buf, &build.GetterGetParams{
+	err = getter.CopyLogData(r.Context(), buf, &build.GetterGetParams{
 		ID:     id,
 		UserID: userID,
 	})
@@ -282,7 +282,7 @@ func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Form value files/*.
-	var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
+	var files iter.Seq2[*build.CreatorCreateFileParams, error] = func(yield func(*build.CreatorCreateFileParams, error) bool) {
 		for fileIndex := 0; ; fileIndex++ {
 			namePart, err := nextPart()
 			if err != nil {
@@ -306,7 +306,7 @@ func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 			nameOrContentPart, err := peekPart()
 			if err == nil {
 				if nameOrContentPart.FormName() != fmt.Sprintf("files/%d/content", fileIndex) {
-					file := &build.File{Name: name, Data: bytes.NewReader(nil)}
+					file := &build.CreatorCreateFileParams{Name: name, DataReader: bytes.NewReader(nil)}
 					_ = yield(file, nil)
 					continue
 				}
@@ -314,7 +314,7 @@ func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 			contentPart, err := nextPart()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					file := &build.File{Name: name, Data: bytes.NewReader(nil)}
+					file := &build.CreatorCreateFileParams{Name: name, DataReader: bytes.NewReader(nil)}
 					_ = yield(file, nil)
 					return
 				}
@@ -322,7 +322,7 @@ func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			file := &build.File{Name: name, Data: contentPart}
+			file := &build.CreatorCreateFileParams{Name: name, DataReader: contentPart}
 			if !yield(file, nil) {
 				return
 			}
