@@ -4,22 +4,28 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS builds (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
     idempotency_key uuid NOT NULL,
     user_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    output_file_key text, -- NULL when inserted, then updated to be non-NULL
-    log_file_key text, -- NULL when inserted, then updated to be non-NULL
-    exit_code integer,
+    
     status text NOT NULL,
+    error text,
+    exit_code int,
+    log_data_key text NOT NULL,
+    output_data_key text NOT NULL,
+
     PRIMARY KEY (id)
 );
 CREATE UNIQUE INDEX builds_idempotency_key_idx ON builds (idempotency_key);
 
-CREATE TABLE IF NOT EXISTS build_input_files (
+CREATE TABLE IF NOT EXISTS build_files (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     build_id uuid NOT NULL,
+
     name text NOT NULL,
-    content_key text, -- NULL when inserted, then updated to be non-NULL
+    type text NOT NULL,
+    data_key text NOT NULL,
+
     PRIMARY KEY (id),
     FOREIGN KEY (build_id) REFERENCES builds (id)
 );

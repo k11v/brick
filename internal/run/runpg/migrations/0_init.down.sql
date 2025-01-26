@@ -4,7 +4,7 @@ DROP TABLE IF EXISTS revoked_tokens;
 
 DROP TABLE IF EXISTS user_locks;
 
-DROP TABLE IF EXISTS build_input_files;
+DROP TABLE IF EXISTS build_files;
 
 DROP TABLE IF EXISTS builds;
 

@@ -109,7 +109,7 @@ func updateStatus(ctx context.Context, db executor, id uuid.UUID, status Status,
 		UPDATE builds
 		SET status = $2, error = $3
 		WHERE id = $1
-		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
+		RETURNING id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 	`
 	args := []any{id, string(status), string(errorValue)}
 

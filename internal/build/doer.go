@@ -553,7 +553,7 @@ func (r *Doer) Do(ctx context.Context, params *DoerDoParams) (*Build, error) {
 
 func getBuild(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 	query := `
-		SELECT id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
+		SELECT id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 		FROM builds
 		WHERE id = $1
 	`
@@ -573,8 +573,8 @@ func getBuild(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 
 func getFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]*File, error) {
 	query := `
-		SELECT id, build_id, name, content_key
-		FROM build_input_files
+		SELECT id, build_id, name, type, data_key
+		FROM build_files
 		WHERE build_id = $1
 		ORDER BY name, build_id
 	`
@@ -626,11 +626,11 @@ func (writerAt fakeWriterAt) WriteAt(p []byte, _ int64) (n int, err error) {
 func updateExitCode(ctx context.Context, db executor, id uuid.UUID, exitCode int) (*Build, error) {
 	query := `
 		UPDATE builds
-		SET exit_code = $1
-		WHERE id = $2
-		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
+		SET exit_code = $2
+		WHERE id = $1
+		RETURNING id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 	`
-	args := []any{exitCode, id}
+	args := []any{id, exitCode}
 
 	rows, _ := db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
