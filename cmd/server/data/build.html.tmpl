@@ -69,6 +69,7 @@
           hx-post="/build_mainFromBuildButtonClick"
           hx-encoding="multipart/form-data"
           hx-include="#build_documentData"
+          hx-headers="{{json "X-Idempotency-Key" uuid}}"
         >
           Build
         </button>
