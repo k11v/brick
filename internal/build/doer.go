@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"path"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -36,59 +35,58 @@ func (e *ExitError) Error() string {
 	return fmt.Sprintf("exit code is %d", e.ExitCode)
 }
 
-type Runner struct {
+type Doer struct {
 	DB *pgxpool.Pool // required
 	S3 *s3.Client    // required
 }
 
-type RunnerRunParams struct {
+type DoerDoParams struct {
 	ID uuid.UUID
 }
 
-func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, error) {
+func (r *Doer) Do(ctx context.Context, params *DoerDoParams) (*Build, error) {
 	tx, err := r.DB.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
 	}()
 
-	// Get build for status update to running.
-	b, err := getBuildForUpdate(ctx, r.DB, params.ID)
+	// Get build for status update to doing.
+	b, err := getForUpdate(ctx, r.DB, params.ID)
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
-	// If build is running, return.
-	if strings.Split(string(b.Status), ".")[0] == "running" {
-		return nil, fmt.Errorf("build.Runner: %w", ErrAlreadyRunning)
+	// If build is being done, return.
+	if b.Status == StatusDoing {
+		return nil, fmt.Errorf("build.Doer: %w", ErrAlreadyDoing)
 	}
 
 	// If build is done, return.
-	if strings.Split(string(b.Status), ".")[0] == "done" {
-		return nil, fmt.Errorf("build.Runner: %w", ErrAlreadyDone)
+	if b.Status == StatusDone {
+		return nil, fmt.Errorf("build.Doer: %w", ErrAlreadyDone)
 	}
 
-	// Update build status to running.
-	b, err = updateBuildStatus(ctx, tx, params.ID, StatusRunning)
+	// Update build status to doing.
+	b, err = updateStatus(ctx, tx, params.ID, StatusDoing, "")
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
-	// Get build input files.
-	buildInputFiles, err := getBuildInputFiles(ctx, r.DB, b.ID)
+	// Get build files.
+	files, err := getFiles(ctx, r.DB, b.ID)
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
 	// Prepare reader with input tar.
-	// TODO: Implement real inputTarReader.
 	inputTarReader, inputTarWriter := io.Pipe()
 	defer inputTarReader.Close()
 	inputTarErrCh := make(chan error, 1)
@@ -110,7 +108,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		}()
 		dirExist := make(map[string]struct{})
 
-		for _, buildInputFile := range buildInputFiles {
+		for _, buildInputFile := range files {
 			dir := buildInputFile.Name
 			for {
 				nextDir := path.Dir(dir)
@@ -134,7 +132,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}
 
 			var buf bytes.Buffer
-			err = downloadFileContent(ctx, r.S3, &buf, *buildInputFile.ContentKey)
+			err = downloadData(ctx, r.S3, &buf, buildInputFile.DataKey)
 			if err != nil {
 				inputTarErrCh <- err
 				return
@@ -157,7 +155,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		}
 	}()
 
-	// Run.
+	// Do.
 	err = func() error {
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
@@ -178,7 +176,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		}()
 		go func() {
 			defer close(uploadLogDone)
-			err := uploadFileContent(ctx, r.S3, *b.LogFileKey, logReader)
+			err := uploadFileData(ctx, r.S3, b.LogDataKey, logReader)
 			if err != nil {
 				_ = logReader.CloseWithError(err) // TODO: Check if used correctly.
 				return
@@ -486,7 +484,7 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 			}()
 			go func() {
 				defer close(uploadOutputFileDone)
-				err := uploadFileContent(ctx, r.S3, *b.OutputFileKey, outputFileReader)
+				err := uploadFileData(ctx, r.S3, b.OutputDataKey, outputFileReader)
 				if err != nil {
 					_ = outputFileReader.CloseWithError(err) // TODO: Check if used correctly.
 					return
@@ -526,30 +524,28 @@ func (r *Runner) Run(ctx context.Context, params *RunnerRunParams) (*Build, erro
 		err = nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
 	err = <-inputTarErrCh
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
 	// Update build exit code.
-	b, err = updateBuildExitCode(ctx, r.DB, b.ID, exitCode)
+	b, err = updateExitCode(ctx, r.DB, b.ID, exitCode)
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
 	// Update build status to done.
-	var doneStatus Status
-	if exitCode == 0 {
-		doneStatus = StatusSucceeded
-	} else {
-		doneStatus = StatusFailed
+	var errorValue Error
+	if exitCode != 0 {
+		errorValue = ErrorExitedWithNonZero
 	}
-	b, err = updateBuildStatus(ctx, r.DB, b.ID, doneStatus)
+	b, err = updateStatus(ctx, r.DB, b.ID, StatusDone, errorValue)
 	if err != nil {
-		return nil, fmt.Errorf("build.Runner: %w", err)
+		return nil, fmt.Errorf("build.Doer: %w", err)
 	}
 
 	return b, nil
@@ -575,7 +571,7 @@ func getBuild(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 	return b, nil
 }
 
-func getBuildInputFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]*InputFile, error) {
+func getFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]*File, error) {
 	query := `
 		SELECT id, build_id, name, content_key
 		FROM build_input_files
@@ -585,7 +581,7 @@ func getBuildInputFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]
 	args := []any{buildID}
 
 	rows, _ := db.Query(ctx, query, args...)
-	files, err := pgx.CollectRows(rows, rowToBuildInputFile)
+	files, err := pgx.CollectRows(rows, rowToFile)
 	if err != nil {
 		return nil, err
 	}
@@ -597,7 +593,7 @@ func getBuildInputFiles(ctx context.Context, db executor, buildID uuid.UUID) ([]
 // See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
 const downloadPartSize = 10 * 1024 * 1024 // 10MB
 
-func downloadFileContent(ctx context.Context, s3Client *s3.Client, w io.Writer, key string) error {
+func downloadData(ctx context.Context, s3Client *s3.Client, w io.Writer, key string) error {
 	downloader := manager.NewDownloader(s3Client, func(d *manager.Downloader) {
 		d.PartSize = int64(downloadPartSize)
 		d.Concurrency = 1
@@ -627,7 +623,7 @@ func (writerAt fakeWriterAt) WriteAt(p []byte, _ int64) (n int, err error) {
 	return writerAt.w.Write(p)
 }
 
-func updateBuildExitCode(ctx context.Context, db executor, id uuid.UUID, exitCode int) (*Build, error) {
+func updateExitCode(ctx context.Context, db executor, id uuid.UUID, exitCode int) (*Build, error) {
 	query := `
 		UPDATE builds
 		SET exit_code = $1

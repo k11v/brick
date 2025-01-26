@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
@@ -13,9 +12,9 @@ import (
 )
 
 var (
-	ErrAccessDenied = errors.New("access denied")
-	ErrNotDone      = errors.New("not done")
-	ErrNotSucceeded = errors.New("not succeeded")
+	ErrAccessDenied  = errors.New("access denied")
+	ErrNotDone       = errors.New("not done")
+	ErrDoneWithError = errors.New("done with error")
 )
 
 type Getter struct {
@@ -39,42 +38,45 @@ func (g *Getter) Get(ctx context.Context, params *GetterGetParams) (*Build, erro
 	return b, nil
 }
 
-func (g *Getter) GetInputFiles(ctx context.Context, params *GetterGetParams) ([]*InputFile, error) {
+func (g *Getter) GetFiles(ctx context.Context, params *GetterGetParams) ([]*File, error) {
 	b, err := g.Get(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	inputFiles, err := getBuildInputFiles(ctx, g.DB, b.ID)
+	files, err := getFiles(ctx, g.DB, b.ID)
 	if err != nil {
 		return nil, fmt.Errorf("build.Getter: %w", err)
 	}
-	return inputFiles, nil
+	return files, nil
 }
 
-func (g *Getter) GetOutputFile(ctx context.Context, w io.Writer, params *GetterGetParams) error {
+func (g *Getter) CopyOutputData(ctx context.Context, w io.Writer, params *GetterGetParams) error {
 	b, err := g.Get(ctx, params)
 	if err != nil {
 		return err
 	}
-	if b.Status != StatusSucceeded {
-		return fmt.Errorf("build.Getter: %w", ErrNotSucceeded)
+	if b.Status != StatusDone {
+		return fmt.Errorf("build.Getter: %w", ErrNotDone)
 	}
-	err = downloadFileContent(ctx, g.S3, w, *b.OutputFileKey)
+	if b.Error != "" {
+		return fmt.Errorf("build.Getter: %w", ErrDoneWithError)
+	}
+	err = downloadData(ctx, g.S3, w, b.OutputDataKey)
 	if err != nil {
 		return fmt.Errorf("build.Getter: %w", err)
 	}
 	return nil
 }
 
-func (g *Getter) GetLogFile(ctx context.Context, w io.Writer, params *GetterGetParams) error {
+func (g *Getter) CopyLogData(ctx context.Context, w io.Writer, params *GetterGetParams) error {
 	b, err := g.Get(ctx, params)
 	if err != nil {
 		return err
 	}
-	if strings.Split(string(b.Status), ".")[0] != "done" {
+	if b.Status != StatusDone {
 		return fmt.Errorf("build.Getter: %w", ErrNotDone)
 	}
-	err = downloadFileContent(ctx, g.S3, w, *b.LogFileKey)
+	err = downloadData(ctx, g.S3, w, b.LogDataKey)
 	if err != nil {
 		return fmt.Errorf("build.Getter: %w", err)
 	}

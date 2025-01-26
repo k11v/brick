@@ -25,6 +25,11 @@ import (
 	"github.com/k11v/brick/internal/build"
 )
 
+type fileWithoutData struct {
+	Name string
+	Type string
+}
+
 type ExecuteErrorParams struct {
 	StatusCode int
 }
@@ -209,7 +214,7 @@ func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}
 
-	files := make([]*build.FileWithoutData, 0)
+	files := make([]*fileWithoutData, 0)
 
 FileLoop:
 	for i := 0; ; i++ {
@@ -260,7 +265,7 @@ FileLoop:
 			}
 		}
 
-		file := &build.FileWithoutData{
+		file := &fileWithoutData{
 			Name: name,
 			Type: typ,
 		}
@@ -338,7 +343,7 @@ FileLoop:
 
 type ExecuteMainParams struct {
 	Build *build.Build
-	Files []*build.InputFile
+	Files []*build.File
 }
 
 // MainFromBuildButtonClick.
@@ -402,13 +407,13 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 		return nil
 	}
 
-	var files iter.Seq2[*build.File, error] = func(yield func(*build.File, error) bool) {
+	var files iter.Seq2[*build.CreatorCreateFileParams, error] = func(yield func(*build.CreatorCreateFileParams, error) bool) {
 	FileLoop:
 		for i := 0; ; i++ {
 			var (
-				name string
-				typ  string
-				data io.Reader
+				name      string
+				typString string
+				data      io.Reader
 			)
 
 		PartLoop:
@@ -439,7 +444,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 						_ = yield(nil, fmt.Errorf("%s form value: %w", formName, err))
 						return
 					}
-					typ = string(valueBytes)
+					typString = string(valueBytes)
 				// Form value files/*/data.
 				case formName == fmt.Sprintf("files/%d/data", i):
 					data = part
@@ -457,10 +462,17 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 				}
 			}
 
-			file := &build.File{
-				Name: name,
-				Type: typ,
-				Data: data,
+			typ, known := build.ParseFileType(typString)
+			if !known {
+				formName := fmt.Sprintf("files/%d/type", i)
+				_ = yield(nil, fmt.Errorf("%s form value unknown", formName))
+				return
+			}
+
+			file := &build.CreatorCreateFileParams{
+				Name:       name,
+				Type:       typ,
+				DataReader: data,
 			}
 			if !yield(file, nil) {
 				return
@@ -480,7 +492,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 	}
 
 	getter := &build.Getter{DB: h.db, S3: h.s3}
-	gotFiles, err := getter.GetInputFiles(ctx, &build.GetterGetParams{
+	gotFiles, err := getter.GetFiles(ctx, &build.GetterGetParams{
 		ID:     createdBuild.ID,
 		UserID: userID,
 	})
