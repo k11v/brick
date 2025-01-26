@@ -34,14 +34,14 @@ var (
 type Build struct {
 	ID             uuid.UUID
 	CreatedAt      time.Time
-	ExitCode       int
 	IdempotencyKey uuid.UUID
-	LogDataKey     string
-	OutputDataKey  string
 	UserID         uuid.UUID
 
-	Status Status
-	Error  Error
+	Status        Status
+	Error         Error
+	ExitCode      int
+	LogDataKey    string
+	OutputDataKey string
 }
 
 type Error string
@@ -64,6 +64,7 @@ func ParseError(s string) (errorValue Error, known bool) {
 type File struct {
 	ID      uuid.UUID
 	BuildID uuid.UUID
+
 	Name    string
 	Type    FileType
 	DataKey string
@@ -135,16 +136,16 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 	}
 
 	// Create build.
-	b, err := createBuild(ctx, tx, params.IdempotencyKey, params.UserID)
+	b, err := createBuild(ctx, tx, params.IdempotencyKey, params.UserID, "", "")
 	if err != nil {
 		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
 
 	// Create object storage keys for output and log files.
 	buildDirKey := fmt.Sprintf("builds/%s", b.ID)
-	outputFileKey := path.Join(buildDirKey, "output.pdf")
-	logFileKey := path.Join(buildDirKey, "log")
-	b, err = updateDataKeys(ctx, tx, b.ID, outputFileKey, logFileKey)
+	logDataKey := path.Join(buildDirKey, "log")
+	outputDataKey := path.Join(buildDirKey, "output.pdf")
+	b, err = updateDataKeys(ctx, tx, b.ID, logDataKey, outputDataKey)
 	if err != nil {
 		return nil, fmt.Errorf("build.Creator: %w", err)
 	}
@@ -158,19 +159,19 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 			slog.Error("range params.Files", "err", err)
 			panic("unimplemented")
 		}
-		buildInputFile, err := createFile(ctx, tx, b.ID, file.Name)
+		buildInputFile, err := createFile(ctx, tx, b.ID, file.Name, file.Type, "")
 		if err != nil {
 			slog.Error("createBuildInputFile", "err", err)
 			panic("unimplemented")
 		}
-		contentKey := path.Join(inputDirKey, buildInputFile.ID.String())
-		buildInputFile, err = updateFileDataKey(ctx, tx, buildInputFile.ID, contentKey)
+		dataKey := path.Join(inputDirKey, buildInputFile.ID.String())
+		buildInputFile, err = updateFileDataKey(ctx, tx, buildInputFile.ID, dataKey)
 		if err != nil {
 			slog.Error("updateBuildInputFileKey", "err", err)
 			panic("unimplemented")
 		}
 		_ = buildInputFile
-		err = uploadFileData(ctx, c.S3, contentKey, file.DataReader)
+		err = uploadFileData(ctx, c.S3, dataKey, file.DataReader)
 		if err != nil {
 			slog.Error("uploadFileContent", "err", err)
 			panic("unimplemented")
@@ -241,13 +242,13 @@ func count(ctx context.Context, db executor, userID uuid.UUID, startTime, endTim
 	return c, nil
 }
 
-func createBuild(ctx context.Context, db executor, idempotencyKey uuid.UUID, userID uuid.UUID) (*Build, error) {
+func createBuild(ctx context.Context, db executor, idempotencyKey uuid.UUID, userID uuid.UUID, logDataKey string, outputDataKey string) (*Build, error) {
 	query := `
-		INSERT INTO builds (idempotency_key, user_id, status)
-		VALUES ($1, $2, $3)
-		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
+		INSERT INTO builds (idempotency_key, user_id, status, log_data_key, output_data_key)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 	`
-	args := []any{idempotencyKey, userID, string(StatusTodo)}
+	args := []any{idempotencyKey, userID, string(StatusTodo), logDataKey, outputDataKey}
 
 	// TODO: Study pgconn.PgError.ColumnName.
 	rows, _ := db.Query(ctx, query, args...)
@@ -262,14 +263,14 @@ func createBuild(ctx context.Context, db executor, idempotencyKey uuid.UUID, use
 	return b, nil
 }
 
-func updateDataKeys(ctx context.Context, db executor, id uuid.UUID, outputFileKey string, logFileKey string) (*Build, error) {
+func updateDataKeys(ctx context.Context, db executor, id uuid.UUID, logDataKey string, outputDataKey string) (*Build, error) {
 	query := `
 		UPDATE builds
-		SET output_file_key = $1, log_file_key = $2
-		WHERE id = $3
-		RETURNING id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
+		SET log_file_key = $2, output_file_key = $3
+		WHERE id = $1
+		RETURNING id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 	`
-	args := []any{outputFileKey, logFileKey, id}
+	args := []any{id, outputDataKey, logDataKey}
 
 	rows, _ := db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)
@@ -280,13 +281,13 @@ func updateDataKeys(ctx context.Context, db executor, id uuid.UUID, outputFileKe
 	return b, nil
 }
 
-func createFile(ctx context.Context, db executor, buildID uuid.UUID, name string) (*File, error) {
+func createFile(ctx context.Context, db executor, buildID uuid.UUID, name string, typ FileType, dataKey string) (*File, error) {
 	query := `
-		INSERT INTO build_input_files (build_id, name)
-		VALUES ($1, $2)
-		RETURNING id, build_id, name, content_key
+		INSERT INTO build_files (build_id, name, type, data_key)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, build_id, name, type, data_key
 	`
-	args := []any{buildID, name}
+	args := []any{buildID, name, string(typ), dataKey}
 
 	rows, _ := db.Query(ctx, query, args...)
 	f, err := pgx.CollectExactlyOneRow(rows, rowToFile)
@@ -297,14 +298,14 @@ func createFile(ctx context.Context, db executor, buildID uuid.UUID, name string
 	return f, nil
 }
 
-func updateFileDataKey(ctx context.Context, db executor, id uuid.UUID, contentKey string) (*File, error) {
+func updateFileDataKey(ctx context.Context, db executor, id uuid.UUID, dataKey string) (*File, error) {
 	query := `
-		UPDATE build_input_files
-		SET content_key = $1
-		WHERE id = $2
-		RETURNING id, build_id, name, content_key
+		UPDATE build_files
+		SET data_key = $2
+		WHERE id = $1
+		RETURNING id, build_id, name, type, data_key
 	`
-	args := []any{contentKey, id}
+	args := []any{id, dataKey}
 
 	rows, _ := db.Query(ctx, query, args...)
 	f, err := pgx.CollectExactlyOneRow(rows, rowToFile)
@@ -319,7 +320,7 @@ func updateFileDataKey(ctx context.Context, db executor, id uuid.UUID, contentKe
 // See github.com/aws/aws-sdk-go-v2/feature/s3/manager.
 const uploadPartSize = 10 * 1024 * 1024 // 10MB
 
-func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, content io.Reader) error {
+func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.Reader) error {
 	uploader := manager.NewUploader(s3Client, func(u *manager.Uploader) {
 		u.PartSize = uploadPartSize
 	})
@@ -327,7 +328,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, conten
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: &runs3.BucketName,
 		Key:    &key,
-		Body:   content,
+		Body:   r,
 	})
 	if err != nil {
 		if apiErr := smithy.APIError(nil); errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
@@ -351,27 +352,27 @@ func sendCreated(ctx context.Context, mq *amqp091.Connection, b *Build) error {
 	type message struct {
 		ID             uuid.UUID `json:"id"`
 		CreatedAt      time.Time `json:"created_at"`
-		ExitCode       int       `json:"exit_code"`
 		IdempotencyKey uuid.UUID `json:"idempotency_key"`
-		LogDataKey     string    `json:"log_data_key"`
-		OutputDataKey  string    `json:"output_data_key"`
 		UserID         uuid.UUID `json:"user_id"`
 
-		Status string `json:"status"`
-		Error  string `json:"error"`
+		Status        string `json:"status"`
+		Error         string `json:"error"`
+		ExitCode      int    `json:"exit_code"`
+		LogDataKey    string `json:"log_data_key"`
+		OutputDataKey string `json:"output_data_key"`
 	}
 
 	msg := message{
 		ID:             b.ID,
 		CreatedAt:      b.CreatedAt,
-		ExitCode:       b.ExitCode,
 		IdempotencyKey: b.IdempotencyKey,
-		LogDataKey:     b.LogDataKey,
-		OutputDataKey:  b.OutputDataKey,
 		UserID:         b.UserID,
 
-		Status: string(b.Status),
-		Error:  string(b.Error),
+		Status:        string(b.Status),
+		Error:         string(b.Error),
+		ExitCode:      b.ExitCode,
+		LogDataKey:    b.LogDataKey,
+		OutputDataKey: b.OutputDataKey,
 	}
 	msgBuf := new(bytes.Buffer)
 	if err := json.NewEncoder(msgBuf).Encode(msg); err != nil {
@@ -405,14 +406,14 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 	type row struct {
 		ID             uuid.UUID `db:"id"`
 		CreatedAt      time.Time `db:"created_at"`
-		ExitCode       int       `db:"exit_code"`
 		IdempotencyKey uuid.UUID `db:"idempotency_key"`
-		LogDataKey     string    `db:"log_data_key"`
-		OutputDataKey  string    `db:"output_data_key"`
 		UserID         uuid.UUID `db:"user_id"`
 
-		Status string `db:"status"`
-		Error  string `db:"error"`
+		Status        string `db:"status"`
+		Error         string `db:"error"`
+		ExitCode      int    `db:"exit_code"`
+		LogDataKey    string `db:"log_data_key"`
+		OutputDataKey string `db:"output_data_key"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
@@ -435,14 +436,14 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 	return &Build{
 		ID:             collectedRow.ID,
 		CreatedAt:      collectedRow.CreatedAt,
-		ExitCode:       collectedRow.ExitCode,
 		IdempotencyKey: collectedRow.IdempotencyKey,
-		LogDataKey:     collectedRow.LogDataKey,
-		OutputDataKey:  collectedRow.OutputDataKey,
 		UserID:         collectedRow.UserID,
 
-		Status: status,
-		Error:  errorValue,
+		Status:        status,
+		Error:         errorValue,
+		ExitCode:      collectedRow.ExitCode,
+		LogDataKey:    collectedRow.LogDataKey,
+		OutputDataKey: collectedRow.OutputDataKey,
 	}, nil
 }
 
@@ -450,9 +451,10 @@ func rowToFile(collectableRow pgx.CollectableRow) (*File, error) {
 	type row struct {
 		ID      uuid.UUID `db:"id"`
 		BuildID uuid.UUID `db:"build_id"`
-		Name    string    `db:"name"`
-		Type    string    `db:"type"`
-		DataKey string    `db:"data_key"`
+
+		Name    string `db:"name"`
+		Type    string `db:"type"`
+		DataKey string `db:"data_key"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
@@ -461,12 +463,13 @@ func rowToFile(collectableRow pgx.CollectableRow) (*File, error) {
 
 	typ, known := ParseFileType(collectedRow.Type)
 	if !known {
-		slog.Warn("file type unknown", "file_type", typ)
+		slog.Warn("unknown file type", "file_type", typ)
 	}
 
 	f := &File{
 		ID:      collectedRow.ID,
 		BuildID: collectedRow.BuildID,
+
 		Name:    collectedRow.Name,
 		Type:    typ,
 		DataKey: collectedRow.DataKey,
