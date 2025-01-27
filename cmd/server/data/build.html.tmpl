@@ -74,6 +74,7 @@
           Build
         </button>
         <button
+          id="build_clearButton"
           class="rounded-lg border-2 border-stone-200 bg-white px-5 py-2.5 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
           type="button"
         >
@@ -248,18 +249,19 @@
       window.htmx.trigger(event.target, "app_script");
     });
 
-    // build_filesChooseButton.
-    let filesInputButton = document.getElementById("build_filesChooseButton");
-    if (filesInputButton === null) {
-      throw new Error("#build_filesChooseButton not found");
+    // build_clearButton.
+    let clearButton = document.getElementById("build_clearButton");
+    if (clearButton === null) {
+      throw new Error("#build_clearButton not found");
     }
-    filesInputButton.addEventListener("click", async function (event) {
+    clearButton.addEventListener("click", async function (event) {
       event.preventDefault();
       let filesChoose = document.getElementById("build_filesChoose");
       if (filesChoose === null) {
         throw new Error("#build_filesChoose not found");
       }
-      filesChoose.click();
+      filesChoose.files = fileListFromFiles([]);
+      filesChoose.dispatchEvent(new Event("change"));
     });
   </script>
 {{end}}
@@ -284,6 +286,21 @@
     </p>
     <p class="my-2.5 text-center">Tip: Folders can also be dropped here</p>
   </div>
+  <script type="module">
+    // build_filesChooseButton.
+    let filesInputButton = document.getElementById("build_filesChooseButton");
+    if (filesInputButton === null) {
+      throw new Error("#build_filesChooseButton not found");
+    }
+    filesInputButton.addEventListener("click", async function (event) {
+      event.preventDefault();
+      let filesChoose = document.getElementById("build_filesChoose");
+      if (filesChoose === null) {
+        throw new Error("#build_filesChoose not found");
+      }
+      filesChoose.click();
+    });
+  </script>
 {{end}}
 
 {{define "build_filesWithFiles"}}
