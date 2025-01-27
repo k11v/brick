@@ -54,7 +54,7 @@ func TreeFilesFromListFiles(listFiles []*ListFile) ([]*TreeFile, error) {
 	return treeFiles["/"].Children, nil
 }
 
-type ExecuteDocumentParams struct {
+type ExecuteFilesParams struct {
 	TreeFiles []*TreeFile
 }
 
@@ -163,7 +163,7 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comp, err := h.execute("build_document", &ExecuteDocumentParams{TreeFiles: treeFiles})
+	comp, err := h.execute("build_files", &ExecuteFilesParams{TreeFiles: treeFiles})
 	if err != nil {
 		h.serveError(w, r, err)
 		return
