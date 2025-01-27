@@ -147,12 +147,14 @@
     }
 
     /**
-     * @param {File} f
+     * @param {File[]} files
      * @returns {FileList}
      */
-    function fileListFromFile(f) {
+    function fileListFromFiles(files) {
       let dataTransfer = new DataTransfer();
-      dataTransfer.items.add(f);
+      for (let file of files) {
+        dataTransfer.items.add(file);
+      }
       return dataTransfer.files;
     }
 
@@ -192,7 +194,7 @@
           dataInput.classList.add("build_filesDataFileData");
           dataInput.type = "file";
           dataInput.name = `files/${i}/data`;
-          dataInput.files = fileListFromFile(await file(entry));
+          dataInput.files = fileListFromFiles([await file(entry)]);
           inputs.push(dataInput);
         }
       }
@@ -207,11 +209,11 @@
     });
 
     // build_filesChoose.
-    let documentChoose = document.getElementById("build_filesChoose");
-    if (documentChoose === null) {
+    let filesChoose = document.getElementById("build_filesChoose");
+    if (filesChoose === null) {
       throw new Error("#build_filesChoose not found");
     }
-    documentChoose.addEventListener("change", async function (event) {
+    filesChoose.addEventListener("change", async function (event) {
       event.preventDefault();
 
       let inputs = [];
@@ -233,7 +235,7 @@
         dataInput.classList.add("build_filesDataFileData");
         dataInput.type = "file";
         dataInput.name = `files/${i}/data`;
-        dataInput.files = fileListFromFile(files[i]);
+        dataInput.files = fileListFromFiles([files[i]]);
         inputs.push(dataInput);
       }
 
@@ -247,19 +249,17 @@
     });
 
     // build_filesChooseButton.
-    let documentInputButton = document.getElementById(
-      "build_filesChooseButton",
-    );
-    if (documentInputButton === null) {
+    let filesInputButton = document.getElementById("build_filesChooseButton");
+    if (filesInputButton === null) {
       throw new Error("#build_filesChooseButton not found");
     }
-    documentInputButton.addEventListener("click", async function (event) {
+    filesInputButton.addEventListener("click", async function (event) {
       event.preventDefault();
-      let documentChoose = document.getElementById("build_filesChoose");
-      if (documentChoose === null) {
+      let filesChoose = document.getElementById("build_filesChoose");
+      if (filesChoose === null) {
         throw new Error("#build_filesChoose not found");
       }
-      documentChoose.click();
+      filesChoose.click();
     });
   </script>
 {{end}}
