@@ -89,21 +89,19 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	listFiles := make([]*ListFile, 0)
-	fileLoopStopped := false
 
-	for i := 0; !fileLoopStopped; i++ {
+	for i := 0; ; i++ {
 		var (
 			name      string
 			typString string
+			ok        bool
 		)
 
-	PartLoop:
 		for {
 			part, err := nextPart()
 			if err != nil {
 				if err == io.EOF {
-					fileLoopStopped = true
-					break PartLoop
+					break
 				}
 				h.serveError(w, r, fmt.Errorf("body: %w", err))
 				return
@@ -119,6 +117,7 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				name = string(valueBytes)
+				ok = true
 			// Form value files/*/type.
 			case formName == fmt.Sprintf("files/%d/type", i):
 				valueBytes, err := io.ReadAll(part)
@@ -127,17 +126,21 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				typString = string(valueBytes)
+				ok = true
 			case strings.HasPrefix(formName, fmt.Sprintf("files/%d/", i+1)):
 				err := unnextPart()
 				if err != nil {
 					h.serveError(w, r, err)
 					return
 				}
-				break PartLoop
+				break
 			default:
 				h.serveError(w, r, fmt.Errorf("%s form name unknown or misplaced", formName))
 				return
 			}
+		}
+		if !ok {
+			break
 		}
 
 		name = path.Join("/", name)
