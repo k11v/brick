@@ -89,9 +89,9 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	listFiles := make([]*ListFile, 0)
+	fileLoopStopped := false
 
-FileLoop:
-	for i := 0; ; i++ {
+	for i := 0; !fileLoopStopped; i++ {
 		var (
 			name      string
 			typString string
@@ -102,7 +102,8 @@ FileLoop:
 			part, err := nextPart()
 			if err != nil {
 				if err == io.EOF {
-					break FileLoop
+					fileLoopStopped = true
+					break PartLoop
 				}
 				h.serveError(w, r, fmt.Errorf("body: %w", err))
 				return
