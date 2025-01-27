@@ -81,8 +81,9 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 	}
 
 	var files iter.Seq2[*build.CreatorCreateFileParams, error] = func(yield func(*build.CreatorCreateFileParams, error) bool) {
-	FileLoop:
-		for i := 0; ; i++ {
+		fileLoopStopped := false
+
+		for i := 0; !fileLoopStopped; i++ {
 			var (
 				name      string
 				typString string
@@ -94,7 +95,8 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 				part, err := nextPart()
 				if err != nil {
 					if err == io.EOF {
-						break FileLoop
+						fileLoopStopped = true
+						break PartLoop
 					}
 					_ = yield(nil, fmt.Errorf("body: %w", err))
 					return
