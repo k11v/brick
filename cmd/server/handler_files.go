@@ -140,6 +140,8 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		name = path.Join("/", name)
+
 		typ, known := build.ParseFileType(typString)
 		if !known {
 			formName := fmt.Sprintf("files/%d/type", i)
