@@ -630,14 +630,21 @@ func (writerAt fakeWriterAt) WriteAt(p []byte, _ int64) (n int, err error) {
 	return writerAt.w.Write(p)
 }
 
+// If exitCode is negative, updateExitCode sets it to NULL.
 func updateExitCode(ctx context.Context, db executor, id uuid.UUID, exitCode int) (*Build, error) {
+	var exitCodeArg *int
+	if exitCode >= 0 {
+		exitCodeArg = new(int)
+		*exitCodeArg = exitCode
+	}
+
 	query := `
 		UPDATE builds
 		SET exit_code = $2
 		WHERE id = $1
 		RETURNING id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 	`
-	args := []any{id, exitCode}
+	args := []any{id, exitCodeArg}
 
 	rows, _ := db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)

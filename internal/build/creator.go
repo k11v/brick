@@ -125,7 +125,7 @@ type CreatorCreateFileParams struct {
 func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Build, error) {
 	tx, err := c.DB.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build.Creator: %w", err)
+		return nil, fmt.Errorf("build.Creator: Begin: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
@@ -134,7 +134,7 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 	// Lock builds to get their count.
 	err = lockBuilds(ctx, tx, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("build.Creator: %w", err)
+		return nil, fmt.Errorf("build.Creator: lockBuilds: %w", err)
 	}
 
 	// Check daily quota.
@@ -142,7 +142,7 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 	todayEndTime := todayStartTime.Add(24 * time.Hour)
 	buildsUsed, err := count(ctx, tx, params.UserID, todayStartTime, todayEndTime)
 	if err != nil {
-		return nil, fmt.Errorf("build.Creator: %w", err)
+		return nil, fmt.Errorf("build.Creator: count: %w", err)
 	}
 	if buildsUsed >= c.BuildsAllowed {
 		err = ErrLimitExceeded
@@ -152,7 +152,7 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 	// Create build.
 	b, err := createBuild(ctx, tx, params.IdempotencyKey, params.UserID, "", "")
 	if err != nil {
-		return nil, fmt.Errorf("build.Creator: %w", err)
+		return nil, fmt.Errorf("build.Creator: createBuild: %w", err)
 	}
 
 	// Create object storage keys for output and log files.
@@ -161,7 +161,7 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 	outputDataKey := path.Join(buildDirKey, "output.pdf")
 	b, err = updateDataKeys(ctx, tx, b.ID, logDataKey, outputDataKey)
 	if err != nil {
-		return nil, fmt.Errorf("build.Creator: %w", err)
+		return nil, fmt.Errorf("build.Creator: updateDataKeys: %w", err)
 	}
 
 	// Create input files and upload their content to object storage.
@@ -178,17 +178,18 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 			slog.Error("createBuildInputFile", "err", err)
 			panic("unimplemented")
 		}
-		dataKey := path.Join(inputDirKey, buildInputFile.ID.String())
-		buildInputFile, err = updateFileDataKey(ctx, tx, buildInputFile.ID, dataKey)
-		if err != nil {
-			slog.Error("updateBuildInputFileKey", "err", err)
-			panic("unimplemented")
-		}
-		_ = buildInputFile
-		err = uploadFileData(ctx, c.STG, dataKey, file.DataReader)
-		if err != nil {
-			slog.Error("uploadFileContent", "err", err)
-			panic("unimplemented")
+		if file.Type == FileTypeRegular {
+			dataKey := path.Join(inputDirKey, buildInputFile.ID.String())
+			buildInputFile, err = updateFileDataKey(ctx, tx, buildInputFile.ID, dataKey)
+			if err != nil {
+				slog.Error("updateBuildInputFileKey", "err", err)
+				panic("unimplemented")
+			}
+			err = uploadFileData(ctx, c.STG, dataKey, file.DataReader)
+			if err != nil {
+				slog.Error("uploadFileContent", "err", err)
+				panic("unimplemented")
+			}
 		}
 	}
 	if filesLen == 0 {
@@ -280,7 +281,7 @@ func createBuild(ctx context.Context, db executor, idempotencyKey uuid.UUID, use
 func updateDataKeys(ctx context.Context, db executor, id uuid.UUID, logDataKey string, outputDataKey string) (*Build, error) {
 	query := `
 		UPDATE builds
-		SET log_file_key = $2, output_file_key = $3
+		SET log_data_key = $2, output_data_key = $3
 		WHERE id = $1
 		RETURNING id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 	`
@@ -412,11 +413,11 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 		IdempotencyKey uuid.UUID `db:"idempotency_key"`
 		UserID         uuid.UUID `db:"user_id"`
 
-		Status        string `db:"status"`
-		Error         string `db:"error"`
-		ExitCode      int    `db:"exit_code"`
-		LogDataKey    string `db:"log_data_key"`
-		OutputDataKey string `db:"output_data_key"`
+		Status        string  `db:"status"`
+		Error         *string `db:"error"`
+		ExitCode      *int    `db:"exit_code"`
+		LogDataKey    string  `db:"log_data_key"`
+		OutputDataKey string  `db:"output_data_key"`
 	}
 	collectedRow, err := pgx.RowToStructByName[row](collectableRow)
 	if err != nil {
@@ -429,11 +430,16 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 	}
 
 	var errorValue Error
-	if collectedRow.Error != "" {
-		errorValue, known = ParseError(collectedRow.Error)
+	if collectedRow.Error != nil {
+		errorValue, known = ParseError(*collectedRow.Error)
 		if !known {
 			slog.Warn("unknown error", "error", errorValue)
 		}
+	}
+
+	exitCode := -1
+	if collectedRow.ExitCode != nil {
+		exitCode = *collectedRow.ExitCode
 	}
 
 	return &Build{
@@ -444,7 +450,7 @@ func rowToBuild(collectableRow pgx.CollectableRow) (*Build, error) {
 
 		Status:        status,
 		Error:         errorValue,
-		ExitCode:      collectedRow.ExitCode,
+		ExitCode:      exitCode,
 		LogDataKey:    collectedRow.LogDataKey,
 		OutputDataKey: collectedRow.OutputDataKey,
 	}, nil

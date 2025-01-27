@@ -1,12 +1,12 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"mime/multipart"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/google/uuid"
@@ -16,7 +16,7 @@ import (
 
 type ExecuteMainParams struct {
 	Build *build.Build
-	Files []*build.File
+	Files *ExecuteFilesParams
 }
 
 // BuildButtonClickToMain.
@@ -72,22 +72,21 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 		bufEmpty = false
 		return bufPart, bufErr
 	}
-	unnextPart := func() error {
+	mustUnnextPart := func() {
 		if bufNext || bufEmpty {
-			return errors.New("unnextPart buf already next or empty")
+			panic("mustUnnextPart: buf already next or empty")
 		}
 		bufNext = true
-		return nil
 	}
 
-	var files iter.Seq2[*build.CreatorCreateFileParams, error] = func(yield func(*build.CreatorCreateFileParams, error) bool) {
-		fileLoopStopped := false
-
-		for i := 0; !fileLoopStopped; i++ {
+	var filesParams iter.Seq2[*build.CreatorCreateFileParams, error] = func(yield func(*build.CreatorCreateFileParams, error) bool) {
+	FileLoop:
+		for i := 0; ; i++ {
 			var (
-				name      string
-				typString string
-				data      io.Reader
+				name       string
+				typString  string
+				dataReader io.Reader
+				ok         bool
 			)
 
 		PartLoop:
@@ -95,10 +94,10 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 				part, err := nextPart()
 				if err != nil {
 					if err == io.EOF {
-						fileLoopStopped = true
+						mustUnnextPart()
 						break PartLoop
 					}
-					_ = yield(nil, fmt.Errorf("body: %w", err))
+					h.serveError(w, r, fmt.Errorf("body: %w", err))
 					return
 				}
 
@@ -108,46 +107,50 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 				case formName == fmt.Sprintf("files/%d/name", i):
 					valueBytes, err := io.ReadAll(part)
 					if err != nil {
-						_ = yield(nil, fmt.Errorf("%s form value: %w", formName, err))
+						h.serveError(w, r, fmt.Errorf("%s form value: %w", formName, err))
 						return
 					}
 					name = string(valueBytes)
+					ok = true
 				// Form value files/*/type.
 				case formName == fmt.Sprintf("files/%d/type", i):
 					valueBytes, err := io.ReadAll(part)
 					if err != nil {
-						_ = yield(nil, fmt.Errorf("%s form value: %w", formName, err))
+						h.serveError(w, r, fmt.Errorf("%s form value: %w", formName, err))
 						return
 					}
 					typString = string(valueBytes)
+					ok = true
 				// Form value files/*/data.
 				case formName == fmt.Sprintf("files/%d/data", i):
-					data = part
+					dataReader = part
+					ok = true
 					break PartLoop
 				case strings.HasPrefix(formName, fmt.Sprintf("files/%d/", i+1)):
-					err := unnextPart()
-					if err != nil {
-						_ = yield(nil, err)
-						return
-					}
+					mustUnnextPart()
 					break PartLoop
 				default:
-					_ = yield(nil, fmt.Errorf("%s form name unknown or misplaced", formName))
+					h.serveError(w, r, fmt.Errorf("%s form name unknown or misplaced", formName))
 					return
 				}
 			}
+			if !ok {
+				break FileLoop
+			}
+
+			name = path.Join("/", name)
 
 			typ, known := build.ParseFileType(typString)
 			if !known {
 				formName := fmt.Sprintf("files/%d/type", i)
-				_ = yield(nil, fmt.Errorf("%s form value unknown", formName))
+				h.serveError(w, r, fmt.Errorf("%s form value unknown", formName))
 				return
 			}
 
 			file := &build.CreatorCreateFileParams{
 				Name:       name,
 				Type:       typ,
-				DataReader: data,
+				DataReader: dataReader,
 			}
 			if !yield(file, nil) {
 				return
@@ -155,10 +158,10 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	creator := &build.Creator{DB: h.db, MQ: h.mq, STG: h.s3, BuildsAllowed: 10}
-	createdBuild, err := creator.Create(ctx, &build.CreatorCreateParams{
+	creator := build.NewCreator(h.db, h.mq, h.s3, &build.CreatorParams{BuildsAllowed: 10})
+	b, err := creator.Create(ctx, &build.CreatorCreateParams{
 		UserID:         userID,
-		Files:          files,
+		Files:          filesParams,
 		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
@@ -166,9 +169,9 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	getter := &build.Getter{DB: h.db, STG: h.s3}
-	gotFiles, err := getter.GetFiles(ctx, &build.GetterGetParams{
-		ID:     createdBuild.ID,
+	getter := build.NewGetter(h.db, h.s3)
+	files, err := getter.GetFiles(ctx, &build.GetterGetParams{
+		ID:     b.ID,
 		UserID: userID,
 	})
 	if err != nil {
@@ -176,9 +179,15 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	executeFilesParams, err := ExecuteFilesParamsFromFiles(files)
+	if err != nil {
+		h.serveError(w, r, err)
+		return
+	}
+
 	comp, err := h.execute("build_main", &ExecuteMainParams{
-		Build: createdBuild,
-		Files: gotFiles,
+		Build: b,
+		Files: executeFilesParams,
 	})
 	if err != nil {
 		h.serveError(w, r, err)
@@ -187,4 +196,16 @@ func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(comp)
+}
+
+func ExecuteFilesParamsFromFiles(files []*build.File) (*ExecuteFilesParams, error) {
+	listFiles := make([]*ListFile, 0)
+	for _, f := range files {
+		listFiles = append(listFiles, &ListFile{Name: f.Name, Type: f.Type})
+	}
+	treeFiles, err := TreeFilesFromListFiles(listFiles)
+	if err != nil {
+		return nil, err
+	}
+	return &ExecuteFilesParams{TreeFiles: treeFiles}, nil
 }
