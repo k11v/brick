@@ -85,7 +85,7 @@ func (c *Canceler) Cancel(ctx context.Context, params *CancelerCancelParams) (*B
 
 func getForUpdate(ctx context.Context, db executor, id uuid.UUID) (*Build, error) {
 	query := `
-		SELECT id, idempotency_key, user_id, created_at, output_file_key, log_file_key, exit_code, status
+		SELECT id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 		FROM builds
 		WHERE id = $1
 		FOR UPDATE
@@ -105,13 +105,19 @@ func getForUpdate(ctx context.Context, db executor, id uuid.UUID) (*Build, error
 }
 
 func updateStatus(ctx context.Context, db executor, id uuid.UUID, status Status, errorValue Error) (*Build, error) {
+	var errorArg *string
+	if errorValue != "" {
+		errorArg = new(string)
+		*errorArg = string(errorValue)
+	}
+
 	query := `
 		UPDATE builds
 		SET status = $2, error = $3
 		WHERE id = $1
 		RETURNING id, created_at, idempotency_key, user_id, status, error, exit_code, log_data_key, output_data_key
 	`
-	args := []any{id, string(status), string(errorValue)}
+	args := []any{id, string(status), errorArg}
 
 	rows, _ := db.Query(ctx, query, args...)
 	b, err := pgx.CollectExactlyOneRow(rows, rowToBuild)

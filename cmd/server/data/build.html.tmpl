@@ -45,7 +45,7 @@
           hx-trigger="app_script"
           hx-include="#build_filesData > :not(.build_filesDataFileData)"
         >
-          <div id="build_files">{{template "build_files"}}</div>
+          <div id="build_files">{{template "build_files" .Files}}</div>
         </div>
         <input
           id="build_filesChoose"
