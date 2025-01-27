@@ -79,7 +79,7 @@ func (h *Handler) BuildV1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	getter := &build.Getter{DB: h.db, S3: h.s3}
+	getter := &build.Getter{DB: h.db, STG: h.s3}
 	b, err := getter.Get(r.Context(), &build.GetterGetParams{
 		ID:     id,
 		UserID: userID,
@@ -140,7 +140,7 @@ func (h *Handler) BuildOutputFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	buf := new(bytes.Buffer) // TODO: Avoid loading entire output file into memory.
-	getter := &build.Getter{DB: h.db, S3: h.s3}
+	getter := &build.Getter{DB: h.db, STG: h.s3}
 	err = getter.CopyOutputData(r.Context(), buf, &build.GetterGetParams{
 		ID:     id,
 		UserID: userID,
@@ -188,7 +188,7 @@ func (h *Handler) BuildLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	buf := new(bytes.Buffer) // TODO: Avoid loading entire output file into memory.
-	getter := &build.Getter{DB: h.db, S3: h.s3}
+	getter := &build.Getter{DB: h.db, STG: h.s3}
 	err = getter.CopyLogData(r.Context(), buf, &build.GetterGetParams{
 		ID:     id,
 		UserID: userID,
@@ -329,7 +329,7 @@ func (h *Handler) BuildFromBuild(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	creator := &build.Creator{DB: h.db, MQ: h.mq, S3: h.s3, BuildsAllowed: 10}
+	creator := &build.Creator{DB: h.db, MQ: h.mq, STG: h.s3, BuildsAllowed: 10}
 	b, err := creator.Create(r.Context(), &build.CreatorCreateParams{
 		UserID:         userID,
 		Files:          files,
@@ -382,7 +382,7 @@ func (h *Handler) BuildFromCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	canceler := &build.Canceler{DB: h.db, S3: h.s3}
+	canceler := &build.Canceler{DB: h.db}
 	b, err := canceler.Cancel(r.Context(), &build.CancelerCancelParams{
 		ID:     id,
 		UserID: userID,

@@ -480,7 +480,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	creator := &build.Creator{DB: h.db, MQ: h.mq, S3: h.s3, BuildsAllowed: 10}
+	creator := &build.Creator{DB: h.db, MQ: h.mq, STG: h.s3, BuildsAllowed: 10}
 	createdBuild, err := creator.Create(ctx, &build.CreatorCreateParams{
 		UserID:         userID,
 		Files:          files,
@@ -491,7 +491,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	getter := &build.Getter{DB: h.db, S3: h.s3}
+	getter := &build.Getter{DB: h.db, STG: h.s3}
 	gotFiles, err := getter.GetFiles(ctx, &build.GetterGetParams{
 		ID:     createdBuild.ID,
 		UserID: userID,
