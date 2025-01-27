@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -80,12 +79,11 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 		bufEmpty = false
 		return bufPart, bufErr
 	}
-	unnextPart := func() error {
+	mustUnnextPart := func() {
 		if bufNext || bufEmpty {
-			return errors.New("unnextPart buf already next or empty")
+			panic("mustUnnextPart: buf already next or empty")
 		}
 		bufNext = true
-		return nil
 	}
 
 	listFiles := make([]*ListFile, 0)
@@ -103,11 +101,7 @@ FileLoop:
 			part, err := nextPart()
 			if err != nil {
 				if err == io.EOF {
-					err := unnextPart()
-					if err != nil {
-						h.serveError(w, r, err)
-						return
-					}
+					mustUnnextPart()
 					break PartLoop
 				}
 				h.serveError(w, r, fmt.Errorf("body: %w", err))
@@ -135,11 +129,7 @@ FileLoop:
 				typString = string(valueBytes)
 				ok = true
 			case strings.HasPrefix(formName, fmt.Sprintf("files/%d/", i+1)):
-				err := unnextPart()
-				if err != nil {
-					h.serveError(w, r, err)
-					return
-				}
+				mustUnnextPart()
 				break PartLoop
 			default:
 				h.serveError(w, r, fmt.Errorf("%s form name unknown or misplaced", formName))
