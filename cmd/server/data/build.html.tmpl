@@ -38,27 +38,27 @@
       </p>
       <div>
         <div
-          id="build_documentDragdrop"
-          hx-target="#build_document"
+          id="build_filesDragdrop"
+          hx-target="#build_files"
           hx-post="/build_filesChangeToFiles"
           hx-encoding="multipart/form-data"
           hx-trigger="app_script"
-          hx-include="#build_documentData > :not(.build_documentDataFileData)"
+          hx-include="#build_filesData > :not(.build_filesDataFileData)"
         >
-          <div id="build_document">{{template "build_document"}}</div>
+          <div id="build_files">{{template "build_files"}}</div>
         </div>
         <input
-          id="build_documentChoose"
+          id="build_filesChoose"
           class="hidden"
           type="file"
           multiple
-          hx-target="#build_document"
+          hx-target="#build_files"
           hx-post="/build_filesChangeToFiles"
           hx-encoding="multipart/form-data"
           hx-trigger="app_script"
-          hx-include="#build_documentData > :not(.build_documentDataFileData)"
+          hx-include="#build_filesData > :not(.build_filesDataFileData)"
         />
-        <div id="build_documentData" class="hidden"></div>
+        <div id="build_filesData" class="hidden"></div>
       </div>
       <div class="my-5 flex gap-x-2.5">
         <button
@@ -68,7 +68,7 @@
           hx-swap="outerHTML"
           hx-post="/build_buildButtonClickToMain"
           hx-encoding="multipart/form-data"
-          hx-include="#build_documentData"
+          hx-include="#build_filesData"
           hx-headers="{{json "X-Idempotency-Key" uuid}}"
         >
           Build
@@ -156,10 +156,10 @@
       return dataTransfer.files;
     }
 
-    // build_documentDragdrop.
-    let documentDragdrop = document.getElementById("build_documentDragdrop");
+    // build_filesDragdrop.
+    let documentDragdrop = document.getElementById("build_filesDragdrop");
     if (documentDragdrop === null) {
-      throw new Error("#build_documentDragdrop not found");
+      throw new Error("#build_filesDragdrop not found");
     }
     documentDragdrop.addEventListener("dragover", function (event) {
       event.preventDefault();
@@ -189,7 +189,7 @@
 
         if (entry.isFile) {
           let dataInput = document.createElement("input");
-          dataInput.classList.add("build_documentDataFileData");
+          dataInput.classList.add("build_filesDataFileData");
           dataInput.type = "file";
           dataInput.name = `files/${i}/data`;
           dataInput.files = fileListFromFile(await file(entry));
@@ -197,19 +197,19 @@
         }
       }
 
-      let documentFormDataEl = document.getElementById("build_documentData");
+      let documentFormDataEl = document.getElementById("build_filesData");
       if (documentFormDataEl === null) {
-        throw new Error("#build_documentData not found");
+        throw new Error("#build_filesData not found");
       }
       documentFormDataEl.replaceChildren(...inputs);
 
       window.htmx.trigger(event.target, "app_script");
     });
 
-    // build_documentChoose.
-    let documentChoose = document.getElementById("build_documentChoose");
+    // build_filesChoose.
+    let documentChoose = document.getElementById("build_filesChoose");
     if (documentChoose === null) {
-      throw new Error("#build_documentChoose not found");
+      throw new Error("#build_filesChoose not found");
     }
     documentChoose.addEventListener("change", async function (event) {
       event.preventDefault();
@@ -230,55 +230,55 @@
         inputs.push(typeInput);
 
         let dataInput = document.createElement("input");
-        dataInput.classList.add("build_documentDataFileData");
+        dataInput.classList.add("build_filesDataFileData");
         dataInput.type = "file";
         dataInput.name = `files/${i}/data`;
         dataInput.files = fileListFromFile(files[i]);
         inputs.push(dataInput);
       }
 
-      let documentFormDataEl = document.getElementById("build_documentData");
+      let documentFormDataEl = document.getElementById("build_filesData");
       if (documentFormDataEl === null) {
-        throw new Error("#build_documentData not found");
+        throw new Error("#build_filesData not found");
       }
       documentFormDataEl.replaceChildren(...inputs);
 
       window.htmx.trigger(event.target, "app_script");
     });
 
-    // build_documentChooseButton.
+    // build_filesChooseButton.
     let documentInputButton = document.getElementById(
-      "build_documentChooseButton",
+      "build_filesChooseButton",
     );
     if (documentInputButton === null) {
-      throw new Error("#build_documentChooseButton not found");
+      throw new Error("#build_filesChooseButton not found");
     }
     documentInputButton.addEventListener("click", async function (event) {
       event.preventDefault();
-      let documentChoose = document.getElementById("build_documentChoose");
+      let documentChoose = document.getElementById("build_filesChoose");
       if (documentChoose === null) {
-        throw new Error("#build_documentChoose not found");
+        throw new Error("#build_filesChoose not found");
       }
       documentChoose.click();
     });
   </script>
 {{end}}
 
-{{define "build_document"}}
+{{define "build_files"}}
   {{if .TreeFiles}}
-    {{template "build_documentWithFiles" .}}
+    {{template "build_filesWithFiles" .}}
   {{else}}
-    {{template "build_documentWithoutFiles" .}}
+    {{template "build_filesWithoutFiles" .}}
   {{end}}
 {{end}}
 
-{{define "build_documentWithoutFiles"}}
+{{define "build_filesWithoutFiles"}}
   <div
     class="my-5 rounded-lg border-2 border-dashed border-stone-200 px-2.5 py-20 dark:border-stone-700"
   >
     <p class="my-2.5 text-center font-semibold text-stone-900 dark:text-white">
       Drag and drop or
-      <button id="build_documentChooseButton" class="underline" type="button">
+      <button id="build_filesChooseButton" class="underline" type="button">
         choose files
       </button>
     </p>
@@ -286,19 +286,19 @@
   </div>
 {{end}}
 
-{{define "build_documentWithFiles"}}
+{{define "build_filesWithFiles"}}
   <div
     class="my-5 rounded-lg border-2 border-stone-200 p-2.5 dark:border-stone-700"
   >
     <ul>
       {{range .TreeFiles}}
-        <li>{{template "build_documentTreeFile" .}}</li>
+        <li>{{template "build_filesTreeFile" .}}</li>
       {{end}}
     </ul>
   </div>
 {{end}}
 
-{{define "build_documentTreeFile"}}
+{{define "build_filesTreeFile"}}
   <div>
     <div class="inline-flex items-baseline">
       {{if eq .Type "directory"}}
@@ -329,7 +329,7 @@
     {{if .Children}}
       <ul class="pl-3">
         {{range .Children}}
-          <li>{{template "build_documentTreeFile" .}}</li>
+          <li>{{template "build_filesTreeFile" .}}</li>
         {{end}}
       </ul>
     {{end}}
