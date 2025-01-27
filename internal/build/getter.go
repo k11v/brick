@@ -18,8 +18,15 @@ var (
 )
 
 type Getter struct {
-	DB *pgxpool.Pool // required
-	S3 *s3.Client    // required
+	DB  *pgxpool.Pool
+	STG *s3.Client
+}
+
+func NewGetter(db *pgxpool.Pool, stg *s3.Client) *Getter {
+	return &Getter{
+		DB:  db,
+		STG: stg,
+	}
 }
 
 type GetterGetParams struct {
@@ -61,7 +68,7 @@ func (g *Getter) CopyOutputData(ctx context.Context, w io.Writer, params *Getter
 	if b.Error != "" {
 		return fmt.Errorf("build.Getter: %w", ErrDoneWithError)
 	}
-	err = downloadData(ctx, g.S3, w, b.OutputDataKey)
+	err = downloadData(ctx, g.STG, w, b.OutputDataKey)
 	if err != nil {
 		return fmt.Errorf("build.Getter: %w", err)
 	}
@@ -76,7 +83,7 @@ func (g *Getter) CopyLogData(ctx context.Context, w io.Writer, params *GetterGet
 	if b.Status != StatusDone {
 		return fmt.Errorf("build.Getter: %w", ErrNotDone)
 	}
-	err = downloadData(ctx, g.S3, w, b.LogDataKey)
+	err = downloadData(ctx, g.STG, w, b.LogDataKey)
 	if err != nil {
 		return fmt.Errorf("build.Getter: %w", err)
 	}

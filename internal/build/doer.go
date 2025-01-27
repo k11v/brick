@@ -36,8 +36,15 @@ func (e *ExitError) Error() string {
 }
 
 type Doer struct {
-	DB *pgxpool.Pool // required
-	S3 *s3.Client    // required
+	DB  *pgxpool.Pool
+	STG *s3.Client
+}
+
+func NewDoer(db *pgxpool.Pool, stg *s3.Client) *Doer {
+	return &Doer{
+		DB:  db,
+		STG: stg,
+	}
 }
 
 type DoerDoParams struct {
@@ -132,7 +139,7 @@ func (r *Doer) Do(ctx context.Context, params *DoerDoParams) (*Build, error) {
 			}
 
 			var buf bytes.Buffer
-			err = downloadData(ctx, r.S3, &buf, buildInputFile.DataKey)
+			err = downloadData(ctx, r.STG, &buf, buildInputFile.DataKey)
 			if err != nil {
 				inputTarErrCh <- err
 				return
@@ -176,7 +183,7 @@ func (r *Doer) Do(ctx context.Context, params *DoerDoParams) (*Build, error) {
 		}()
 		go func() {
 			defer close(uploadLogDone)
-			err := uploadFileData(ctx, r.S3, b.LogDataKey, logReader)
+			err := uploadFileData(ctx, r.STG, b.LogDataKey, logReader)
 			if err != nil {
 				_ = logReader.CloseWithError(err) // TODO: Check if used correctly.
 				return
@@ -484,7 +491,7 @@ func (r *Doer) Do(ctx context.Context, params *DoerDoParams) (*Build, error) {
 			}()
 			go func() {
 				defer close(uploadOutputFileDone)
-				err := uploadFileData(ctx, r.S3, b.OutputDataKey, outputFileReader)
+				err := uploadFileData(ctx, r.STG, b.OutputDataKey, outputFileReader)
 				if err != nil {
 					_ = outputFileReader.CloseWithError(err) // TODO: Check if used correctly.
 					return

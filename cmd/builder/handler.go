@@ -67,8 +67,8 @@ func (h *Handler) Run(m amqp091.Delivery) {
 	}
 	id := *msg.ID
 
-	operationRunner := &build.Doer{DB: h.DB, S3: h.S3}
-	_, err = operationRunner.Do(ctx, &build.DoerDoParams{ID: id})
+	buildDoer := build.NewDoer(h.DB, h.S3)
+	_, err = buildDoer.Do(ctx, &build.DoerDoParams{ID: id})
 	if err != nil {
 		slog.Error("", "err", err)
 		_ = m.Nack(false, false)

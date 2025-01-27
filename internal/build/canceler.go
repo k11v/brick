@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,8 +34,11 @@ func ParseStatus(s string) (status Status, known bool) {
 }
 
 type Canceler struct {
-	DB *pgxpool.Pool       // required
-	S3 *s3.Client          // required
+	DB *pgxpool.Pool
+}
+
+func NewCanceler(db *pgxpool.Pool) *Canceler {
+	return &Canceler{DB: db}
 }
 
 type CancelerCancelParams struct {

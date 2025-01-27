@@ -89,11 +89,24 @@ func ParseFileType(s string) (fileType FileType, known bool) {
 }
 
 type Creator struct {
-	DB *pgxpool.Pool    // required
-	MQ *amqputil.Client // required
-	S3 *s3.Client       // required
+	DB  *pgxpool.Pool
+	MQ  *amqputil.Client
+	STG *s3.Client
 
 	BuildsAllowed int
+}
+
+type CreatorParams struct {
+	BuildsAllowed int
+}
+
+func NewCreator(db *pgxpool.Pool, mq *amqputil.Client, stg *s3.Client, params *CreatorParams) *Creator {
+	return &Creator{
+		DB:            db,
+		MQ:            mq,
+		STG:           stg,
+		BuildsAllowed: params.BuildsAllowed,
+	}
 }
 
 type CreatorCreateParams struct {
@@ -172,7 +185,7 @@ func (c *Creator) Create(ctx context.Context, params *CreatorCreateParams) (*Bui
 			panic("unimplemented")
 		}
 		_ = buildInputFile
-		err = uploadFileData(ctx, c.S3, dataKey, file.DataReader)
+		err = uploadFileData(ctx, c.STG, dataKey, file.DataReader)
 		if err != nil {
 			slog.Error("uploadFileContent", "err", err)
 			panic("unimplemented")

@@ -264,8 +264,8 @@ func newServer(db *pgxpool.Pool, mq *amqputil.Client, s3Client *s3.Client, conf 
 			}
 		}
 
-		operationCreator := &build.Creator{DB: db, MQ: mq, S3: s3Client, BuildsAllowed: 10}
-		operation, err := operationCreator.Create(r.Context(), &build.CreatorCreateParams{
+		buildCreator := build.NewCreator(db, mq, s3Client, &build.CreatorParams{BuildsAllowed: 10})
+		b, err := buildCreator.Create(r.Context(), &build.CreatorCreateParams{
 			UserID:         uuid.New(),
 			Files:          files,
 			IdempotencyKey: uuid.New(),
@@ -275,14 +275,14 @@ func newServer(db *pgxpool.Pool, mq *amqputil.Client, s3Client *s3.Client, conf 
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		_ = operation
+		_ = b
 
 		w.WriteHeader(http.StatusOK)
 		err = writeTemplate(w, "buildDiv", struct {
 			Operation    *build.Build
 			TimeLocation *time.Location
 		}{
-			Operation:    operation,
+			Operation:    b,
 			TimeLocation: timeLocation,
 		}, "main.tmpl")
 		if err != nil {
