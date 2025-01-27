@@ -7,22 +7,55 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
+
+	"github.com/k11v/brick/internal/build"
 )
 
-type fileWithoutData struct {
+type TreeFile struct {
+	BaseName string
+	Type     build.FileType
+	Children []*TreeFile
+}
+
+type ListFile struct {
 	Name string
-	Type string
+	Type build.FileType
+}
+
+func TreeFilesFromListFiles(listFiles []*ListFile) ([]*TreeFile, error) {
+	treeFiles := make(map[string]*TreeFile)
+	treeFiles["/"] = &TreeFile{
+		BaseName: "/",
+		Type:     build.FileTypeDirectory,
+		Children: make([]*TreeFile, 0),
+	}
+
+	for _, listFile := range listFiles {
+		name := listFile.Name
+		dirName := path.Dir(name)
+		if _, found := treeFiles[dirName]; !found {
+			return nil, fmt.Errorf("%s not found", dirName)
+		}
+		if _, found := treeFiles[name]; found {
+			return nil, fmt.Errorf("%s already exists", name)
+		}
+
+		treeFile := &TreeFile{
+			BaseName: path.Base(listFile.Name),
+			Type:     listFile.Type,
+			Children: make([]*TreeFile, 0),
+		}
+		treeFiles[name] = treeFile
+		treeFiles[dirName].Children = append(treeFiles[dirName].Children, treeFile)
+	}
+
+	return treeFiles["/"].Children, nil
 }
 
 type ExecuteDocumentParams struct {
-	DirEntries []*DirEntry
-}
-
-type DirEntry struct {
-	Name       string
-	Type       string
-	DirEntries []*DirEntry
+	TreeFiles []*TreeFile
 }
 
 func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
@@ -55,13 +88,13 @@ func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}
 
-	files := make([]*fileWithoutData, 0)
+	listFiles := make([]*ListFile, 0)
 
 FileLoop:
 	for i := 0; ; i++ {
 		var (
-			name string
-			typ  string
+			name      string
+			typString string
 		)
 
 	PartLoop:
@@ -92,7 +125,7 @@ FileLoop:
 					h.serveError(w, r, fmt.Errorf("%s form value: %w", formName, err))
 					return
 				}
-				typ = string(valueBytes)
+				typString = string(valueBytes)
 			case strings.HasPrefix(formName, fmt.Sprintf("files/%d/", i+1)):
 				err := unnextPart()
 				if err != nil {
@@ -106,73 +139,30 @@ FileLoop:
 			}
 		}
 
-		file := &fileWithoutData{
-			Name: name,
-			Type: typ,
-		}
-		files = append(files, file)
-	}
-
-	dirEntryFromName := make(map[string]*DirEntry)
-	dirEntryFromName["/"] = &DirEntry{
-		Name:       path.Base("/"),
-		Type:       "directory",
-		DirEntries: nil,
-	}
-
-	for i, file := range files {
-		if file.Name == "" {
-			formName := fmt.Sprintf("files/%d/name", i)
-			h.serveError(w, r, fmt.Errorf("%s form value empty or missing", formName))
-			return
-		}
-		name := path.Join("/", file.Name)
-
-		if file.Type == "" {
-			formName := fmt.Sprintf("files/%d/type", i)
-			h.serveError(w, r, fmt.Errorf("%s form value empty or missing", formName))
-			return
-		}
-		switch file.Type {
-		case "file", "directory":
-		default:
+		typ, known := build.ParseFileType(typString)
+		if !known {
 			formName := fmt.Sprintf("files/%d/type", i)
 			h.serveError(w, r, fmt.Errorf("%s form value unknown", formName))
 			return
 		}
-		typ := file.Type
 
-		if dirEntryFromName[name] != nil {
-			formName := fmt.Sprintf("files/%d/name", i)
-			h.serveError(w, r, fmt.Errorf("%s form value already exists", formName))
-			return
-		}
-		dirEntryFromName[name] = &DirEntry{
-			Name:       path.Base(name),
-			Type:       typ,
-			DirEntries: nil,
-		}
-
-		parentName := path.Dir(name)
-		if dirEntryFromName[parentName] == nil {
-			formName := fmt.Sprintf("files/%d/name", i)
-			h.serveError(w, r, fmt.Errorf("%s form value not found", formName))
-			return
-		}
-		if dirEntryFromName[parentName].Type != "directory" {
-			formName := fmt.Sprintf("files/%d/type", i)
-			h.serveError(w, r, fmt.Errorf("%s form value not directory", formName))
-			return
-		}
-		dirEntryFromName[parentName].DirEntries = append(
-			dirEntryFromName[parentName].DirEntries,
-			dirEntryFromName[name],
-		)
+		listFiles = append(listFiles, &ListFile{
+			Name: name,
+			Type: typ,
+		})
 	}
 
-	comp, err := h.execute("build_document", &ExecuteDocumentParams{
-		DirEntries: dirEntryFromName["/"].DirEntries,
+	slices.SortFunc(listFiles, func(a, b *ListFile) int {
+		return strings.Compare(a.Name, b.Name)
 	})
+
+	treeFiles, err := TreeFilesFromListFiles(listFiles)
+	if err != nil {
+		h.serveError(w, r, err)
+		return
+	}
+
+	comp, err := h.execute("build_document", &ExecuteDocumentParams{TreeFiles: treeFiles})
 	if err != nil {
 		h.serveError(w, r, err)
 		return

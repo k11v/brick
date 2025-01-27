@@ -184,7 +184,7 @@
         let typeInput = document.createElement("input");
         typeInput.type = "text";
         typeInput.name = `files/${i}/type`;
-        typeInput.value = entry.isFile ? "file" : "directory";
+        typeInput.value = entry.isFile ? "regular" : "directory";
         inputs.push(typeInput);
 
         if (entry.isFile) {
@@ -226,7 +226,7 @@
         let typeInput = document.createElement("input");
         typeInput.type = "text";
         typeInput.name = `files/${i}/type`;
-        typeInput.value = "file";
+        typeInput.value = "regular";
         inputs.push(typeInput);
 
         let dataInput = document.createElement("input");
@@ -265,7 +265,7 @@
 {{end}}
 
 {{define "build_document"}}
-  {{if .DirEntries}}
+  {{if .TreeFiles}}
     {{template "build_documentWithFiles" .}}
   {{else}}
     {{template "build_documentWithoutFiles" .}}
@@ -291,14 +291,14 @@
     class="my-5 rounded-lg border-2 border-stone-200 p-2.5 dark:border-stone-700"
   >
     <ul>
-      {{range .DirEntries}}
-        <li>{{template "build_documentDirEntry" .}}</li>
+      {{range .TreeFiles}}
+        <li>{{template "build_documentTreeFile" .}}</li>
       {{end}}
     </ul>
   </div>
 {{end}}
 
-{{define "build_documentDirEntry"}}
+{{define "build_documentTreeFile"}}
   <div>
     <div class="inline-flex items-baseline">
       {{if eq .Type "directory"}}
@@ -324,12 +324,12 @@
           />
         </svg>
       {{end}}
-      <span>{{.Name}}</span>
+      <span>{{.BaseName}}</span>
     </div>
-    {{if .DirEntries}}
+    {{if .Children}}
       <ul class="pl-3">
-        {{range .DirEntries}}
-          <li>{{template "build_documentDirEntry" .}}</li>
+        {{range .Children}}
+          <li>{{template "build_documentTreeFile" .}}</li>
         {{end}}
       </ul>
     {{end}}
