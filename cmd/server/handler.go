@@ -20,8 +20,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rabbitmq/amqp091-go"
 
+	"github.com/k11v/brick/internal/amqputil"
 	"github.com/k11v/brick/internal/build"
 )
 
@@ -36,7 +36,7 @@ type ExecuteErrorParams struct {
 
 type Handler struct {
 	db                 *pgxpool.Pool
-	mq                 *amqp091.Connection
+	mq                 *amqputil.Client
 	s3                 *s3.Client
 	fs                 fs.FS
 	jwtSignatureKey    ed25519.PrivateKey
@@ -49,7 +49,7 @@ type Handler struct {
 	internalServerErrorPage []byte
 }
 
-func NewHandler(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, fsys fs.FS, jwtSignatureKey ed25519.PrivateKey, jwtVerificationKey ed25519.PublicKey) *Handler {
+func NewHandler(db *pgxpool.Pool, mq *amqputil.Client, s3Client *s3.Client, fsys fs.FS, jwtSignatureKey ed25519.PrivateKey, jwtVerificationKey ed25519.PublicKey) *Handler {
 	h := &Handler{
 		db:                 db,
 		mq:                 mq,

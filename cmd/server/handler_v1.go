@@ -382,7 +382,7 @@ func (h *Handler) BuildFromCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	canceler := &build.Canceler{DB: h.db, MQ: h.mq, S3: h.s3}
+	canceler := &build.Canceler{DB: h.db, S3: h.s3}
 	b, err := canceler.Cancel(r.Context(), &build.CancelerCancelParams{
 		ID:     id,
 		UserID: userID,

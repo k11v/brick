@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rabbitmq/amqp091-go"
 )
 
 var (
@@ -37,7 +36,6 @@ func ParseStatus(s string) (status Status, known bool) {
 
 type Canceler struct {
 	DB *pgxpool.Pool       // required
-	MQ *amqp091.Connection // required
 	S3 *s3.Client          // required
 }
 

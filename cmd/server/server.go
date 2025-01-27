@@ -26,12 +26,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rabbitmq/amqp091-go"
 
+	"github.com/k11v/brick/internal/amqputil"
 	"github.com/k11v/brick/internal/build"
 )
 
-func NewServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, conf *Config) (*http.Server, error) {
+func NewServer(db *pgxpool.Pool, mq *amqputil.Client, s3Client *s3.Client, conf *Config) (*http.Server, error) {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
 	subLogger := slog.With("component", "server")
@@ -146,7 +146,7 @@ var templateFuncs = template.FuncMap{
 	},
 }
 
-func newServer(db *pgxpool.Pool, mq *amqp091.Connection, s3Client *s3.Client, conf *Config) *http.Server {
+func newServer(db *pgxpool.Pool, mq *amqputil.Client, s3Client *s3.Client, conf *Config) *http.Server {
 	addr := net.JoinHostPort(conf.host(), strconv.Itoa(conf.port()))
 
 	subLogger := slog.Default().With("component", "server")
