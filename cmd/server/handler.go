@@ -552,13 +552,3 @@ func (h *Handler) serveError(w http.ResponseWriter, _ *http.Request, err error) 
 	w.WriteHeader(http.StatusInternalServerError)
 	_, _ = w.Write(h.internalServerErrorPage)
 }
-
-// mustMatch reports whether name matches the shell pattern.
-// It panics only when when pattern is malformed.
-func mustMatch(pattern string, name string) (matched bool) {
-	matched, err := path.Match(pattern, name)
-	if err != nil {
-		panic(err)
-	}
-	return matched
-}
