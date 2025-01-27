@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 
+	"github.com/k11v/brick/internal/amqputil"
 	"github.com/k11v/brick/internal/run/runs3"
 )
 
@@ -88,9 +89,9 @@ func ParseFileType(s string) (fileType FileType, known bool) {
 }
 
 type Creator struct {
-	DB *pgxpool.Pool       // required
-	MQ *amqp091.Connection // required
-	S3 *s3.Client          // required
+	DB *pgxpool.Pool    // required
+	MQ *amqputil.Client // required
+	S3 *s3.Client       // required
 
 	BuildsAllowed int
 }
@@ -348,7 +349,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.R
 	return nil
 }
 
-func sendCreated(ctx context.Context, mq *amqp091.Connection, b *Build) error {
+func sendCreated(ctx context.Context, mq *amqputil.Client, b *Build) error {
 	type message struct {
 		ID             uuid.UUID `json:"id"`
 		CreatedAt      time.Time `json:"created_at"`
@@ -379,22 +380,11 @@ func sendCreated(ctx context.Context, mq *amqp091.Connection, b *Build) error {
 		return err
 	}
 
-	ch, err := mq.Channel()
-	if err != nil {
-		return err
-	}
-	defer ch.Close()
-
-	q, err := ch.QueueDeclare("build.created", false, false, false, false, nil)
-	if err != nil {
-		return err
-	}
-
 	m := amqp091.Publishing{
 		ContentType: "application/json",
 		Body:        msgBuf.Bytes(),
 	}
-	err = ch.PublishWithContext(ctx, "", q.Name, false, false, m)
+	err := mq.Publish(ctx, "", "build.created", false, false, m)
 	if err != nil {
 		return err
 	}

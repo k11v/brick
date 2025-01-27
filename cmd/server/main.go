@@ -8,8 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/rabbitmq/amqp091-go"
-
+	"github.com/k11v/brick/internal/amqputil"
 	"github.com/k11v/brick/internal/run/runpg"
 	"github.com/k11v/brick/internal/run/runs3"
 )
@@ -24,16 +23,12 @@ func main() {
 			return 1
 		}
 		defer db.Close()
-		mq, err := amqp091.Dial("amqp://guest:guest@127.0.0.1:5672/")
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			return 1
-		}
-		defer func() {
-			_ = mq.Close()
-		}()
+		mqClient := amqputil.NewClient(
+			"amqp://guest:guest@127.0.0.1:5672/",
+			&amqputil.QueueDeclareParams{Name: "build.created"},
+		)
 		s3Client := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
-		server, err := NewServer(db, mq, s3Client, &Config{
+		server, err := NewServer(db, mqClient, s3Client, &Config{
 			JWTSignatureKeyFile:    ".run/jwt/private.pem",
 			JWTVerificationKeyFile: ".run/jwt/public.pem",
 		})
