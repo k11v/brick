@@ -184,7 +184,7 @@ type DirEntry struct {
 	DirEntries []*DirEntry
 }
 
-func (h *Handler) DocumentFromChange(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) FilesChangeToFiles(w http.ResponseWriter, r *http.Request) {
 	mr, err := r.MultipartReader()
 	if err != nil {
 		h.serveError(w, r, fmt.Errorf("request: %w", err))
@@ -346,9 +346,9 @@ type ExecuteMainParams struct {
 	Files []*build.File
 }
 
-// MainFromBuildButtonClick.
+// BuildButtonClickToMain.
 // For status code 400, it responds with build_error.
-func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) BuildButtonClickToMain(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Header X-Idempotency-Key.
@@ -514,7 +514,7 @@ func (h *Handler) MainFromBuildButtonClick(w http.ResponseWriter, r *http.Reques
 	_, _ = w.Write(comp)
 }
 
-func (h *Handler) DocumentFromClearButtonClick(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ClearButtonClickToFiles(w http.ResponseWriter, r *http.Request) {
 	panic("not implemented")
 }
 
@@ -522,17 +522,17 @@ func (h *Handler) Main(w http.ResponseWriter, r *http.Request) {
 	panic("not implemented")
 }
 
-func (h *Handler) MainFromCancelButtonClick(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CancelButtonClickToMain(w http.ResponseWriter, r *http.Request) {
 	panic("not implemented")
 }
 
-// MainFromNewButtonClick responds with build_main for a new build
+// NewButtonClickToMain responds with build_main for a new build
 // and cancels the current build if it is still cancelable.
-func (h *Handler) MainFromNewButtonClick(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) NewButtonClickToMain(w http.ResponseWriter, r *http.Request) {
 	panic("not implemented")
 }
 
-func (h *Handler) OutputFileFromDownloadButtonClick(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DownloadButtonClickToOutputFile(w http.ResponseWriter, r *http.Request) {
 	panic("not implemented")
 }
 

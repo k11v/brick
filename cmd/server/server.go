@@ -36,20 +36,11 @@ func NewServer(db *pgxpool.Pool, mq *amqputil.Client, s3Client *s3.Client, conf 
 
 	mux := &http.ServeMux{}
 
-	mux.HandleFunc("GET /", h.NotFoundPage)
-	mux.HandleFunc("GET /static/", h.StaticFile)
-
 	mux.HandleFunc("GET /{$}", h.Page)
-	mux.HandleFunc("POST /build_documentFromChange", h.DocumentFromChange)
-	mux.HandleFunc("POST /build_mainFromBuildButtonClick", h.MainFromBuildButtonClick)
-
-	mux.HandleFunc("GET /Build", h.BuildV1)
-	mux.HandleFunc("GET /BuildOutputFile", h.BuildOutputFile)
-	mux.HandleFunc("GET /BuildLog", h.BuildLog)
-	mux.HandleFunc("POST /BuildFromBuild", h.BuildFromBuild)
-	mux.HandleFunc("POST /BuildFromCancel", h.BuildFromCancel)
-	mux.HandleFunc("POST /HeaderFromSignIn", h.HeaderFromSignIn)
-	mux.HandleFunc("POST /HeaderFromSignOut", h.HeaderFromSignOut)
+	mux.HandleFunc("POST /build_filesChangeToFiles", h.FilesChangeToFiles)
+	mux.HandleFunc("POST /build_buildButtonClickToMain", h.BuildButtonClickToMain)
+	mux.HandleFunc("GET /static/", h.StaticFile)
+	mux.HandleFunc("GET /", h.NotFoundPage)
 
 	muxWithMiddlewares := h.AccessTokenCookieSetter(mux)
 
