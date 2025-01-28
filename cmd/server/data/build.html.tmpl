@@ -28,6 +28,74 @@
 </html>
 
 {{define "build_main"}}
+  {{if .Build}}
+    {{if eq .Build.Error "canceled"}}
+      {{template "build_mainWithCanceled" .}}
+    {{else if .Build.Error}}
+      {{template "build_mainWithFailed" .}}
+    {{else if eq .Build.Status "todo"}}
+      {{template "build_mainWithPending" .}}
+    {{else if eq .Build.Status "doing"}}
+      {{template "build_mainWithBuilding" .}}
+    {{else if eq .Build.Status "done"}}
+      {{template "build_mainWithReady" .}}
+    {{else}}
+      {{template "build_mainWithBuilding" .}}
+    {{end}}
+  {{else}}
+    {{template "build_mainWithNew" .}}
+  {{end}}
+{{end}}
+
+{{define "build_mainWithPending"}}
+  <main id="build_main" class="mb-auto p-5">
+    <div class="container mx-auto">
+      <h1 class="text-4xl font-extrabold text-stone-900 dark:text-white">
+        Pending
+      </h1>
+      <p class="my-5">...</p>
+      <div id="build_files">{{template "build_files" .Files}}</div>
+      <div class="my-5 flex gap-x-2.5">
+        <button
+          class="rounded-lg border-2 border-black bg-black px-5 py-2.5 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
+          type="button"
+          disabled
+        >
+          Download
+        </button>
+        <button
+          class="rounded-lg border-2 border-stone-200 bg-white px-5 py-2.5 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
+          type="button"
+          hx-target="#build_main"
+          hx-swap="outerHTML"
+          hx-post="/build_cancelButtonClickToMain"
+          hx-vals="{{json "id" .Build.ID}}"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </main>
+{{end}}
+
+{{define "build_mainWithBuilding"}}
+  Building
+{{end}}
+
+{{define "build_mainWithReady"}}
+  Ready
+{{end}}
+
+{{define "build_mainWithFailed"}}
+  <p>Failed</p>
+  <p>.Build.Error</p>
+{{end}}
+
+{{define "build_mainWithCanceled"}}
+  Canceled
+{{end}}
+
+{{define "build_mainWithNew"}}
   <main id="build_main" class="mb-auto p-5">
     <div class="container mx-auto">
       <h1 class="text-4xl font-extrabold text-stone-900 dark:text-white">
