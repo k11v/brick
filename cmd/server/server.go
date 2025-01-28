@@ -39,6 +39,7 @@ func NewServer(db *pgxpool.Pool, mq *amqputil.Client, s3Client *s3.Client, conf 
 	mux.HandleFunc("GET /{$}", h.Page)
 	mux.HandleFunc("POST /build_filesChangeToFiles", h.FilesChangeToFiles)
 	mux.HandleFunc("POST /build_buildButtonClickToMain", h.BuildButtonClickToMain)
+	mux.HandleFunc("POST /build_cancelButtonClickToMain", h.CancelButtonClickToMain)
 	mux.HandleFunc("GET /static/", h.StaticFile)
 	mux.HandleFunc("GET /", h.NotFoundPage)
 
