@@ -1,4 +1,4 @@
-package runpg
+package apppg
 
 import (
 	"database/sql"
