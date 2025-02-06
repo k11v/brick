@@ -22,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 
-	"github.com/k11v/brick/internal/amqputil"
+	"github.com/k11v/brick/internal/appamqp"
 	"github.com/k11v/brick/internal/run/runs3"
 )
 
@@ -90,7 +90,7 @@ func ParseFileType(s string) (fileType FileType, known bool) {
 
 type Creator struct {
 	DB  *pgxpool.Pool
-	MQ  *amqputil.Client
+	MQ  *appamqp.Client
 	STG *s3.Client
 
 	BuildsAllowed int
@@ -100,7 +100,7 @@ type CreatorParams struct {
 	BuildsAllowed int
 }
 
-func NewCreator(db *pgxpool.Pool, mq *amqputil.Client, stg *s3.Client, params *CreatorParams) *Creator {
+func NewCreator(db *pgxpool.Pool, mq *appamqp.Client, stg *s3.Client, params *CreatorParams) *Creator {
 	return &Creator{
 		DB:            db,
 		MQ:            mq,
@@ -363,7 +363,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.R
 	return nil
 }
 
-func sendCreated(ctx context.Context, mq *amqputil.Client, b *Build) error {
+func sendCreated(ctx context.Context, mq *appamqp.Client, b *Build) error {
 	type message struct {
 		ID             uuid.UUID `json:"id"`
 		CreatedAt      time.Time `json:"created_at"`

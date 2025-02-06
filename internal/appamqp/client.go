@@ -1,4 +1,4 @@
-package amqputil
+package appamqp
 
 import (
 	"context"
