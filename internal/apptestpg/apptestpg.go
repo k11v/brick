@@ -1,4 +1,4 @@
-package runtestpg
+package apptestpg
 
 import (
 	"context"
