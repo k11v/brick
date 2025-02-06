@@ -1,4 +1,4 @@
-package appamqp
+package app
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-type QueueDeclareParams struct {
+type AMQPQueueDeclareParams struct {
 	Name       string
 	Durable    bool
 	AutoDelete bool
@@ -15,20 +15,20 @@ type QueueDeclareParams struct {
 	Args       amqp091.Table
 }
 
-type Client struct {
+type AMQPClient struct {
 	connectionString   string
-	queueDeclareParams *QueueDeclareParams
+	queueDeclareParams *AMQPQueueDeclareParams
 }
 
-func NewClient(connectionString string, queueDeclareParams *QueueDeclareParams) *Client {
-	return &Client{
+func NewAMQPClient(connectionString string, queueDeclareParams *AMQPQueueDeclareParams) *AMQPClient {
+	return &AMQPClient{
 		connectionString:   connectionString,
 		queueDeclareParams: queueDeclareParams,
 	}
 }
 
 // Publish proxies [amqp091.Channel.PublishWithContext].
-func (cli *Client) Publish(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp091.Publishing) error {
+func (cli *AMQPClient) Publish(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp091.Publishing) error {
 	conn, err := amqp091.Dial(cli.connectionString)
 	if err != nil {
 		return err

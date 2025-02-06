@@ -1,4 +1,4 @@
-package apps3
+package app
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	transport "github.com/aws/smithy-go/endpoints"
 )
 
-// NewClient creates a new Client using the provided connection string.
+// NewS3Client creates a new Client using the provided connection string.
 // The connection string must be a valid URL in the format: http://key:secret@s3:9000.
 // For MinIO, the key and secret are the username and password respectively.
 // It panics if the connection string is not a valid URL.
-func NewClient(connectionString string) *s3.Client {
+func NewS3Client(connectionString string) *s3.Client {
 	u, err := url.Parse(connectionString)
 	if err != nil {
 		panic(err)
@@ -26,19 +26,19 @@ func NewClient(connectionString string) *s3.Client {
 	client := s3.New(
 		s3.Options{
 			Credentials:        credentials.NewStaticCredentialsProvider(username, password, ""),
-			EndpointResolverV2: &endpointResolver{BaseURL: u},
+			EndpointResolverV2: &s3EndpointResolver{BaseURL: u},
 		},
 	)
 	return client
 }
 
-// endpointResolver implements s3.EndpointResolverV2.
+// s3EndpointResolver implements s3.EndpointResolverV2.
 // It resolves endpoints for S3-compatible object storage like MinIO.
-type endpointResolver struct {
+type s3EndpointResolver struct {
 	BaseURL *url.URL // required
 }
 
-func (r *endpointResolver) ResolveEndpoint(_ context.Context, params s3.EndpointParameters) (transport.Endpoint, error) {
+func (r *s3EndpointResolver) ResolveEndpoint(_ context.Context, params s3.EndpointParameters) (transport.Endpoint, error) {
 	u := *r.BaseURL
 	u.Path += "/" + *params.Bucket
 	return transport.Endpoint{URI: u}, nil

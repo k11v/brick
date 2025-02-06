@@ -1,4 +1,4 @@
-package apppg
+package app
 
 import (
 	"database/sql"
@@ -13,29 +13,29 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func Setup(connectionString string) error {
+func SetupPostgres(connectionString string) error {
 	db, err := sql.Open("pgx", connectionString)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	return migrateDB(db)
+	return migratePostgresDB(db)
 }
 
 //go:embed migrations/*.sql
-var migrations embed.FS
+var postgresMigrations embed.FS
 
-func migrationsFS() fs.FS {
-	sub, err := fs.Sub(migrations, "migrations")
+func postgresMigrationsFS() fs.FS {
+	sub, err := fs.Sub(postgresMigrations, "migrations")
 	if err != nil {
 		panic(err)
 	}
 	return sub
 }
 
-func migrateDB(db *sql.DB) error {
-	sourceDriver, err := iofs.New(migrationsFS(), ".")
+func migratePostgresDB(db *sql.DB) error {
+	sourceDriver, err := iofs.New(postgresMigrationsFS(), ".")
 	if err != nil {
 		return err
 	}

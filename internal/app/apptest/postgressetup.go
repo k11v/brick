@@ -1,4 +1,4 @@
-package apptestpg
+package apptest
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/k11v/brick/internal/apppg"
+	"github.com/k11v/brick/internal/app"
 )
 
-func Setup(ctx context.Context) (connectionString string, teardown func() error, err error) {
+func SetupPostgres(ctx context.Context) (connectionString string, teardown func() error, err error) {
 	db := "postgres"
 	password := "postgres"
 	user := "postgres"
@@ -62,7 +62,7 @@ func Setup(ctx context.Context) (connectionString string, teardown func() error,
 		db,
 	)
 
-	if err = apppg.Setup(connectionString); err != nil {
+	if err = app.SetupPostgres(connectionString); err != nil {
 		return "", nil, err
 	}
 

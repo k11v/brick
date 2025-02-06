@@ -22,8 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rabbitmq/amqp091-go"
 
-	"github.com/k11v/brick/internal/appamqp"
-	"github.com/k11v/brick/internal/apps3"
+	"github.com/k11v/brick/internal/app"
 )
 
 var (
@@ -90,7 +89,7 @@ func ParseFileType(s string) (fileType FileType, known bool) {
 
 type Creator struct {
 	DB  *pgxpool.Pool
-	MQ  *appamqp.Client
+	MQ  *app.AMQPClient
 	STG *s3.Client
 
 	BuildsAllowed int
@@ -100,7 +99,7 @@ type CreatorParams struct {
 	BuildsAllowed int
 }
 
-func NewCreator(db *pgxpool.Pool, mq *appamqp.Client, stg *s3.Client, params *CreatorParams) *Creator {
+func NewCreator(db *pgxpool.Pool, mq *app.AMQPClient, stg *s3.Client, params *CreatorParams) *Creator {
 	return &Creator{
 		DB:            db,
 		MQ:            mq,
@@ -341,7 +340,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.R
 	})
 
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket: &apps3.BucketName,
+		Bucket: &app.S3BucketName,
 		Key:    &key,
 		Body:   r,
 	})
@@ -353,7 +352,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.R
 	}
 
 	err = s3.NewObjectExistsWaiter(s3Client).Wait(ctx, &s3.HeadObjectInput{
-		Bucket: &apps3.BucketName,
+		Bucket: &app.S3BucketName,
 		Key:    &key,
 	}, time.Minute)
 	if err != nil {
@@ -363,7 +362,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.R
 	return nil
 }
 
-func sendCreated(ctx context.Context, mq *appamqp.Client, b *Build) error {
+func sendCreated(ctx context.Context, mq *app.AMQPClient, b *Build) error {
 	type message struct {
 		ID             uuid.UUID `json:"id"`
 		CreatedAt      time.Time `json:"created_at"`
