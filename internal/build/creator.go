@@ -23,7 +23,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 
 	"github.com/k11v/brick/internal/appamqp"
-	"github.com/k11v/brick/internal/run/runs3"
+	"github.com/k11v/brick/internal/apps3"
 )
 
 var (
@@ -341,7 +341,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.R
 	})
 
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket: &runs3.BucketName,
+		Bucket: &apps3.BucketName,
 		Key:    &key,
 		Body:   r,
 	})
@@ -353,7 +353,7 @@ func uploadFileData(ctx context.Context, s3Client *s3.Client, key string, r io.R
 	}
 
 	err = s3.NewObjectExistsWaiter(s3Client).Wait(ctx, &s3.HeadObjectInput{
-		Bucket: &runs3.BucketName,
+		Bucket: &apps3.BucketName,
 		Key:    &key,
 	}, time.Minute)
 	if err != nil {

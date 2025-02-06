@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/k11v/brick/internal/apppg"
-	"github.com/k11v/brick/internal/run/runs3"
+	"github.com/k11v/brick/internal/apps3"
 )
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = runs3.Setup(ctx, "http://minioadmin:minioadmin@127.0.0.1:9000")
+	err = apps3.Setup(ctx, "http://minioadmin:minioadmin@127.0.0.1:9000")
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
