@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/k11v/brick/internal/apppg"
-	"github.com/k11v/brick/internal/run/runs3"
+	"github.com/k11v/brick/internal/apps3"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 			return 1
 		}
 		defer db.Close()
-		s3 := runs3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
+		s3 := apps3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
 		worker := &Worker{DB: db, S3: s3}
 
 		slog.Info("starting worker")
