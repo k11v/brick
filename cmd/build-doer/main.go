@@ -6,21 +6,20 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/k11v/brick/internal/apppg"
-	"github.com/k11v/brick/internal/apps3"
+	"github.com/k11v/brick/internal/app"
 )
 
 func main() {
 	run := func() int {
 		ctx := context.Background()
 
-		db, err := apppg.NewPool(ctx, "postgres://postgres:postgres@127.0.0.1:5432/postgres")
+		db, err := app.NewPostgresPool(ctx, "postgres://postgres:postgres@127.0.0.1:5432/postgres")
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return 1
 		}
 		defer db.Close()
-		s3 := apps3.NewClient("http://minioadmin:minioadmin@127.0.0.1:9000")
+		s3 := app.NewS3Client("http://minioadmin:minioadmin@127.0.0.1:9000")
 		worker := &Worker{DB: db, S3: s3}
 
 		slog.Info("starting worker")

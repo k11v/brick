@@ -22,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/k11v/brick/internal/apps3"
+	"github.com/k11v/brick/internal/app"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -608,7 +608,7 @@ func downloadData(ctx context.Context, s3Client *s3.Client, w io.Writer, key str
 
 	// fakeWriterAt needs manager.Downloader.Concurrency set to 1.
 	_, err := downloader.Download(ctx, fakeWriterAt{w}, &s3.GetObjectInput{
-		Bucket: &apps3.BucketName,
+		Bucket: &app.S3BucketName,
 		Key:    &key,
 	})
 	if err != nil {
