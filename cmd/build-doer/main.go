@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/k11v/brick/internal/run/runpg"
+	"github.com/k11v/brick/internal/apppg"
 	"github.com/k11v/brick/internal/run/runs3"
 )
 
@@ -14,7 +14,7 @@ func main() {
 	run := func() int {
 		ctx := context.Background()
 
-		db, err := runpg.NewPool(ctx, "postgres://postgres:postgres@127.0.0.1:5432/postgres")
+		db, err := apppg.NewPool(ctx, "postgres://postgres:postgres@127.0.0.1:5432/postgres")
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return 1

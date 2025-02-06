@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/k11v/brick/internal/run/runpg"
+	"github.com/k11v/brick/internal/apppg"
 )
 
 func Setup(ctx context.Context) (connectionString string, teardown func() error, err error) {
@@ -62,7 +62,7 @@ func Setup(ctx context.Context) (connectionString string, teardown func() error,
 		db,
 	)
 
-	if err = runpg.Setup(connectionString); err != nil {
+	if err = apppg.Setup(connectionString); err != nil {
 		return "", nil, err
 	}
 
