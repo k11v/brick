@@ -6,6 +6,8 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
+const AMQPQueueBuildCreated = "build.created"
+
 type AMQPQueueDeclareParams struct {
 	Name       string
 	Durable    bool
