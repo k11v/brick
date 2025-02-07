@@ -23,7 +23,7 @@ func SetupPostgres(connectionString string) error {
 	return migratePostgresDB(db)
 }
 
-//go:embed migrations/*.sql
+//go:embed migrationsdata/*.sql
 var postgresMigrations embed.FS
 
 func postgresMigrationsFS() fs.FS {
