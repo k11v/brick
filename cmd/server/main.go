@@ -109,7 +109,7 @@ func run(cfg *Config) error {
 
 	s3Client := app.NewS3Client(cfg.MinIOConnectionString)
 
-	server, err := NewServer(postgresPool, amqpClient, s3Client, cfg)
+	server, err := NewServer(postgresPool, amqpClient, s3Client, staticFS, cfg)
 	if err != nil {
 		return err
 	}
