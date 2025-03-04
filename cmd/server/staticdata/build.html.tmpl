@@ -1,0 +1,83 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown to PDF | Brick</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="shortcut icon" href="/static/images/favicon.ico" />
+    <link rel="stylesheet" href="/static/styles/kanit.css" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  </head>
+  <body
+    class="flex min-h-screen flex-col bg-white text-stone-700 dark:bg-stone-900 dark:text-stone-300"
+  >
+    {{template "app_header"}}
+    {{template "build_main" .}}
+    {{template "app_footer"}}
+  </body>
+</html>
+
+{{define "build_main"}}
+  {{if .Build}}
+    {{template "build_mainWithBuild" .}}
+  {{else}}
+    {{template "build_mainWithBuildCreator" .}}
+  {{end}}
+{{end}}
+
+{{define "build_mainWithBuild"}}
+  {{if eq .Build.Status "todo"}}
+    {{template "build_mainWithBuildTodo" .}}
+  {{else if eq .Build.Status "doing"}}
+    {{template "build_mainWithBuildDoing" .}}
+  {{else if and (eq .Build.Status "done") (not .Build.Error)}}
+    {{template "build_mainWithBuildDone" .}}
+  {{else}}
+    {{template "build_mainWithBuildError" .}}
+  {{end}}
+{{end}}
+
+{{define "build_mainWithBuildTodo"}}
+  <main class="mb-auto p-5">
+    <div class="container mx-auto">
+      <h1 class="text-4xl font-extrabold text-stone-900 dark:text-white">
+        Pending
+      </h1>
+      <p class="my-5">Pending.</p>
+      <div>{{template "build_files" .Files}}</div>
+      <div class="my-5 flex gap-x-2.5">
+        <button
+          class="rounded-lg border-2 border-black bg-black px-5 py-2.5 font-semibold text-white hover:bg-[#1F1C1A] active:bg-stone-800 dark:border-white dark:bg-white dark:text-stone-900 dark:hover:bg-stone-100 dark:active:bg-stone-200"
+          type="button"
+          disabled
+        >
+          Download
+        </button>
+        <button
+          class="rounded-lg border-2 border-stone-200 bg-white px-5 py-2.5 font-semibold text-stone-900 hover:bg-stone-50 active:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-white dark:hover:bg-[#262221] dark:active:bg-stone-800"
+          type="button"
+          hx-target="#build_main"
+          hx-swap="outerHTML"
+          hx-post="/build_cancelButtonClickToMain"
+          hx-vals="{{json "id" .Build.ID}}"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </main>
+{{end}}
+
+{{define "build_mainWithBuildDoing"}}
+{{end}}
+
+{{define "build_mainWithBuildDone"}}
+{{end}}
+
+{{define "build_mainWithBuildError"}}
+{{end}}
